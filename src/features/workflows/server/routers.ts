@@ -1,7 +1,7 @@
 import { generateSlug } from "random-word-slugs";
 import prisma from "@/lib/db";
 import type { Node, Edge } from "@xyflow/react";
-import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { NodeType } from "@/generated/prisma";
@@ -9,13 +9,13 @@ import { inngest } from "@/inngest/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 
 export const workflowsRouter = createTRPCRouter({
-  execute: protectedProcedure
+  execute: organizationProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ input, ctx }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: {
           id: input.id,
-          userId: ctx.auth.user.id,
+          organizationId: ctx.organizationId,
         },
       });
 
@@ -25,11 +25,11 @@ export const workflowsRouter = createTRPCRouter({
 
       return workflow;
     }),
-  create: premiumProcedure.mutation(({ ctx }) => {
+  create: organizationProcedure.mutation(({ ctx }) => {
     return prisma.workflow.create({
       data: {
         name: generateSlug(3),
-        userId: ctx.auth.user.id,
+        organizationId: ctx.organizationId,
         nodes: {
           create: {
             type: NodeType.INITIAL,
@@ -40,17 +40,17 @@ export const workflowsRouter = createTRPCRouter({
       },
     });
   }),
-  remove: protectedProcedure
+  remove: organizationProcedure
     .input(z.object({ id: z.string() }))
     .mutation(({ ctx, input }) => {
       return prisma.workflow.delete({
         where: {
           id: input.id,
-          userId: ctx.auth.user.id,
+          organizationId: ctx.organizationId,
         },
       })
     }),
-  update: protectedProcedure
+  update: organizationProcedure
     .input(
       z.object({ 
         id: z.string(), 
@@ -76,7 +76,7 @@ export const workflowsRouter = createTRPCRouter({
       const { id, nodes, edges } = input;
 
       const workflow = await prisma.workflow.findUniqueOrThrow({
-        where: { id, userId: ctx.auth.user.id },
+        where: { id, organizationId: ctx.organizationId },
       });
 
       // Transaction to ensure consistency
@@ -118,19 +118,19 @@ export const workflowsRouter = createTRPCRouter({
         return workflow;
       });
     }),
-  updateName: protectedProcedure
+  updateName: organizationProcedure
     .input(z.object({ id: z.string(), name: z.string().min(1) }))
     .mutation(({ ctx, input }) => {
       return prisma.workflow.update({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.organizationId },
         data: { name: input.name },
       });
     }),
-  getOne: protectedProcedure
+  getOne: organizationProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.organizationId },
         include: { nodes: true, connections: true },
       });
 
@@ -158,7 +158,7 @@ export const workflowsRouter = createTRPCRouter({
         edges,
       };
     }),
-  getMany: protectedProcedure
+  getMany: organizationProcedure
     .input(
       z.object({
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
@@ -178,7 +178,7 @@ export const workflowsRouter = createTRPCRouter({
           skip: (page - 1) * pageSize,
           take: pageSize,
           where: { 
-            userId: ctx.auth.user.id,
+            organizationId: ctx.organizationId,
             name: {
               contains: search,
               mode: "insensitive",
@@ -190,7 +190,7 @@ export const workflowsRouter = createTRPCRouter({
         }),
         prisma.workflow.count({
           where: {
-            userId: ctx.auth.user.id,
+            organizationId: ctx.organizationId,
             name: {
               contains: search,
               mode: "insensitive",

@@ -11,6 +11,11 @@ export const requireAuth = async () => {
     redirect("/login");
   }
 
+  // Check if user has selected an organization
+  if (!session.session.activeOrganizationId) {
+    redirect("/select-organization");
+  }
+
   return session;
 };
 

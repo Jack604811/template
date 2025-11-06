@@ -6,11 +6,13 @@ import {
   HistoryIcon,
   KeyIcon,
   LogOutIcon,
+  SettingsIcon,
   StarIcon,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { Suspense } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -24,6 +26,7 @@ import {
 } from "@/components/ui/sidebar";
 import { authClient } from "@/lib/auth-client";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
+import { OrganizationSwitcher } from "@/features/organizations/components/organization-switcher";
 
 const menuItems = [
   {
@@ -44,6 +47,11 @@ const menuItems = [
         icon: HistoryIcon,
         url: "/executions",
       },
+      {
+        title: "Settings",
+        icon: SettingsIcon,
+        url: "/settings/organization",
+      },
     ],
   }
 ];
@@ -56,14 +64,21 @@ export const AppSidebar = () => {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <SidebarMenuItem>
-          <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
-            <Link href="/" prefetch>
-              <Image src="/logos/logo.svg" alt="Nodebase" width={30} height={30} />
-              <span className="font-semibold text-sm">Nodebase</span>
-            </Link>
-          </SidebarMenuButton>
-        </SidebarMenuItem>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
+              <Link href="/" prefetch>
+                <Image src="/logos/logo.svg" alt="Nodebase" width={30} height={30} />
+                <span className="font-semibold text-sm">Nodebase</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <Suspense fallback={<div className="h-10" />}>
+              <OrganizationSwitcher />
+            </Suspense>
+          </SidebarMenuItem>
+        </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
         {menuItems.map((group) => (

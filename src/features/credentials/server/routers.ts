@@ -1,12 +1,12 @@
 import prisma from "@/lib/db";
-import { createTRPCRouter, premiumProcedure, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { CredentialType } from "@/generated/prisma";
 import { encrypt } from "@/lib/encryption";
 
 export const credentialsRouter = createTRPCRouter({
-  create: premiumProcedure
+  create: organizationProcedure
     .input(
       z.object({
         name: z.string().min(1, "Name is required"),
@@ -20,23 +20,23 @@ export const credentialsRouter = createTRPCRouter({
       return prisma.credential.create({
         data: {
           name,
-          userId: ctx.auth.user.id,
+          organizationId: ctx.organizationId,
           type,
           value: encrypt(value),
         },
       });
   }),
-  remove: protectedProcedure
+  remove: organizationProcedure
     .input(z.object({ id: z.string() }))
     .mutation(({ ctx, input }) => {
       return prisma.credential.delete({
         where: {
           id: input.id,
-          userId: ctx.auth.user.id,
+          organizationId: ctx.organizationId,
         },
       })
     }),
-  update: protectedProcedure
+  update: organizationProcedure
     .input(
       z.object({ 
         id: z.string(), 
@@ -49,7 +49,7 @@ export const credentialsRouter = createTRPCRouter({
       const { id, name, type, value } = input;
 
       return prisma.credential.update({
-        where: { id, userId: ctx.auth.user.id },
+        where: { id, organizationId: ctx.organizationId },
         data: {
           name,
           type,
@@ -57,14 +57,14 @@ export const credentialsRouter = createTRPCRouter({
         }
       });
     }),
-  getOne: protectedProcedure
+  getOne: organizationProcedure
     .input(z.object({ id: z.string() }))
     .query(({ ctx, input }) => {
       return prisma.credential.findUniqueOrThrow({
-        where: { id: input.id, userId: ctx.auth.user.id },
+        where: { id: input.id, organizationId: ctx.organizationId },
       });
     }),
-  getMany: protectedProcedure
+  getMany: organizationProcedure
     .input(
       z.object({
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
@@ -84,7 +84,7 @@ export const credentialsRouter = createTRPCRouter({
           skip: (page - 1) * pageSize,
           take: pageSize,
           where: { 
-            userId: ctx.auth.user.id,
+            organizationId: ctx.organizationId,
             name: {
               contains: search,
               mode: "insensitive",
@@ -96,7 +96,7 @@ export const credentialsRouter = createTRPCRouter({
         }),
         prisma.credential.count({
           where: {
-            userId: ctx.auth.user.id,
+            organizationId: ctx.organizationId,
             name: {
               contains: search,
               mode: "insensitive",
@@ -119,7 +119,7 @@ export const credentialsRouter = createTRPCRouter({
         hasPreviousPage,
       };
     }),
-  getByType: protectedProcedure
+  getByType: organizationProcedure
     .input(
       z.object({
         type: z.enum(CredentialType),
@@ -129,7 +129,7 @@ export const credentialsRouter = createTRPCRouter({
       const { type } = input;
 
       return prisma.credential.findMany({
-        where: { type, userId: ctx.auth.user.id },
+        where: { type, organizationId: ctx.organizationId },
         orderBy: {
           updatedAt: "desc",
         },

@@ -1,17 +1,17 @@
 import prisma from "@/lib/db";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 
 export const executionsRouter = createTRPCRouter({
-  getOne: protectedProcedure
+  getOne: organizationProcedure
     .input(z.object({ id: z.string() }))
     .query(({ ctx, input }) => {
       return prisma.execution.findUniqueOrThrow({
         where: { 
           id: input.id, 
           workflow: { 
-            userId: ctx.auth.user.id
+            organizationId: ctx.organizationId
           }
         },
         include: {
@@ -24,7 +24,7 @@ export const executionsRouter = createTRPCRouter({
         }
       });
     }),
-  getMany: protectedProcedure
+  getMany: organizationProcedure
     .input(
       z.object({
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
@@ -44,7 +44,7 @@ export const executionsRouter = createTRPCRouter({
           take: pageSize,
           where: { 
             workflow: {
-              userId: ctx.auth.user.id,
+              organizationId: ctx.organizationId,
             },
           },
           orderBy: {
@@ -62,7 +62,7 @@ export const executionsRouter = createTRPCRouter({
         prisma.execution.count({
           where: {
             workflow: {
-              userId: ctx.auth.user.id,
+              organizationId: ctx.organizationId,
             },
           },
         }),

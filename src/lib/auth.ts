@@ -6,6 +6,7 @@ import prisma from "@/lib/db";
 import { polarClient } from "./polar";
 
 export const auth = betterAuth({
+  secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
@@ -18,10 +19,14 @@ export const auth = betterAuth({
     //   clientId: process.env.GITHUB_CLIENT_ID as string,
     //   clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
     // },
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID as string,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-    },
+    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? {
+          google: {
+            clientId: process.env.GOOGLE_CLIENT_ID as string,
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+          },
+        }
+      : {}),
   },
   plugins: [
     polar({

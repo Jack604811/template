@@ -1,6 +1,24 @@
 import Cryptr from "cryptr";
 
-const cryptr = new Cryptr(process.env.ENCRYPTION_KEY!);
+let cryptrInstance: Cryptr | null = null;
 
-export const encrypt = (text: string) => cryptr.encrypt(text);
-export const decrypt = (text: string) => cryptr.decrypt(text);
+const getCryptr = () => {
+  if (!cryptrInstance) {
+    const key = process.env.ENCRYPTION_KEY;
+    if (!key) {
+      throw new Error(
+        "ENCRYPTION_KEY environment variable is required. Please set it in your environment variables.",
+      );
+    }
+    cryptrInstance = new Cryptr(key);
+  }
+  return cryptrInstance;
+};
+
+export const encrypt = (text: string) => {
+  return getCryptr().encrypt(text);
+};
+
+export const decrypt = (text: string) => {
+  return getCryptr().decrypt(text);
+};

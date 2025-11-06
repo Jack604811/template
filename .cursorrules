@@ -1,0 +1,1068 @@
+# Nodebase Cursor Rules
+
+## Code Style & Formatting
+
+- Use Biome for linting and formatting (configured in `biome.json`)
+- Indent with 2 spaces (no tabs)
+- Organize imports automatically using Biome
+- Use TypeScript strict mode
+- Prefer `const` over `let`, never use `var`
+- Use semicolons consistently
+- Trailing commas in multi-line structures
+
+## Naming Conventions
+
+### Files
+- Use kebab-case for all files: `http-request-node.tsx`, `use-workflows.ts`
+- Component files: `component-name.tsx`
+- Hook files: `use-hook-name.ts`
+- Utility files: `utility-name.ts`
+- Test files: `component-name.test.tsx`
+
+### Components
+- PascalCase with descriptive names: `HttpRequestNode`, `EntityContainer`
+- Avoid abbreviations unless universally understood
+- Name components based on their purpose, not implementation
+
+### Hooks
+- camelCase with `use` prefix: `useNodeStatus`, `useWorkflows`, `useEntitySearch`
+- Custom hooks must start with `use`
+
+### Functions & Variables
+- camelCase for functions and variables: `handleSubmit`, `fetchData`, `userData`
+- Server actions: camelCase ending in action type: `fetchHttpRequestRealtimeToken`, `prefetchWorkflows`
+
+### Constants
+- UPPER_SNAKE_CASE for true constants: `HTTP_REQUEST_CHANNEL_NAME`, `PAGINATION`, `DEFAULT_PAGE_SIZE`
+- Use `as const` for immutable objects
+
+### Types & Interfaces
+- PascalCase for types and interfaces: `NodeExecutor`, `WorkflowContext`
+- Prefix interfaces with descriptive name, not `I`: `EntityHeaderProps` not `IEntityHeaderProps`
+- Use `type` for unions, intersections, and simple aliases
+- Use `interface` for object shapes that may be extended
+
+## Folder Structure
+
+### Feature-Based Architecture
+All features live in `/src/features/{feature-name}/` with this structure:
+
+```
+src/features/{feature-name}/
+├── components/         # Feature-specific components
+├── hooks/             # Feature-specific hooks
+├── server/            # Server-side code
+│   ├── prefetch.ts    # Server-side data fetching
+│   ├── routers.ts     # tRPC router definitions
+│   └── params-loader.ts # Server-side parameter validation
+├── params.ts          # Client-side URL parameter definitions
+└── types.ts           # Feature-specific types (optional)
+```
+
+### Component Organization
+```
+src/components/
+├── ui/                # shadcn/ui components
+├── react-flow/        # React Flow specific components
+├── entity-components.tsx  # Reusable CRUD components
+├── node-selector.tsx  # Node selection UI
+└── workflow-node.tsx  # Workflow node wrapper
+```
+
+### Configuration
+```
+src/config/
+├── constants.ts       # Global constants
+└── node-components.ts # Node component registry
+```
+
+### Nodes Structure
+Each node type gets its own folder with these files:
+```
+src/features/executions/components/{node-name}/
+├── node.tsx           # React component
+├── dialog.tsx         # Configuration dialog
+├── actions.ts         # Server actions
+└── executor.ts        # Inngest executor function
+
+src/inngest/channels/
+└── {node-name}.ts     # Realtime channel definition
+```
+
+## Server Patterns
+
+### Prefetch Functions (`prefetch.ts`)
+```typescript
+import type { inferInput } from "@trpc/tanstack-react-query";
+import { prefetch, trpc } from "@/trpc/server";
+
+type Input = inferInput<typeof trpc.{feature}.getMany>;
+
+/**
+ * Prefetch all {feature}s
+ */
+export const prefetch{Feature}s = (params: Input) => {
+  return prefetch(trpc.{feature}.getMany.queryOptions(params));
+};
+
+/**
+ * Prefetch a single {feature}
+ */
+export const prefetch{Feature} = (id: string) => {
+  return prefetch(trpc.{feature}.getOne.queryOptions({ id }));
+};
+```
+
+### tRPC Routers (`routers.ts`)
+```typescript
+import { createTRPCRouter, protectedProcedure, premiumProcedure } from "@/trpc/init";
+import z from "zod";
+
+export const {feature}Router = createTRPCRouter({
+  getMany: protectedProcedure
+    .input(z.object({ page, pageSize, search }))
+    .query(async ({ ctx, input }) => { ... }),
+  
+  getOne: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => { ... }),
+  
+  create: premiumProcedure
+    .mutation(async ({ ctx }) => { ... }),
+  
+  update: protectedProcedure
+    .input(z.object({ id, ...fields }))
+    .mutation(async ({ ctx, input }) => { ... }),
+  
+  remove: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => { ... }),
+});
+```
+
+**Always return pagination metadata:**
+```typescript
+return {
+  items,
+  page,
+  pageSize,
+  totalCount,
+  totalPages,
+  hasNextPage,
+  hasPreviousPage,
+};
+```
+
+### Auth Guards (`src/lib/auth-utils.ts`)
+```typescript
+// Use at top of Server Components/Route Handlers
+export const requireAuth = async () => { ... };  // Redirects to /login
+export const requireUnauth = async () => { ... }; // Redirects to /
+```
+
+## Component Patterns
+
+### React Components
+- Always use `memo` for optimization
+- Use `forwardRef` for reusable UI components that need ref access
+- Always add `displayName` to memoized/forwarded components
+
+```typescript
+export const MyComponent = memo(({ prop }: Props) => {
+  return <div>{prop}</div>;
+});
+
+MyComponent.displayName = "MyComponent";
+```
+
+### Client vs Server Components
+- Use `"use client"` directive for:
+  - Components using hooks (useState, useEffect, etc.)
+  - Event handlers
+  - Browser APIs
+  - Context consumers
+- Server components by default (no directive needed)
+
+### Node Components
+All nodes must:
+- Extend `BaseExecutionNode` or `BaseTriggerNode`
+- Include: icon, name, status, description, settings dialog
+- Use `memo` for performance
+- Handle double-click to open settings
+- Implement proper status updates via channels
+
+```typescript
+"use client";
+
+import { memo, useState } from "react";
+import { BaseExecutionNode } from "../base-execution-node";
+import { MyNodeDialog } from "./dialog";
+import { useNodeStatus } from "../../hooks/use-node-status";
+
+export const MyNode = memo((props: NodeProps) => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  
+  const nodeStatus = useNodeStatus({
+    nodeId: props.id,
+    channel: MY_NODE_CHANNEL_NAME,
+    topic: "status",
+    refreshToken: fetchMyNodeRealtimeToken,
+  });
+
+  return (
+    <>
+      <MyNodeDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <BaseExecutionNode
+        {...props}
+        icon={MyIcon}
+        name="My Node"
+        status={nodeStatus}
+        description="Description"
+        onSettings={() => setDialogOpen(true)}
+        onDoubleClick={() => setDialogOpen(true)}
+      />
+    </>
+  );
+});
+
+MyNode.displayName = "MyNode";
+```
+
+### Base Node Composition
+```typescript
+<BaseNode>
+  <BaseNodeHeader>
+    <BaseNodeHeaderTitle>Title</BaseNodeHeaderTitle>
+  </BaseNodeHeader>
+  <BaseNodeContent>
+    Content
+  </BaseNodeContent>
+  <BaseNodeFooter>
+    Footer
+  </BaseNodeFooter>
+</BaseNode>
+```
+
+### Node Status
+Type: `"initial" | "loading" | "success" | "error"`
+
+## Form Patterns
+
+### Dialog with Form Validation
+Every dialog must follow this pattern:
+
+```typescript
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
+import { useEffect } from "react";
+import z from "zod";
+
+// 1. Define Zod schema
+const formSchema = z.object({
+  field: z.string().min(1, { message: "Required" }),
+});
+
+// 2. Extract type
+export type MyFormValues = z.infer<typeof formSchema>;
+
+// 3. Dialog props
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (values: MyFormValues) => void;
+  defaultValues?: Partial<MyFormValues>;
+}
+
+export const MyDialog = ({ open, onOpenChange, onSubmit, defaultValues = {} }: Props) => {
+  // 4. Setup form
+  const form = useForm<MyFormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      field: defaultValues.field || "",
+    },
+  });
+
+  // 5. Reset on dialog open
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        field: defaultValues.field || "",
+      });
+    }
+  }, [open, defaultValues, form]);
+
+  const handleSubmit = (values: MyFormValues) => {
+    onSubmit(values);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)}>
+            <FormField
+              control={form.control}
+              name="field"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Field</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormDescription>Description</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <Button type="submit">Save</Button>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+```
+
+## Hook Patterns
+
+### Feature Hooks
+Standard naming convention:
+
+```typescript
+// Queries with suspense
+export const useSuspense{Feature}s = () => { ... };  // Get many
+export const useSuspense{Feature} = (id: string) => { ... };  // Get one
+
+// Mutations
+export const useCreate{Feature} = () => { ... };
+export const useUpdate{Feature} = () => { ... };
+export const useRemove{Feature} = () => { ... };
+```
+
+All mutations must:
+- Show toast notifications (using `sonner`)
+- Invalidate relevant queries
+- Handle onSuccess/onError
+
+```typescript
+export const useCreateWorkflow = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.workflows.create.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Workflow "${data.name}" created`);
+        queryClient.invalidateQueries(
+          trpc.workflows.getMany.queryOptions({}),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to create workflow: ${error.message}`);
+      },
+    }),
+  );
+};
+```
+
+## State Management
+
+### Jotai
+- Use for minimal global state only
+- Create atoms per feature in `{feature}/store/atoms.ts`
+- Keep state minimal - prefer React Query/tRPC for server state
+
+```typescript
+import { atom } from "jotai";
+export const myAtom = atom<MyType | null>(null);
+```
+
+### React Hook Form + Zod
+- All forms must use React Hook Form
+- All validation must use Zod schemas
+- Use `zodResolver` for integration
+
+### React Flow
+- Use for node/edge state in workflow editor
+- Store instance in Jotai atom for global access
+
+## Import Patterns
+
+### Order
+1. React imports
+2. Third-party libraries
+3. Local components/hooks
+4. Types
+5. Styles
+
+```typescript
+import { useState, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { MyComponent } from "@/components/my-component";
+import { useMyHook } from "@/hooks/use-my-hook";
+import type { MyType } from "./types";
+import "./styles.css";
+```
+
+### Path Aliases
+Always use `@/` alias for absolute imports:
+```typescript
+import { Button } from "@/components/ui/button";
+import { useTRPC } from "@/trpc/client";
+import prisma from "@/lib/db";
+```
+
+## Node Registration Checklist
+
+When adding a new node, update these 5 locations:
+
+1. **Prisma Schema** (`prisma/schema.prisma`):
+```prisma
+enum NodeType {
+  // ... existing types
+  MY_NEW_NODE
+}
+```
+
+2. **Node Components Registry** (`src/config/node-components.ts`):
+```typescript
+export const nodeComponents = {
+  [NodeType.MY_NEW_NODE]: MyNewNode,
+} as const satisfies NodeTypes;
+```
+
+3. **Executor Registry** (`src/features/executions/lib/executor-registry.ts`):
+```typescript
+export const executorRegistry: Record<NodeType, NodeExecutor> = {
+  [NodeType.MY_NEW_NODE]: myNewNodeExecutor,
+};
+```
+
+4. **Inngest Channels** (`src/inngest/functions.ts`):
+```typescript
+channels: [
+  // ... existing channels
+  myNewNodeChannel(),
+],
+```
+
+5. **Node Selector** (`src/components/node-selector.tsx`):
+```typescript
+const executionNodes: NodeTypeOption[] = [
+  {
+    type: NodeType.MY_NEW_NODE,
+    label: "My New Node",
+    description: "What this node does",
+    icon: "/logos/service.svg", // or LucideIcon
+  },
+];
+```
+
+## Inngest Patterns
+
+### Node Executors
+All executors must follow this signature:
+```typescript
+export const myNodeExecutor: NodeExecutor<MyNodeData> = async ({
+  data,
+  nodeId,
+  userId,
+  context,
+  step,
+  publish,
+}) => {
+  await publish(myChannel().status({ nodeId, status: "loading" }));
+
+  try {
+    const result = await step.run("my-node-action", async () => {
+      // Validate data
+      if (!data.requiredField) {
+        throw new NonRetriableError("Missing required field");
+      }
+
+      // Perform action
+      const response = await doSomething(data);
+
+      // Return updated context
+      return {
+        ...context,
+        [data.variableName]: response,
+      };
+    });
+
+    await publish(myChannel().status({ nodeId, status: "success" }));
+    return result;
+  } catch (error) {
+    await publish(myChannel().status({ nodeId, status: "error" }));
+    throw error;
+  }
+};
+```
+
+### Channels
+```typescript
+import { channel, topic } from "@inngest/realtime";
+
+export const MY_NODE_CHANNEL_NAME = "my-node-execution";
+
+export const myNodeChannel = channel(MY_NODE_CHANNEL_NAME)
+  .addTopic(
+    topic("status").type<{
+      nodeId: string;
+      status: "loading" | "success" | "error";
+    }>(),
+  );
+```
+
+## Template Variables (Handlebars)
+
+Use Handlebars for dynamic variable substitution in node data:
+
+```typescript
+import Handlebars from "handlebars";
+
+// Register json helper for object stringification
+Handlebars.registerHelper("json", (context) => {
+  return new Handlebars.SafeString(JSON.stringify(context, null, 2));
+});
+
+// Compile and resolve templates
+const endpoint = Handlebars.compile(data.endpoint)(context);
+const body = Handlebars.compile(data.body || "{}")(context);
+```
+
+**Usage in dialogs:**
+- Simple values: `{{variableName.path}}`
+- JSON stringify: `{{json variableName.object}}`
+
+## Encryption
+
+For sensitive data (credentials, API keys):
+```typescript
+import { encrypt, decrypt } from "@/lib/encryption";
+
+// Encrypt before storing
+const encrypted = encrypt(sensitiveData);
+
+// Decrypt when using
+const decrypted = decrypt(encryptedData);
+```
+
+Requires `ENCRYPTION_KEY` environment variable.
+
+## Entity CRUD Pattern
+
+Use reusable entity components for list pages:
+
+```typescript
+<EntityContainer
+  header={
+    <EntityHeader
+      title="Workflows"
+      description="Manage your workflows"
+      onNew={handleCreate}
+      newButtonLabel="New Workflow"
+    />
+  }
+  search={
+    <EntitySearch
+      value={search}
+      onChange={setSearch}
+      placeholder="Search workflows..."
+    />
+  }
+  pagination={
+    <EntityPagination
+      page={page}
+      totalPages={totalPages}
+      onPageChange={setPage}
+    />
+  }
+>
+  <EntityList
+    items={workflows}
+    renderItem={(workflow) => (
+      <EntityItem
+        href={`/workflows/${workflow.id}`}
+        title={workflow.name}
+        subtitle={format(workflow.updatedAt, "PPP")}
+        onRemove={() => handleRemove(workflow.id)}
+      />
+    )}
+    emptyView={<EmptyView message="No workflows yet" />}
+  />
+</EntityContainer>
+```
+
+## Environment Variables
+
+Always document required environment variables in `.env.example`:
+
+```env
+# Database
+DATABASE_URL=
+
+# Encryption
+ENCRYPTION_KEY=
+
+# Inngest
+INNGEST_EVENT_KEY=
+INNGEST_SIGNING_KEY=
+
+# Better Auth
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+
+# OAuth - GitHub
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# OAuth - Google  
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Subscriptions - Polar
+POLAR_ACCESS_TOKEN=
+POLAR_SUCCESS_URL=
+
+# Monitoring - Sentry (optional)
+SENTRY_AUTH_TOKEN=
+```
+
+## Styling
+
+### Tailwind v4
+- Configuration in `src/app/globals.css` using `@theme` directive
+- No `tailwind.config.ts` file
+- Use CSS variables for theming
+- Import animations: `@import "tw-animate-css";`
+
+### Utility Function
+Always use `cn()` utility for conditional classes:
+```typescript
+import { cn } from "@/lib/utils";
+
+className={cn(
+  "base-classes",
+  condition && "conditional-classes",
+  className, // Allow prop overrides
+)}
+```
+
+## Testing
+
+- Place test files next to the code they test
+- Use `.test.tsx` or `.test.ts` extension
+- Write tests for complex business logic
+- Test hooks in isolation
+
+## Best Practices
+
+1. **Performance**: Use `memo`, `useCallback`, `useMemo` appropriately
+2. **Accessibility**: Use semantic HTML, ARIA labels where needed
+3. **Error Handling**: Always handle errors gracefully with user-friendly messages
+4. **Loading States**: Show loading indicators for async operations
+5. **Type Safety**: Leverage TypeScript, avoid `any`
+6. **Code Reuse**: Extract common patterns into reusable components/hooks
+7. **Documentation**: Add JSDoc comments for complex functions
+8. **Validation**: Validate all user inputs with Zod
+9. **Security**: Never expose sensitive data, use environment variables
+10. **Git**: Write clear commit messages, keep commits atomic
+
+## Organization Patterns
+
+### Organization-Scoped Resources
+All workflows, credentials, and executions belong to organizations, not individual users:
+- Always use `ctx.organizationId` in `organizationProcedure` endpoints
+- Filter queries by `organizationId` instead of `userId`
+- Use `organizationProcedure` for any resource-related endpoints
+
+### tRPC Procedures
+- `protectedProcedure`: Requires authentication only
+- `organizationProcedure`: Requires authentication + active organization membership
+- `adminProcedure`: Requires owner or admin role in current organization
+- `ownerProcedure`: Requires owner role in current organization
+
+```typescript
+// Example: Resource CRUD with organization context
+export const workflowsRouter = createTRPCRouter({
+  create: organizationProcedure.mutation(({ ctx }) => {
+    return prisma.workflow.create({
+      data: {
+        organizationId: ctx.organizationId, // Always use organizationId
+        // ... other fields
+      },
+    });
+  }),
+  getMany: organizationProcedure.query(({ ctx, input }) => {
+    return prisma.workflow.findMany({
+      where: {
+        organizationId: ctx.organizationId, // Filter by organization
+      },
+    });
+  }),
+});
+```
+
+### Organization Switcher
+- Located in sidebar header below logo
+- Shows current organization and allows switching
+- Uses `OrganizationSwitcher` component
+- Wraps in `Suspense` for loading state
+
+### Organization Selection Flow
+- Users without active organization → redirect to `/select-organization`
+- `requireAuth()` enforces organization selection
+- Users must create or select an organization to access dashboard
+
+### Role-Based Access
+- **Owner**: Full control (change roles, remove members, delete org)
+- **Admin**: Manage members, update settings, create/edit resources
+- **Member**: Access resources, cannot manage organization
+
+## Commit Message Guidelines
+
+### Format
+Follow conventional commits with feature-based scoping:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+### Types
+- `feat`: New feature (e.g., new node, new feature module)
+- `fix`: Bug fix
+- `refactor`: Code refactoring without changing functionality
+- `style`: Code style changes (formatting, imports, etc.)
+- `docs`: Documentation changes
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks (deps, config, etc.)
+- `perf`: Performance improvements
+
+### Scopes
+
+**Feature-based scopes (match folder structure):**
+- `credentials`: Credential management features
+- `workflows`: Workflow management
+- `executions`: Execution tracking and monitoring, or execution nodes (e.g., `executions:openai`, `executions:gmail`)
+- `organizations`: Organization management
+- `triggers`: Trigger nodes (e.g., `triggers:webhook`, `triggers:stripe`)
+- `auth`: Authentication and authorization
+- `editor`: Workflow editor components
+- `cli`: CLI tool changes
+
+**Component-based scopes:**
+- `ui`: UI component changes (shadcn/ui components)
+- `components`: Shared components
+- `config`: Configuration files
+- `trpc`: tRPC setup and routers
+- `inngest`: Inngest functions and channels
+- `db`: Database schema changes (Prisma)
+- `lib`: Utility libraries
+
+### Subject Rules
+- Use imperative mood: "Add", "Fix", "Update", "Remove"
+- Start with capital letter
+- No period at the end
+- Keep under 72 characters
+- Reference feature/component name when applicable
+
+### Body Rules
+- Explain **what** and **why**, not **how**
+- Reference related issues/PRs
+- List breaking changes if any
+- Follow feature structure when describing changes
+
+### Examples
+
+**Adding a new node:**
+```
+feat(executions:gmail): add Gmail node with send email action
+
+- Add Gmail node component with dialog
+- Implement executor for sending emails via Gmail API
+- Add Gmail channel for realtime updates
+- Register node in all 5 locations (Prisma, components, executor, channels, selector)
+```
+
+**Fixing a feature:**
+```
+fix(credentials): fix credential selector not showing OAuth apps
+
+- Update CredentialSelector to handle OAuth apps correctly
+- Fix empty state when no credentials exist
+- Add proper error handling for OAuth flow
+```
+
+**Refactoring:**
+```
+refactor(organizations): migrate to dialog-based credential management
+
+- Replace credential edit page with CredentialConnectionDialog
+- Update CredentialItem to use dialog instead of navigation
+- Maintain EntityItem pattern consistency
+```
+
+**Database changes:**
+```
+feat(db): add new credential types for social media apps
+
+- Add GMAIL, INSTAGRAM, TIKTOK, MESSENGER to CredentialType enum
+- Update credentialTypeOptions with new apps
+- Add OAuth support configuration
+```
+
+**CLI changes:**
+```
+feat(cli): implement feature generation templates
+
+- Add generateFeatureFiles function with proper template handling
+- Fix undefined camelName variable in addFeature
+- Add TypeScript interfaces for NodeDetails and FeatureDetails
+- Implement all generation functions with proper template replacements
+```
+
+**Multiple scopes:**
+```
+fix(trpc,credentials): fix unauthorized errors in credential prefetch
+
+- Update createTRPCContext to properly await session
+- Add credentials: 'include' to httpBatchLink for cookie auth
+- Fix prefetch functions to be async and properly awaited
+```
+
+### Special Cases
+
+**Breaking changes:**
+```
+feat(organizations)!: migrate workflows to organization-scoped
+
+BREAKING CHANGE: All workflows now belong to organizations instead of users.
+Existing workflows will need to be migrated to an organization.
+```
+
+**Multi-file changes:**
+```
+feat(credentials): add app directory dialog for credential selection
+
+- Create AppDirectoryDialog component (command palette style)
+- Replace /credentials/directory page with dialog
+- Update CredentialsHeader to open dialog instead of navigation
+- Add CredentialConnectionDialog for unified create/edit flow
+```
+
+### Commit Message Generation Rules for AI
+
+When generating commit messages:
+1. **Analyze changed files** - Identify which feature/scope is affected
+2. **Use feature-based scope** - Match the folder structure (`credentials`, `workflows`, etc.)
+3. **Include node type** - For nodes, use `executions:{node-name}` or `triggers:{node-name}`
+4. **List all affected areas** - Mention all 5 locations if adding a node
+5. **Reference patterns** - Mention if following Entity pattern, dialog pattern, etc.
+6. **Be specific** - Include component names, function names, file paths when relevant
+7. **Group related changes** - One commit per logical change, multiple commits for unrelated changes
+8. **Follow structure** - Body should explain what changed and why, matching the codebase structure
+
+## Deployment Workflow
+
+### Standard Deployment Flow
+
+The deployment follows a structured PR → Review → Merge → Deploy workflow:
+
+```
+1. Create Feature Branch
+   ↓
+2. Implement Changes (following feature structure)
+   ↓
+3. Create Pull Request
+   ↓
+4. Code Review (CodeRabbit AI + Manual Review)
+   ↓
+5. Address Feedback & Update PR
+   ↓
+6. Merge Pull Request
+   ↓
+7. Automatic Deployment (Vercel/Platform)
+```
+
+### Pre-Deployment Checklist
+
+Before creating a PR:
+- [ ] All code follows feature-based structure (`src/features/{feature}/`)
+- [ ] Commit messages follow conventional commits format
+- [ ] All imports organized and linting passes
+- [ ] TypeScript errors resolved
+- [ ] Node registered in all 5 locations (if adding node):
+  - [ ] Prisma schema (`NodeType` enum)
+  - [ ] Node components registry (`src/config/node-components.ts`)
+  - [ ] Executor registry (`src/features/executions/lib/executor-registry.ts`)
+  - [ ] Inngest channels (`src/inngest/functions.ts`)
+  - [ ] Node selector (`src/components/node-selector.tsx`)
+- [ ] Database migrations tested (if schema changes)
+- [ ] Environment variables documented in `.env.example`
+- [ ] Organization context used correctly (if applicable)
+
+### Pull Request Structure
+
+**PR Title Format:**
+```
+<type>(<scope>): <subject>
+```
+
+**PR Description Template:**
+```markdown
+## Description
+Brief description of changes, following feature structure.
+
+## Changes
+- [Feature/Component]: Description of change
+- [Feature/Component]: Description of change
+
+## Affected Features
+- `credentials`: What changed
+- `workflows`: What changed
+
+## Testing
+- [ ] Manual testing completed
+- [ ] Database migrations tested (if applicable)
+- [ ] No console errors
+
+## Deployment Notes
+- [ ] Environment variables updated (if applicable)
+- [ ] Database migrations ready (if applicable)
+- [ ] Breaking changes documented (if applicable)
+```
+
+### Code Review Process
+
+1. **Automated Review (CodeRabbit AI)**
+   - Checks code quality, patterns, and structure
+   - Validates against `.cursorrules` guidelines
+   - Reviews feature-based organization
+   - Checks for proper TypeScript types
+   - Validates commit message format
+
+2. **Manual Review**
+   - Feature structure adherence
+   - Organization context usage
+   - Security considerations
+   - Performance implications
+   - Breaking changes assessment
+
+3. **Review Checklist**
+   - [ ] Code follows feature-based architecture
+   - [ ] All components properly memoized
+   - [ ] Error handling implemented
+   - [ ] Loading states added
+   - [ ] Forms validated with Zod
+   - [ ] Organization context used correctly
+   - [ ] No hardcoded values
+   - [ ] Proper TypeScript types
+
+### Post-Merge Deployment
+
+After PR merge:
+1. **Automatic Build**
+   - Next.js build process
+   - TypeScript compilation
+   - Prisma client generation
+
+2. **Database Migration** (if schema changes)
+   ```bash
+   npx prisma migrate deploy
+   ```
+
+3. **Environment Verification**
+   - All required env vars present
+   - Database connection working
+   - External services configured
+
+4. **Deployment Verification**
+   - Build succeeds
+   - Application starts correctly
+   - Critical paths tested
+   - No runtime errors
+
+### Deployment Structure Guidelines
+
+**Maintain Feature Isolation:**
+- Each feature in `src/features/{feature}/` is independently deployable
+- Changes to one feature shouldn't affect others
+- Shared components in `src/components/` are stable
+
+**Version Tracking:**
+- CLI tracks component versions in manifest
+- Use `nodebase check-updates` to see outdated components
+- Update components independently via CLI
+
+**Database Changes:**
+- Always create migrations for schema changes
+- Test migrations in development first
+- Document breaking changes in PR description
+
+**Environment Variables:**
+- Add new variables to `.env.example`
+- Document in PR description
+- Update deployment platform config
+
+### Rollback Strategy
+
+If deployment fails:
+1. **Immediate Rollback**
+   - Revert merge commit
+   - Redeploy previous version
+
+2. **Database Rollback** (if migration failed)
+   ```bash
+   npx prisma migrate resolve --rolled-back <migration-name>
+   ```
+
+3. **Feature Flag** (for gradual rollouts)
+   - Use feature flags for major changes
+   - Gradually enable to users
+   - Monitor for issues
+
+### Feature-Based Deployment Best Practices
+
+1. **Small, Focused PRs**
+   - One feature or component per PR
+   - Easier to review and deploy
+   - Faster rollback if needed
+
+2. **Consistent Structure**
+   - Follow feature folder structure
+   - Use established patterns (Entity, Dialog, etc.)
+   - Maintain organization-scoped resources
+
+3. **Documentation**
+   - Update PR description with changes
+   - Document breaking changes
+   - Note environment variable changes
+
+4. **Testing Before PR**
+   - Test locally
+   - Verify feature works in isolation
+   - Check organization context if applicable
+
+## Code Review Checklist
+
+Before submitting code:
+- [ ] All imports organized
+- [ ] No console.logs left in production code
+- [ ] Error handling in place
+- [ ] Loading states implemented
+- [ ] Forms validated with Zod
+- [ ] Components memoized where appropriate
+- [ ] TypeScript errors resolved
+- [ ] Biome linting passed
+- [ ] Node registered in all 5 locations (if adding node)
+- [ ] Environment variables documented
+- [ ] Organization context used in procedures (if applicable)
+

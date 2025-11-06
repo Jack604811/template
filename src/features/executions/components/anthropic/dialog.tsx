@@ -24,16 +24,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { useCredentialsByType } from "@/features/credentials/hooks/use-credentials";
 import { CredentialType } from "@/generated/prisma";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import Image from "next/image";
+import { CredentialSelector } from "@/components/credential-selector";
 
 const formSchema = z.object({
   variableName: z
@@ -62,11 +54,6 @@ export const AnthropicDialog = ({
   onSubmit,
   defaultValues = {},
 }: Props) => {
-  const { 
-    data: credentials,
-    isLoading: isLoadingCredentials,
-  } = useCredentialsByType(CredentialType.ANTHROPIC);
-
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -137,38 +124,16 @@ export const AnthropicDialog = ({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Anthropic Credential</FormLabel>
-                  <Select
+                  <FormControl>
+                    <CredentialSelector
+                      value={field.value}
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    disabled={
-                      isLoadingCredentials
-                      || !credentials?.length
-                    }
-                  >
-                    <FormControl>
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select a credential" />
-                      </SelectTrigger>
+                      credentialType={CredentialType.ANTHROPIC}
+                      logo="/logos/anthropic.svg"
+                      label="Anthropic"
+                      placeholder="Select Anthropic credential"
+                    />
                     </FormControl>
-                    <SelectContent>
-                      {credentials?.map((credential) => (
-                        <SelectItem
-                          key={credential.id}
-                          value={credential.id}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Image
-                              src="/logos/anthropic.svg"
-                              alt="Anthropic"
-                              width={16}
-                              height={16}
-                            />
-                            {credential.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                   <FormMessage />
                 </FormItem>
               )}

@@ -1,0 +1,7 @@
+import { useQueryStates } from "nuqs";
+import { {{CAMEL_NAME}}Params } from "../params";
+
+export function use{{PASCAL_NAME}}Params() {
+  return useQueryStates({{CAMEL_NAME}}Params);
+}
+

@@ -1,0 +1,23 @@
+"use server";
+
+import { inngest } from "@/inngest/client";
+
+/**
+ * Fetch realtime token for {{NODE_NAME}} node status updates
+ */
+export async function fetch{{NODE_NAME}}RealtimeToken(nodeId: string) {
+  const token = await inngest.realtime.createToken({
+    // @ts-expect-error - types don't match but this is correct
+    channels: [
+      {
+        name: "{{KEBAB_NAME}}-execution",
+        topics: {
+          status: { pattern: { nodeId } },
+        },
+      },
+    ],
+  });
+
+  return token;
+}
+

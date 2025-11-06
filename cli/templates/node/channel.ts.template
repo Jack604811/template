@@ -1,0 +1,12 @@
+import { channel, topic } from "@inngest/realtime";
+
+export const {{UPPER_SNAKE_NAME}}_CHANNEL_NAME = "{{KEBAB_NAME}}-execution";
+
+export const {{CAMEL_NAME}}Channel = channel({{UPPER_SNAKE_NAME}}_CHANNEL_NAME)
+  .addTopic(
+    topic("status").type<{
+      nodeId: string;
+      status: "loading" | "success" | "error";
+    }>(),
+  );
+

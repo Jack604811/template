@@ -1,0 +1,93 @@
+import { useTRPC } from "@/trpc/client";
+import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { use{{PASCAL_NAME}}Params } from "./use-{{KEBAB_NAME}}-params";
+
+/**
+ * Hook to fetch all {{FEATURE_NAME}}s using suspense
+ */
+export const useSuspense{{PASCAL_NAME}}s = () => {
+  const trpc = useTRPC();
+  const [params] = use{{PASCAL_NAME}}Params();
+  
+  return useSuspenseQuery(trpc.{{CAMEL_NAME}}.getMany.queryOptions(params));
+};
+
+/**
+ * Hook to create a new {{FEATURE_NAME}}
+ */
+export const useCreate{{PASCAL_NAME}} = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.{{CAMEL_NAME}}.create.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`{{FEATURE_NAME}} created successfully`);
+        queryClient.invalidateQueries(
+          trpc.{{CAMEL_NAME}}.getMany.queryOptions({}),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to create {{FEATURE_NAME}}: ${error.message}`);
+      },
+    }),
+  );
+};
+
+/**
+ * Hook to remove a {{FEATURE_NAME}}
+ */
+export const useRemove{{PASCAL_NAME}} = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.{{CAMEL_NAME}}.remove.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`{{FEATURE_NAME}} removed successfully`);
+        queryClient.invalidateQueries(trpc.{{CAMEL_NAME}}.getMany.queryOptions({}));
+        queryClient.invalidateQueries(
+          trpc.{{CAMEL_NAME}}.getOne.queryFilter({ id: data.id }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to remove {{FEATURE_NAME}}: ${error.message}`);
+      },
+    }),
+  );
+};
+
+/**
+ * Hook to fetch a single {{FEATURE_NAME}} using suspense
+ */
+export const useSuspense{{PASCAL_NAME}} = (id: string) => {
+  const trpc = useTRPC();
+  return useSuspenseQuery(trpc.{{CAMEL_NAME}}.getOne.queryOptions({ id }));
+};
+
+/**
+ * Hook to update a {{FEATURE_NAME}}
+ */
+export const useUpdate{{PASCAL_NAME}} = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.{{CAMEL_NAME}}.update.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`{{FEATURE_NAME}} updated successfully`);
+        queryClient.invalidateQueries(
+          trpc.{{CAMEL_NAME}}.getMany.queryOptions({}),
+        );
+        queryClient.invalidateQueries(
+          trpc.{{CAMEL_NAME}}.getOne.queryOptions({ id: data.id }),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to update {{FEATURE_NAME}}: ${error.message}`);
+      },
+    }),
+  );
+};
+

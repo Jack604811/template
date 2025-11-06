@@ -1,0 +1,113 @@
+import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import z from "zod";
+import { PAGINATION } from "@/config/constants";
+import prisma from "@/lib/db";
+
+export const {{CAMEL_NAME}}Router = createTRPCRouter({
+  getMany: protectedProcedure
+    .input(
+      z.object({
+        page: z.number().default(PAGINATION.DEFAULT_PAGE),
+        pageSize: z
+          .number()
+          .min(PAGINATION.MIN_PAGE_SIZE)
+          .max(PAGINATION.MAX_PAGE_SIZE)
+          .default(PAGINATION.DEFAULT_PAGE_SIZE),
+        search: z.string().default(""),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { page, pageSize, search } = input;
+
+      const [items, totalCount] = await Promise.all([
+        prisma.{{CAMEL_NAME}}.findMany({
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+          where: { 
+            userId: ctx.auth.user.id,
+            // Add search filter if needed
+            // name: {
+            //   contains: search,
+            //   mode: "insensitive",
+            // },
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+        }),
+        prisma.{{CAMEL_NAME}}.count({
+          where: {
+            userId: ctx.auth.user.id,
+            // Add search filter if needed
+          },
+        }),
+      ]);
+
+      const totalPages = Math.ceil(totalCount / pageSize);
+      const hasNextPage = page < totalPages;
+      const hasPreviousPage = page > 1;
+
+      return {
+        items,
+        page,
+        pageSize,
+        totalCount,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      };
+    }),
+
+  getOne: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const {{CAMEL_NAME}} = await prisma.{{CAMEL_NAME}}.findUniqueOrThrow({
+        where: { id: input.id, userId: ctx.auth.user.id },
+      });
+
+      return {{CAMEL_NAME}};
+    }),
+
+  create: protectedProcedure
+    .input(z.object({
+      // Add your input fields here
+      name: z.string().min(1),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.{{CAMEL_NAME}}.create({
+        data: {
+          userId: ctx.auth.user.id,
+          ...input,
+        },
+      });
+    }),
+
+  update: protectedProcedure
+    .input(
+      z.object({ 
+        id: z.string(),
+        // Add your update fields here
+        name: z.string().min(1).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...data } = input;
+
+      return prisma.{{CAMEL_NAME}}.update({
+        where: { id, userId: ctx.auth.user.id },
+        data,
+      });
+    }),
+
+  remove: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.{{CAMEL_NAME}}.delete({
+        where: {
+          id: input.id,
+          userId: ctx.auth.user.id,
+        },
+      });
+    }),
+});
+

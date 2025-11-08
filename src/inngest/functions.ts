@@ -11,6 +11,7 @@ import { manualTriggerChannel } from "./channels/manual-trigger";
 import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
+import { webhookTriggerChannel } from "./channels/webhook-trigger";
 import { inngest } from "./client";
 import { topologicalSort } from "./utils";
 
@@ -36,6 +37,7 @@ export const executeWorkflow = inngest.createFunction(
       manualTriggerChannel(),
       googleFormTriggerChannel(),
       stripeTriggerChannel(),
+      webhookTriggerChannel(),
       geminiChannel(),
       openAiChannel(),
       anthropicChannel(),

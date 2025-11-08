@@ -1,9 +1,9 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { SelectOrganizationView } from "@/features/organizations/components/select-organization-view";
-import prisma from "@/lib/db";
+import { redirect } from "next/navigation";
 import { Suspense } from "react";
+import { SelectOrganizationView } from "@/features/organizations/components/select-organization-view";
+import { auth } from "@/lib/auth";
+import prisma from "@/lib/db";
 
 const Page = async () => {
   const session = await auth.api.getSession({
@@ -34,4 +34,3 @@ const Page = async () => {
 };
 
 export default Page;
-

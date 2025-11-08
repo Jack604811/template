@@ -14,38 +14,38 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: true,
   },
-  socialProviders: {
-    // github: {
-    //   clientId: process.env.GITHUB_CLIENT_ID as string,
-    //   clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
-    // },
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? {
-          google: {
-            clientId: process.env.GOOGLE_CLIENT_ID as string,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-          },
-        }
-      : {}),
-  },
+  // socialProviders: {
+  //   github: {
+  //     clientId: process.env.GITHUB_CLIENT_ID as string,
+  //     clientSecret: process.env.GITHUB_CLIENT_SECRET as string,
+  //   },
+  //   ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+  //     ? {
+  //         google: {
+  //           clientId: process.env.GOOGLE_CLIENT_ID as string,
+  //           clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
+  //         },
+  //       }
+  //     : {}),
+  // },
   plugins: [
-    polar({
-      client: polarClient,
-      createCustomerOnSignUp: false, // Temporarily disabled - set to true when Polar token is valid
-      use: [
-        checkout({
-          products: [
-            {
-              productId: "f81be8a8-45e1-4e45-a1e9-b9d3fd79f814",
-              slug: "pro",
-            },
-          ],
-          successUrl: process.env.POLAR_SUCCESS_URL,
-          authenticatedUsersOnly: true,
-        }),
-        portal(),
-      ],
-    }),
+    // polar({
+    //   client: polarClient,
+    //   createCustomerOnSignUp: true,
+    //   use: [
+    //     checkout({
+    //       products: [
+    //         {
+    //           productId: "a08c0593-bde0-485a-be09-9c4d5d2d696a",
+    //           slug: "pro",
+    //         },
+    //       ],
+    //       successUrl: process.env.POLAR_SUCCESS_URL,
+    //       authenticatedUsersOnly: true,
+    //     }),
+    //     portal(),
+    //   ],
+    // }),
     organization(),
   ],
 });

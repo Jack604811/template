@@ -19,17 +19,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 };
 
-export const StripeTriggerDialog = ({
-  open,
-  onOpenChange
-}: Props) => {
+export const StripeTriggerDialog = ({ open, onOpenChange }: Props) => {
   const params = useParams();
   const workflowId = params.workflowId as string;
 
   // Construct the webhook URL
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  const webhookUrl = 
-    `${baseUrl}/api/webhooks/stripe?workflowId=${workflowId}`;
+  const baseUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const webhookUrl = `${baseUrl}/api/stripe?workflowId=${workflowId}`;
 
   const copyToClipboard = async () => {
     try {

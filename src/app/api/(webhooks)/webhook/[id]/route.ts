@@ -1,7 +1,8 @@
 import { sendWorkflowExecution } from "@/inngest/utils";
 import { type NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
-import { storeWebhookEvent } from "./events/route";
+import type { WebhookTriggerNodeData } from "@/features/triggers/components/webhook-trigger/actions";
+import { storeWebhookEvent } from "@/features/triggers/components/webhook-trigger/webhook-storage";
 
 type RouteContext = {
   params: Promise<{
@@ -9,6 +10,10 @@ type RouteContext = {
   }>;
 };
 
+/**
+ * Generic webhook handler for all HTTP methods
+ * Finds the webhook node by ID and triggers the workflow execution
+ */
 async function handleWebhook(request: NextRequest, context: RouteContext) {
   try {
     const { id: webhookId } = await context.params;
@@ -20,7 +25,7 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
       );
     }
 
-    // Find the node with this webhookId in its data
+    // Find all webhook trigger nodes
     const nodes = await prisma.node.findMany({
       where: {
         type: "WEBHOOK_TRIGGER",
@@ -32,10 +37,12 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
       },
     });
 
-    // Find the node that matches this webhookId
+    // Find the node that matches this webhookId (either custom webhookId or node ID)
     const node = nodes.find((n) => {
-      const data = n.data as { webhookId?: string };
-      return data.webhookId === webhookId;
+      const data = n.data as WebhookTriggerNodeData;
+      const customMatch = data.webhookId && data.webhookId === webhookId;
+      const nodeIdMatch = n.id === webhookId;
+      return customMatch || nodeIdMatch;
     });
 
     if (!node) {
@@ -50,7 +57,7 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
     // Parse request body (handle both JSON and text)
     let body: unknown = null;
     let rawBody = "";
-    
+
     try {
       rawBody = await request.text();
       if (rawBody) {
@@ -69,7 +76,7 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
     // Prepare webhook data
     const headers = Object.fromEntries(request.headers);
     const query = Object.fromEntries(url.searchParams);
-    
+
     const webhookData = {
       body,
       headers,
@@ -80,7 +87,7 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
     };
 
     // Store event for testing/debugging
-    storeWebhookEvent(webhookId, {
+    await storeWebhookEvent(webhookId, {
       method: request.method,
       body,
       headers,
@@ -90,15 +97,13 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
     // Trigger workflow execution
     await sendWorkflowExecution({
       workflowId: node.workflowId,
+      triggerNodeId: node.id,
       initialData: {
         webhook: webhookData,
       },
     });
 
-    return NextResponse.json(
-      { success: true },
-      { status: 200 },
-    );
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error("Webhook error:", error);
     return NextResponse.json(
@@ -108,6 +113,7 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
   }
 }
 
+// Export handlers for all HTTP methods
 export async function GET(request: NextRequest, context: RouteContext) {
   return handleWebhook(request, context);
 }

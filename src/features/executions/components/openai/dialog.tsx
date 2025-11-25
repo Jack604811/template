@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -42,6 +42,7 @@ const formSchema = z.object({
 export type OpenAiFormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -49,6 +50,7 @@ interface Props {
 };
 
 export const OpenAiDialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -146,7 +148,8 @@ export const OpenAiDialog = ({
               <FormItem>
                 <FormLabel>System Prompt (Optional)</FormLabel>
                 <FormControl>
-                  <Textarea
+                  <VariableTextarea
+                    nodeId={nodeId}
                     placeholder="You are a helpful assistant."
                     className="min-h-[80px] font-mono text-sm"
                     {...field}
@@ -166,7 +169,8 @@ export const OpenAiDialog = ({
               <FormItem>
                 <FormLabel>User Prompt</FormLabel>
                 <FormControl>
-                  <Textarea
+                  <VariableTextarea
+                    nodeId={nodeId}
                      placeholder="Summarize this text: {{json httpResponse.data}}"
                     className="min-h-[120px] font-mono text-sm"
                     {...field}

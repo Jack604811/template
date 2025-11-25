@@ -3,7 +3,8 @@
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { memo, useState } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import { SlackDialog, SlackFormValues } from "./dialog";
+import { SlackDialog } from "./dialog";
+import type { SlackFormValues } from "./dialog";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { fetchSlackRealtimeToken } from "./actions";
 import { SLACK_CHANNEL_NAME } from "@/inngest/channels/slack";
@@ -52,6 +53,7 @@ export const SlackNode = memo((props: NodeProps<SlackNodeType>) => {
   return (
     <>
       <SlackDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

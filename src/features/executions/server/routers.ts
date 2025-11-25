@@ -2,6 +2,7 @@ import prisma from "@/lib/db";
 import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
+import { ExecutionStatus } from "@/generated/prisma";
 
 export const executionsRouter = createTRPCRouter({
   getOne: organizationProcedure
@@ -80,6 +81,48 @@ export const executionsRouter = createTRPCRouter({
         totalPages,
         hasNextPage,
         hasPreviousPage,
+      };
+    }),
+  getLastExecutionContext: organizationProcedure
+    .input(
+      z.object({
+        workflowId: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const execution = await prisma.execution.findFirst({
+        where: {
+          workflowId: input.workflowId,
+          workflow: {
+            organizationId: ctx.organizationId,
+          },
+          status: ExecutionStatus.SUCCESS,
+        },
+        orderBy: [
+          {
+            completedAt: "desc",
+          },
+          {
+            startedAt: "desc",
+          },
+        ],
+        select: {
+          id: true,
+          workflowId: true,
+          completedAt: true,
+          output: true,
+        },
+      });
+
+      if (!execution || !execution.output) {
+        return null;
+      }
+
+      return {
+        executionId: execution.id,
+        workflowId: execution.workflowId,
+        completedAt: execution.completedAt,
+        context: execution.output as Record<string, unknown>,
       };
     }),
 });

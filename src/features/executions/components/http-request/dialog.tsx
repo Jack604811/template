@@ -25,7 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { VariableInput } from "@/components/ui/variable-input";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -50,6 +51,7 @@ const formSchema = z.object({
 export type HttpRequestFormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -57,6 +59,7 @@ interface Props {
 };
 
 export const HttpRequestDialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -164,7 +167,8 @@ export const HttpRequestDialog = ({
                 <FormItem>
                   <FormLabel>Endpoint URL</FormLabel>
                   <FormControl>
-                    <Input
+                    <VariableInput
+                      nodeId={nodeId}
                       placeholder="https://api.example.com/users/{{httpResponse.data.id}}"
                       {...field}
                     />
@@ -184,7 +188,8 @@ export const HttpRequestDialog = ({
                 <FormItem>
                   <FormLabel>Request Body</FormLabel>
                   <FormControl>
-                    <Textarea
+                    <VariableTextarea
+                      nodeId={nodeId}
                       placeholder={
                         '{\n  "userId": "{{httpResponse.data.id}}",\n  "name": "{{httpResponse.data.name}}",\n  "items": "{{httpResponse.data.items}}"\n}'
                       }

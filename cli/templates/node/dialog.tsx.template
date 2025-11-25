@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+// import { VariableInput } from "@/components/ui/variable-input";
+// import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -37,6 +39,7 @@ const formSchema = z.object({
 export type {{NODE_NAME}}FormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -44,6 +47,7 @@ interface Props {
 };
 
 export const {{NODE_NAME}}Dialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -110,6 +114,8 @@ export const {{NODE_NAME}}Dialog = ({
             />
 
             {/* Add your form fields here */}
+            {/* For single-line inputs with variables: <VariableInput nodeId={nodeId} placeholder="..." {...field} /> */}
+            {/* For multi-line inputs with variables: <VariableTextarea nodeId={nodeId} placeholder="..." className="min-h-[80px] font-mono text-sm" {...field} /> */}
 
             <DialogFooter className="mt-4">
               <Button type="submit">Save</Button>

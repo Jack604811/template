@@ -54,6 +54,7 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
   return (
     <>
       <HttpRequestDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

@@ -53,6 +53,7 @@ export const AnthropicNode = memo((props: NodeProps<AnthropicNodeType>) => {
   return (
     <>
       <AnthropicDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

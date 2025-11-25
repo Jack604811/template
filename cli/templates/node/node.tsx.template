@@ -52,6 +52,7 @@ export const {{NODE_NAME}}Node = memo((props: NodeProps<{{NODE_NAME}}NodeType>) 
   return (
     <>
       <{{NODE_NAME}}Dialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

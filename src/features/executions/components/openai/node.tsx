@@ -3,7 +3,8 @@
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { memo, useState } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import { OpenAiDialog, OpenAiFormValues } from "./dialog";
+import { OpenAiDialog } from "./dialog";
+import type { OpenAiFormValues } from "./dialog";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { fetchOpenAiRealtimeToken } from "./actions";
 import { OPENAI_CHANNEL_NAME } from "@/inngest/channels/openai";
@@ -53,6 +54,7 @@ export const OpenAiNode = memo((props: NodeProps<OpenAiNodeType>) => {
   return (
     <>
       <OpenAiDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

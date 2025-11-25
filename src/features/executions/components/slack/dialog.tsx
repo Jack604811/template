@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -41,6 +41,7 @@ const formSchema = z.object({
 export type SlackFormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -48,6 +49,7 @@ interface Props {
 };
 
 export const SlackDialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -145,7 +147,8 @@ export const SlackDialog = ({
               <FormItem>
                 <FormLabel>Message Content</FormLabel>
                 <FormControl>
-                  <Textarea
+                  <VariableTextarea
+                    nodeId={nodeId}
                     placeholder="Summary: {{myGemini.text}}"
                     className="min-h-[80px] font-mono text-sm"
                     {...field}

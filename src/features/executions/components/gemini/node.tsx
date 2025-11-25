@@ -53,6 +53,7 @@ export const GeminiNode = memo((props: NodeProps<GeminiNodeType>) => {
   return (
     <>
       <GeminiDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

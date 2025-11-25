@@ -37,10 +37,22 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   }
 
   return (
-    <div className="ml-auto">
-      <Button size="sm" onClick={handleSave} disabled={saveWorkflow.isPending}>
-        <SaveIcon className="size-4" />
-        Save
+    <div className="ml-auto flex gap-2">
+      <Button
+      variant="outline"
+      size="sm"
+      className="rounded-lg"
+      >
+        Share
+      </Button>
+      <Button 
+      onClick={handleSave} 
+      disabled={saveWorkflow.isPending}
+      size="sm" 
+      className="rounded-lg"
+      >
+        {/* <SaveIcon className="size-4" /> */}
+        Publish
       </Button>
     </div>
   )

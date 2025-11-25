@@ -51,6 +51,7 @@ export const DiscordNode = memo((props: NodeProps<DiscordNodeType>) => {
   return (
     <>
       <DiscordDialog
+        nodeId={props.id}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         onSubmit={handleSubmit}

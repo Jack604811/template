@@ -26,6 +26,7 @@ const Page = async ({ params }: PageProps) => {
   prefetchExecutions({
     page: PAGINATION.DEFAULT_PAGE,
     pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+    workflowId,
   });
 
   return (

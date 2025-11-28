@@ -50,6 +50,11 @@ export const EditorExecutionList = memo(({ workflowId }: EditorExecutionListProp
     setExecutionsOpen((prev) => !prev);
   }, []);
 
+  // Close panel when workflowId changes
+  useEffect(() => {
+    setExecutionsOpen(false);
+  }, [workflowId]);
+
   useEffect(() => {
     if (!executionsOpen || !isClient) return;
     

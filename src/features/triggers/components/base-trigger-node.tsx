@@ -1,13 +1,16 @@
 "use client";
 
-import { type NodeProps, Position, useReactFlow } from "@xyflow/react";
+import { type NodeProps, NodeToolbar, Position, useReactFlow } from "@xyflow/react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import { memo, type ReactNode } from "react";
+import { useParams } from "next/navigation";
 import { BaseNode, BaseNodeContent } from "@/components/react-flow/base-node";
 import { BaseHandle } from "@/components/react-flow/base-handle";
 import { WorkflowNode } from "@/components/workflow-node";
 import { type NodeStatus, NodeStatusIndicator } from "@/components/react-flow/node-status-indicator";
+import { ExecuteWorkflowButton } from "@/features/editor/components/execute-workflow-button";
+import { useExecuteWorkflow } from "@/features/workflows/hooks/use-workflows";
 
 interface BaseTriggerNodeProps extends NodeProps {
   icon: LucideIcon | string;
@@ -31,6 +34,9 @@ export const BaseTriggerNode = memo(
     onDoubleClick,
   }: BaseTriggerNodeProps) => {
     const { setNodes, setEdges } = useReactFlow();
+    const { workflowId } = useParams() as { workflowId: string };
+    const executeWorkflow = useExecuteWorkflow();
+
     const handleDelete = () => {
       setNodes((currentNodes) => {
         const updatedNodes = currentNodes.filter((node) => node.id !== id);
@@ -45,13 +51,23 @@ export const BaseTriggerNode = memo(
       });
     };
 
+    const handleExecute = () => {
+      executeWorkflow.mutate({ id: workflowId, triggerNodeId: id });
+    };
+
     return (
-      <WorkflowNode
-        name={name}
-        description={description}
-        onDelete={handleDelete}
-        onSettings={onSettings}
-      >
+      <>
+        <NodeToolbar position={Position.Left} align="center" offset={10}>
+          <ExecuteWorkflowButton workflowId={workflowId} nodeId={id} />
+        </NodeToolbar>
+        <WorkflowNode
+          name={name}
+          description={description}
+          onDelete={handleDelete}
+          onSettings={onSettings}
+          onExecute={handleExecute}
+          isExecuting={executeWorkflow.isPending}
+        >
         <NodeStatusIndicator
           status={status}
           variant="border"
@@ -79,6 +95,7 @@ export const BaseTriggerNode = memo(
           </BaseNode>
         </NodeStatusIndicator>
       </WorkflowNode>
+      </>
     )
   },
 );

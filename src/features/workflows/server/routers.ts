@@ -5,22 +5,32 @@ import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { NodeType } from "@/generated/prisma";
-import { inngest } from "@/inngest/client";
 import { sendWorkflowExecution } from "@/inngest/utils";
 
 export const workflowsRouter = createTRPCRouter({
   execute: organizationProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), triggerNodeId: z.string().optional() }))
     .mutation(async ({ input, ctx }) => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: {
           id: input.id,
           organizationId: ctx.organizationId,
         },
+        include: {
+          nodes: true,
+        },
       });
+
+      // Use provided triggerNodeId, or fall back to finding the manual trigger node
+      const triggerNodeId =
+        input.triggerNodeId ||
+        workflow.nodes.find(
+          (node) => node.type === NodeType.MANUAL_TRIGGER || node.type === NodeType.INITIAL,
+        )?.id;
 
       await sendWorkflowExecution({
         workflowId: input.id,
+        triggerNodeId,
       });
 
       return workflow;

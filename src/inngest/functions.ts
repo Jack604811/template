@@ -1,6 +1,6 @@
 import { NonRetriableError } from "inngest";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
-import { ExecutionStatus, type NodeType } from "@/generated/prisma";
+import { ExecutionStatus, NodeType } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { anthropicChannel } from "./channels/anthropic";
 import { discordChannel } from "./channels/discord";
@@ -96,13 +96,24 @@ export const executeWorkflow = inngest.createFunction(
 
     const triggerNodeId = event.data.triggerNodeId as string | undefined;
 
+    // Find the trigger node to check if it's a manual trigger
+    const triggerNode = triggerNodeId
+      ? sortedNodes.find((node) => node.id === triggerNodeId)
+      : undefined;
+
+    // Check if this is a manual execution (MANUAL_TRIGGER or INITIAL)
+    const isManualExecution =
+      triggerNode?.type === NodeType.MANUAL_TRIGGER ||
+      triggerNode?.type === NodeType.INITIAL;
+
     const nodesToExecute = triggerNodeId
       ? (() => {
           const queue = [triggerNodeId];
           const reachable = new Set<string>(queue);
 
           while (queue.length > 0) {
-            const current = queue.shift()!;
+            const current = queue.shift();
+            if (!current) break;
             for (const connection of connections) {
               if (connection.fromNodeId === current && !reachable.has(connection.toNodeId)) {
                 reachable.add(connection.toNodeId);
@@ -111,7 +122,14 @@ export const executeWorkflow = inngest.createFunction(
             }
           }
 
-          return sortedNodes.filter((node) => reachable.has(node.id));
+          return sortedNodes.filter(
+            (node) =>
+              reachable.has(node.id) &&
+              // Allow the actual trigger node to execute (it needs to initialize context)
+              (node.id === triggerNodeId ||
+                // When manually executing, exclude other MANUAL_TRIGGER nodes
+                !(isManualExecution && (node.type === NodeType.MANUAL_TRIGGER || node.type === NodeType.INITIAL))),
+          );
         })()
       : sortedNodes;
 

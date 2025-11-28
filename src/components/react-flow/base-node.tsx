@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
-import { forwardRef, type HTMLAttributes } from "react";
-import { NodeStatus } from "./node-status-indicator";
+import { forwardRef } from "react";
+import type { HTMLAttributes } from "react";
+import type { NodeStatus } from "./node-status-indicator";
 import { CheckCircle2Icon, Loader2Icon, XCircleIcon } from "lucide-react";
 
 interface BaseNodeProps extends HTMLAttributes<HTMLDivElement> {
@@ -14,10 +15,9 @@ export const BaseNode = forwardRef<
   <div
     ref={ref}
     className={cn(
-      "relative rounded-sm border border-muted-foreground bg-card text-card-foreground hover:bg-accent",
+      "relative rounded-sm border border-muted-foreground bg-card text-card-foreground hover:border-primary",
       className,
     )}
-    tabIndex={0}
     {...props}
   >
     {props.children}

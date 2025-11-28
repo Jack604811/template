@@ -70,7 +70,7 @@ export const EditorControls = memo(
 
     return (
       <Panel position="bottom-center" className="flex gap-2">
-        <div className="flex items-center gap-2 rounded-full bg-zinc-900 p-2 shadow-lg border border-white/10">
+        <div className="flex items-center gap-2 rounded-full bg-neutral-950 p-2 shadow-lg border border-white/10">
           <ToggleGroup
             type="single"
             value={mode}

@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { SaveIcon } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -16,6 +15,7 @@ import Link from "next/link";
 import { useSuspenseWorkflow, useUpdateWorkflow, useUpdateWorkflowName } from "@/features/workflows/hooks/use-workflows";
 import { useAtomValue } from "jotai";
 import { editorAtom } from "../store/atoms";
+import { EditorExecutionList } from "./editor-execution-list";
 
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const editor = useAtomValue(editorAtom);
@@ -38,18 +38,19 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
 
   return (
     <div className="ml-auto flex gap-2">
+      <EditorExecutionList workflowId={workflowId} />
       <Button
-      variant="outline"
-      size="sm"
-      className="rounded-lg"
+        variant="outline"
+        size="sm"
+        className="rounded-lg"
       >
         Share
       </Button>
       <Button 
-      onClick={handleSave} 
-      disabled={saveWorkflow.isPending}
-      size="sm" 
-      className="rounded-lg"
+        onClick={handleSave} 
+        disabled={saveWorkflow.isPending}
+        size="sm" 
+        className="rounded-lg"
       >
         {/* <SaveIcon className="size-4" /> */}
         Publish

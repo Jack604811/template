@@ -17,8 +17,8 @@ import type { Execution } from "@/generated/prisma";
 import { ExecutionStatus } from "@/generated/prisma";
 import { CheckCircle2Icon, ClockIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 
-export const ExecutionsList = () => {
-  const executions = useSuspenseExecutions();
+export const ExecutionsList = ({ workflowId }: { workflowId?: string }) => {
+  const executions = useSuspenseExecutions(workflowId);
 
   return (
     <EntityList
@@ -39,8 +39,8 @@ export const ExecutionsHeader = () => {
   );
 };
 
-export const ExecutionsPagination = () => {
-  const executions = useSuspenseExecutions();
+export const ExecutionsPagination = ({ workflowId }: { workflowId?: string }) => {
+  const executions = useSuspenseExecutions(workflowId);
   const [params, setParams] = useExecutionsParams();
 
   return (

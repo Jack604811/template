@@ -9,17 +9,35 @@ import {
   BreadcrumbList,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSuspenseWorkflow, useUpdateWorkflow, useUpdateWorkflowName } from "@/features/workflows/hooks/use-workflows";
+import {
+  CopyIcon,
+  FileTextIcon,
+  MoreVerticalIcon,
+  TrashIcon,
+} from "lucide-react";
+import { useSuspenseWorkflow, useUpdateWorkflow, useUpdateWorkflowName, useRemoveWorkflow, useDuplicateWorkflow } from "@/features/workflows/hooks/use-workflows";
 import { useAtomValue } from "jotai";
 import { editorAtom } from "../store/atoms";
 import { EditorExecutionList } from "./editor-execution-list";
+import { useRouter } from "next/navigation";
 
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const editor = useAtomValue(editorAtom);
   const saveWorkflow = useUpdateWorkflow();
+  const removeWorkflow = useRemoveWorkflow();
+  const duplicateWorkflow = useDuplicateWorkflow();
+  const router = useRouter();
 
   const handleSave = () => {
     if (!editor) {
@@ -34,7 +52,35 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       nodes,
       edges,
     });
-  }
+  };
+
+  const handleSaveAsTemplate = () => {
+    // TODO: Implement save as template functionality
+  };
+
+
+  const handleDuplicate = () => {
+    duplicateWorkflow.mutate(
+      { id: workflowId },
+      {
+        onSuccess: (data) => {
+          router.push(`/workflows/${data.id}`);
+        },
+      }
+    );
+  };
+
+
+  const handleDelete = () => {
+    removeWorkflow.mutate(
+      { id: workflowId },
+      {
+        onSuccess: () => {
+          router.push("/workflows");
+        },
+      }
+    );
+  };
 
   return (
     <div className="ml-auto flex gap-2">
@@ -46,17 +92,53 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       >
         Share
       </Button>
-      <Button 
-        onClick={handleSave} 
+      <Button
+        onClick={handleSave}
         disabled={saveWorkflow.isPending}
-        size="sm" 
+        size="sm"
         className="rounded-lg"
       >
-        {/* <SaveIcon className="size-4" /> */}
         Publish
       </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-lg"
+          >
+            <MoreVerticalIcon className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="[--radius:1rem]">
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={handleSaveAsTemplate}>
+              <FileTextIcon />
+              Save as Template
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={handleDuplicate}
+              disabled={duplicateWorkflow.isPending}
+            >
+              <CopyIcon />
+              Duplicate Workflow
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
+          <DropdownMenuGroup>
+            <DropdownMenuItem
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={removeWorkflow.isPending}
+            >
+              <TrashIcon />
+              Delete Workflow
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
-  )
+  );
 };
 
 export const EditorNameInput = ({ workflowId }: { workflowId: string }) => {

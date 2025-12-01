@@ -12,13 +12,14 @@ import {
   ErrorView,
   LoadingView
 } from "@/components/entity-components";
-import { useCreateWorkflow, useRemoveWorkflow, useSuspenseWorkflows } from "../hooks/use-workflows"
+import { useCreateWorkflow, useRemoveWorkflow, useDuplicateWorkflow, useSuspenseWorkflows } from "../hooks/use-workflows"
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
 import { useRouter } from "next/navigation";
 import { useWorkflowsParams } from "../hooks/use-workflows-params";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import type { Workflow } from "@/generated/prisma";
-import { WorkflowIcon } from "lucide-react";
+import { WorkflowIcon, FileTextIcon, CopyIcon, TrashIcon } from "lucide-react";
+import type { EntityMenuGroup } from "@/components/entity-components";
 
 export const WorkflowsSearch = () => {
   const [params, setParams] = useWorkflowsParams();
@@ -150,11 +151,65 @@ export const WorkflowItem = ({
 }: { 
   data: Workflow
 }) => {
+  const router = useRouter();
   const removeWorkflow = useRemoveWorkflow();
+  const duplicateWorkflow = useDuplicateWorkflow();
 
-  const handleRemove = () => {
-    removeWorkflow.mutate({ id: data.id });
-  }
+  const handleSaveAsTemplate = () => {
+    // TODO: Implement save as template functionality
+  };
+
+  const handleDuplicate = () => {
+    duplicateWorkflow.mutate(
+      { id: data.id },
+      {
+        onSuccess: (duplicated) => {
+          router.push(`/workflows/${duplicated.id}`);
+        },
+      }
+    );
+  };
+
+  const handleDelete = () => {
+    removeWorkflow.mutate(
+      { id: data.id },
+      {
+        onSuccess: () => {
+          router.push("/workflows");
+        },
+      }
+    );
+  };
+
+  const menuGroups: EntityMenuGroup[] = [
+    {
+      items: [
+        {
+          label: "Save as Template",
+          icon: FileTextIcon,
+          onClick: handleSaveAsTemplate,
+        },
+        {
+          label: "Duplicate Workflow",
+          icon: CopyIcon,
+          onClick: handleDuplicate,
+          disabled: duplicateWorkflow.isPending,
+        },
+      ],
+    },
+    {
+      separator: true,
+      items: [
+        {
+          label: "Delete Workflow",
+          icon: TrashIcon,
+          onClick: handleDelete,
+          variant: "destructive",
+          disabled: removeWorkflow.isPending,
+        },
+      ],
+    },
+  ];
 
   return (
     <EntityItem
@@ -172,8 +227,7 @@ export const WorkflowItem = ({
           <WorkflowIcon className="size-5 text-muted-foreground" />
         </div>
       }
-      onRemove={handleRemove}
-      isRemoving={removeWorkflow.isPending}
+      menuGroups={menuGroups}
     />
   )
 }

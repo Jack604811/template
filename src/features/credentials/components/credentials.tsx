@@ -24,6 +24,8 @@ import { useCredentialsParams } from "../hooks/use-credentials-params";
 import { AppDirectoryDialog } from "./app-directory";
 import { credentialLogos } from "./credential";
 import { CredentialConnectionDialog } from "./credential-connection-dialog";
+import { TrashIcon, PencilIcon } from "lucide-react";
+import type { EntityMenuGroup } from "@/components/entity-components";
 
 export const CredentialsSearch = () => {
   const [params, setParams] = useCredentialsParams();
@@ -133,40 +135,58 @@ export const CredentialItem = ({ data }: { data: Credential }) => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const removeCredential = useRemoveCredential();
 
-  const handleRemove = () => {
+  const handleEdit = () => {
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = () => {
     removeCredential.mutate({ id: data.id });
   };
 
   const logo = credentialLogos[data.type] || "/logos/openai.svg";
 
+  const menuGroups: EntityMenuGroup[] = [
+    {
+      items: [
+        {
+          label: "Edit Credential",
+          icon: PencilIcon,
+          onClick: handleEdit,
+        },
+      ],
+    },
+    {
+      separator: true,
+      items: [
+        {
+          label: "Delete Credential",
+          icon: TrashIcon,
+          onClick: handleDelete,
+          variant: "destructive",
+          disabled: removeCredential.isPending,
+        },
+      ],
+    },
+  ];
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setEditDialogOpen(true)}
-        className="w-full text-left"
-      >
-        <EntityItem
-          title={data.name}
-          subtitle={
-            <>
-              Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-              &bull; Created{" "}
-              {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-            </>
-          }
-          image={
-            <div className="size-8 flex items-center justify-center">
-              <Image src={logo} alt={data.type} width={20} height={20} />
-            </div>
-          }
-          onRemove={(e) => {
-            e.stopPropagation();
-            handleRemove();
-          }}
-          isRemoving={removeCredential.isPending}
-        />
-      </button>
+      <EntityItem
+        title={data.name}
+        subtitle={
+          <>
+            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
+            &bull; Created{" "}
+            {formatDistanceToNow(data.createdAt, { addSuffix: true })}
+          </>
+        }
+        image={
+          <div className="size-8 flex items-center justify-center">
+            <Image src={logo} alt={data.type} width={20} height={20} />
+          </div>
+        }
+        menuGroups={menuGroups}
+      />
       <CredentialConnectionDialog
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}

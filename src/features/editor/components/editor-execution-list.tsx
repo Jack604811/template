@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useState, Suspense, useCallback, useEffect } from "react";
+import { memo, useState, Suspense, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ErrorBoundary } from "react-error-boundary";
 import { HistoryIcon } from "lucide-react";
@@ -45,6 +45,7 @@ ExecutionsPanel.displayName = "ExecutionsPanel";
 export const EditorExecutionList = memo(({ workflowId }: EditorExecutionListProps) => {
   const [executionsOpen, setExecutionsOpen] = useState(false);
   const isClient = typeof window !== "undefined";
+  const prevWorkflowIdRef = useRef(workflowId);
 
   const handleToggle = useCallback(() => {
     setExecutionsOpen((prev) => !prev);
@@ -52,7 +53,10 @@ export const EditorExecutionList = memo(({ workflowId }: EditorExecutionListProp
 
   // Close panel when workflowId changes
   useEffect(() => {
-    setExecutionsOpen(false);
+    if (prevWorkflowIdRef.current !== workflowId) {
+      setExecutionsOpen(false);
+      prevWorkflowIdRef.current = workflowId;
+    }
   }, [workflowId]);
 
   useEffect(() => {

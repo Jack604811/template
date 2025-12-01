@@ -6,6 +6,7 @@ import {
   PlusIcon,
   SearchIcon,
   TrashIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import Link from "next/link";
@@ -23,7 +24,9 @@ import { Card, CardContent, CardDescription, CardTitle } from "./ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 
@@ -246,6 +249,19 @@ export function EntityList<T>({
   );
 }
 
+export interface EntityMenuItem {
+  label: string;
+  icon: LucideIcon;
+  onClick: () => void;
+  disabled?: boolean;
+  variant?: "default" | "destructive";
+}
+
+export interface EntityMenuGroup {
+  items: EntityMenuItem[];
+  separator?: boolean;
+}
+
 interface EntityItemProps {
   href?: string;
   title: string;
@@ -256,6 +272,8 @@ interface EntityItemProps {
     | ((e: React.MouseEvent) => void | Promise<void>)
     | (() => void | Promise<void>);
   isRemoving?: boolean;
+  menuItems?: EntityMenuItem[];
+  menuGroups?: EntityMenuGroup[];
   className?: string;
 }
 
@@ -267,6 +285,8 @@ export const EntityItem = ({
   actions,
   onRemove,
   isRemoving,
+  menuItems,
+  menuGroups,
   className,
 }: EntityItemProps) => {
   const handleRemove = async (e: React.MouseEvent) => {
@@ -281,6 +301,61 @@ export const EntityItem = ({
       await onRemove(e);
     }
   };
+
+  const renderMenuItems = () => {
+    if (!menuItems) return null;
+
+    return menuItems.map((item, index) => {
+      const Icon = item.icon;
+      return (
+        <DropdownMenuItem
+          key={index}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            item.onClick();
+          }}
+          disabled={item.disabled}
+          variant={item.variant}
+        >
+          <Icon className="size-4" />
+          {item.label}
+        </DropdownMenuItem>
+      );
+    });
+  };
+
+  const renderMenuGroups = () => {
+    if (!menuGroups) return null;
+
+    return menuGroups.map((group, groupIndex) => (
+      <div key={groupIndex}>
+        {group.separator && <DropdownMenuSeparator />}
+        <DropdownMenuGroup>
+          {group.items.map((item, itemIndex) => {
+            const Icon = item.icon;
+            return (
+              <DropdownMenuItem
+                key={itemIndex}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  item.onClick();
+                }}
+                disabled={item.disabled}
+                variant={item.variant}
+              >
+                <Icon className="size-4" />
+                {item.label}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+      </div>
+    ));
+  };
+
+  const hasMenu = menuItems || menuGroups || onRemove;
 
   const content = (
     <Card
@@ -300,10 +375,10 @@ export const EntityItem = ({
             )}
           </div>
         </div>
-        {(actions || onRemove) && (
+        {(actions || hasMenu) && (
           <div className="flex gap-x-4 items-center">
             {actions}
-            {onRemove && (
+            {hasMenu && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -317,11 +392,20 @@ export const EntityItem = ({
                 <DropdownMenuContent
                   align="end"
                   onClick={(e) => e.stopPropagation()}
+                  className="[--radius:1rem]"
                 >
-                  <DropdownMenuItem onClick={handleRemove}>
-                    <TrashIcon className="size-4" />
-                    Delete
-                  </DropdownMenuItem>
+                  {menuItems && (
+                    <DropdownMenuGroup>
+                      {renderMenuItems()}
+                    </DropdownMenuGroup>
+                  )}
+                  {menuGroups && renderMenuGroups()}
+                  {!menuItems && !menuGroups && onRemove && (
+                    <DropdownMenuItem onClick={handleRemove}>
+                      <TrashIcon className="size-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

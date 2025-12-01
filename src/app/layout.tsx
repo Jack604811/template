@@ -39,14 +39,14 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <TRPCReactProvider>
-            <NuqsAdapter>
-              <Provider>
-                {children}
-                <Toaster />
-              </Provider>
-            </NuqsAdapter>
-          </TRPCReactProvider>
+        <TRPCReactProvider>
+          <NuqsAdapter>
+            <Provider>
+              {children}
+              <Toaster />
+            </Provider>
+          </NuqsAdapter>
+        </TRPCReactProvider>
         </ThemeProvider>
       </body>
     </html>

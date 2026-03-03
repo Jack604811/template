@@ -1,8 +1,8 @@
 "use server";
 
-import { inngest } from "@/inngest/client";
-import { webhookTriggerChannel } from "@/inngest/channels/webhook-trigger";
 import { getSubscriptionToken, type Realtime } from "@inngest/realtime";
+import { webhookTriggerChannel } from "@/inngest/channels/webhook-trigger";
+import { inngest } from "@/inngest/client";
 
 export interface WebhookData {
   body: unknown;
@@ -13,8 +13,15 @@ export interface WebhookData {
   raw: string;
 }
 
+export interface WebhookStoredSchema {
+  body: unknown;
+  headers: Record<string, string>;
+  query: Record<string, string>;
+}
+
 export interface WebhookTriggerNodeData {
   webhookId?: string;
+  webhookSchema?: WebhookStoredSchema;
 }
 
 export interface WebhookEvent {
@@ -43,4 +50,3 @@ export async function fetchWebhookTriggerRealtimeToken(): Promise<WebhookTrigger
 
   return token;
 }
-

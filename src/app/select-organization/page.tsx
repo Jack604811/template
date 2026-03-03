@@ -14,9 +14,9 @@ const Page = async () => {
     redirect("/login");
   }
 
-  // If user already has an active organization, redirect to workflows
+  // If user already has an active organization, redirect to calendar
   if (session.session.activeOrganizationId) {
-    redirect("/workflows");
+    redirect("/calendar");
   }
 
   // Get user's organizations

@@ -26,6 +26,18 @@ type FlattenedVariable = {
   root: string;
 };
 
+/** Convert technical paths to readable labels for non-developers (e.g. "body.amount" → "Amount", "body.payer_email" → "Payer email"). */
+function toFriendlyDisplayLabel(path: string): string {
+  const lastSegment = path.split(".").pop() ?? path;
+  const withSpaces = lastSegment
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .trim();
+  const titleCased =
+    withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1).toLowerCase();
+  return titleCased.replace(/\bid\b/i, "ID");
+}
+
 const flattenVariables = (
   entries: VariableEntry[],
   root: string,
@@ -205,6 +217,32 @@ const VariablesColumn = ({
     return <EmptyState hasSearch={Boolean(searchTerm)} />;
   }
 
+  const getDisplayName = (entry: VariableEntry, label: string) => {
+    if (
+      entry.path[0] === "webhook" &&
+      entry.path[1] === "body" &&
+      entry.path.length === 2
+    ) {
+      return "Request data";
+    }
+    return toFriendlyDisplayLabel(label);
+  };
+
+  const getPreview = (entry: VariableEntry) => {
+    if (
+      entry.path[0] === "webhook" &&
+      entry.path[1] === "body" &&
+      entry.path.length === 2 &&
+      entry.children?.length
+    ) {
+      const fieldNames = entry.children
+        .map((c) => toFriendlyDisplayLabel(c.key))
+        .join(", ");
+      return `Contains: ${fieldNames}`;
+    }
+    return entry.preview;
+  };
+
   return (
     <ScrollArea className="h-72">
       <div className="flex flex-col">
@@ -222,8 +260,10 @@ const VariablesColumn = ({
                 isSelected && "bg-muted",
               )}
           >
-              <span className="truncate text-sm font-medium">{label}</span>
-            <VariablePreview preview={entry.preview} />
+              <span className="truncate text-sm font-medium" title={label}>
+                {getDisplayName(entry, label)}
+              </span>
+            <VariablePreview preview={getPreview(entry)} />
           </button>
           );
         })}
@@ -351,13 +391,28 @@ export const VariablePickerPopover = memo(
         const filtered = filteredNodes.find(
           (item) => item.nodeId === activeNode.nodeId,
         ) as (NodeVariables & { matches: FlattenedVariable[] }) | undefined;
-        return filtered?.matches ?? [];
+        let matches = filtered?.matches ?? [];
+        if (activeNode.variableName === "webhook") {
+          matches = matches.filter(
+            (m) =>
+              m.entry.path[0] === "webhook" && m.entry.path[1] === "body",
+          );
+        }
+        return matches;
       }
 
       const flattened = flattenVariables(
         activeNode.variables,
         activeNode.variableName,
       );
+
+      if (activeNode.variableName === "webhook") {
+        return flattened.filter(
+          (item) =>
+            item.entry.path[0] === "webhook" &&
+            item.entry.path[1] === "body",
+        );
+      }
 
       if (activeNode.rootEntry) {
         return [

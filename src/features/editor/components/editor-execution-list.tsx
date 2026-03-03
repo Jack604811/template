@@ -30,7 +30,7 @@ const ExecutionsPanel = memo(({ workflowId }: { workflowId: string }) => {
         <Suspense fallback={<ExecutionsLoading />}>
           <div className="flex h-full flex-col px-4 py-3 space-y-4">
             <div className="flex-1 overflow-y-auto pr-1">
-              <ExecutionsList workflowId={workflowId} />
+              <ExecutionsList workflowId={workflowId} disableNavigation />
             </div>
             <ExecutionsPagination workflowId={workflowId} />
           </div>

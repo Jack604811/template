@@ -21,6 +21,7 @@ import {
 } from "./ui/empty";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardDescription, CardTitle } from "./ui/card";
+import Image from "next/image";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -121,7 +122,7 @@ export const EntitySearch = ({
     <div className="relative ml-auto">
       <SearchIcon className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
       <Input
-        className="max-w-[200px] bg-background shadow-none border-border pl-8"
+        className="max-w-[400px] bg-none shadow-none border-none focus-visible:ring-0 pl-8"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -171,7 +172,7 @@ export const EntityPagination = ({
 };
 
 interface StateViewProps {
-  message?: string;
+  message?: React.ReactNode;
 }
 
 export const LoadingView = ({ message }: StateViewProps) => {
@@ -183,12 +184,22 @@ export const LoadingView = ({ message }: StateViewProps) => {
   );
 };
 
-export const ErrorView = ({ message }: StateViewProps) => {
+interface ErrorViewProps {
+  title?: string;
+  message?: React.ReactNode;
+}
+
+export const ErrorView = ({ title, message }: ErrorViewProps) => {
   return (
-    <div className="flex justify-center items-center h-full flex-1 flex-col gap-y-4">
-      <AlertTriangleIcon className="size-6 text-primary" />
-      {!!message && <p className="text-sm text-muted-foreground">{message}</p>}
-    </div>
+    <Empty className="bg-none">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <AlertTriangleIcon className="text-destructive" />
+        </EmptyMedia>
+      </EmptyHeader>
+      {title && <EmptyTitle>{title}</EmptyTitle>}
+      {!!message && <EmptyDescription>{message}</EmptyDescription>}
+    </Empty>
   );
 };
 
@@ -198,7 +209,7 @@ interface EmptyViewProps extends StateViewProps {
 
 export const EmptyView = ({ message, onNew }: EmptyViewProps) => {
   return (
-    <Empty className="border border-dashed bg-white">
+    <Empty className="bg-none">
       <EmptyHeader>
         <EmptyMedia variant="icon">
           <PackageOpenIcon />
@@ -216,7 +227,7 @@ export const EmptyView = ({ message, onNew }: EmptyViewProps) => {
 };
 
 interface EntityListProps<T> {
-  items: T[];
+  items: readonly T[];
   renderItem: (item: T, index: number) => React.ReactNode;
   getKey?: (item: T, index: number) => string | number;
   emptyView?: React.ReactNode;
@@ -264,7 +275,7 @@ export interface EntityMenuGroup {
 
 interface EntityItemProps {
   href?: string;
-  title: string;
+  title: React.ReactNode;
   subtitle?: React.ReactNode;
   image?: React.ReactNode;
   actions?: React.ReactNode;
@@ -305,11 +316,11 @@ export const EntityItem = ({
   const renderMenuItems = () => {
     if (!menuItems) return null;
 
-    return menuItems.map((item, index) => {
+    return menuItems.map((item) => {
       const Icon = item.icon;
       return (
         <DropdownMenuItem
-          key={index}
+          key={item.label}
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -329,14 +340,15 @@ export const EntityItem = ({
     if (!menuGroups) return null;
 
     return menuGroups.map((group, groupIndex) => (
-      <div key={groupIndex}>
+      // biome-ignore lint/suspicious/noArrayIndexKey: Group index is the only stable identifier here since groups don't have IDs
+      <div key={`group-${groupIndex}`}>
         {group.separator && <DropdownMenuSeparator />}
         <DropdownMenuGroup>
-          {group.items.map((item, itemIndex) => {
+          {group.items.map((item) => {
             const Icon = item.icon;
             return (
               <DropdownMenuItem
-                key={itemIndex}
+                key={item.label}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -402,7 +414,7 @@ export const EntityItem = ({
                   {menuGroups && renderMenuGroups()}
                   {!menuItems && !menuGroups && onRemove && (
                     <DropdownMenuItem onClick={handleRemove}>
-                      <TrashIcon className="size-4" />
+                      <TrashIcon className="size-4 shrink-0" />
                       Delete
                     </DropdownMenuItem>
                   )}
@@ -413,6 +425,126 @@ export const EntityItem = ({
         )}
       </CardContent>
     </Card>
+  );
+
+  if (href) {
+    return (
+      <Link href={href} prefetch>
+        {content}
+      </Link>
+    );
+  }
+
+  return content;
+};
+
+interface EntityGridProps<T> {
+  items: readonly T[];
+  renderItem: (item: T, index: number) => React.ReactNode;
+  getKey?: (item: T, index: number) => string | number;
+  emptyView?: React.ReactNode;
+  className?: string;
+}
+
+export function EntityGrid<T>({
+  items,
+  renderItem,
+  getKey,
+  emptyView,
+  className,
+}: EntityGridProps<T>) {
+  if (items.length === 0 && emptyView) {
+    return (
+      <div className="flex-1 flex justify-center items-center">
+        <div className="max-w-sm mx-auto">{emptyView}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6",
+      className
+    )}>
+      {items.map((item, index) => (
+        <div key={getKey ? getKey(item, index) : index} className="flex justify-center">
+          {renderItem(item, index)}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+interface EntityGridItemProps {
+  href?: string;
+  title: string;
+  description?: string;
+  icon?: React.ReactNode;
+  image?: string;
+  onClick?: () => void;
+  className?: string;
+}
+
+export const EntityGridItem = ({
+  href,
+  title,
+  description,
+  icon,
+  image,
+  onClick,
+  className,
+}: EntityGridItemProps) => {
+  const isButton = Boolean(onClick && !href);
+  const Component = isButton ? "button" : "div";
+
+  const content = (
+    <Component
+      type={isButton ? "button" : undefined}
+      className={cn(
+        "text-left",
+        "group relative overflow-hidden",
+        "p-8 rounded-3xl",
+        "bg-white dark:bg-card",
+        "border border-border/40 shadow-sm",
+        "hover:shadow-xl hover:border-primary/20",
+        "transition-all duration-300 ease-in-out",
+        "cursor-pointer",
+        "flex flex-col h-full min-h-[264px]",
+        "w-full",
+        className,
+      )}
+      onClick={isButton ? onClick : undefined}
+    >
+      <div className="flex flex-col gap-6 flex-1 z-10">
+        {/* Icon/Image at the top left */}
+        {(icon || image) && (
+          <div className="size-16 shrink-0 rounded-full bg-primary/5 flex items-center justify-center overflow-hidden transition-transform duration-300 group-hover:scale-110 group-hover:bg-primary/10">
+            {icon}
+            {image && (
+              <Image
+                src={image}
+                alt={title}
+                width={32}
+                height={32}
+                className="size-16 object-contain p-3"
+              />
+            )}
+          </div>
+        )}
+        
+        {/* Title and description below */}
+        <div className="flex flex-col gap-3 flex-1">
+          <CardTitle className="text-xl font-bold tracking-tight text-foreground/90 group-hover:text-primary transition-colors duration-300">
+            {title}
+          </CardTitle>
+          {description && (
+            <CardDescription className="text-base text-muted-foreground/80 line-clamp-3 leading-relaxed font-normal">
+              {description}
+            </CardDescription>
+          )}
+        </div>
+      </div>
+    </Component>
   );
 
   if (href) {

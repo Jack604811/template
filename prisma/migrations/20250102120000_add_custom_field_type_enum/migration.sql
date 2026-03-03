@@ -1,0 +1,3 @@
+-- CreateEnum
+CREATE TYPE "CustomFieldType" AS ENUM ('TEXT', 'NUMBER', 'BOOLEAN', 'DATE', 'TIME', 'OPTIONS', 'MULTISELECT');
+

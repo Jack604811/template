@@ -1,0 +1,60 @@
+{
+  "version": "2.6",
+  "children": [
+    {
+      "type": "frame",
+      "id": "9vKlJ",
+      "x": 0,
+      "y": 0,
+      "name": "card",
+      "width": 280,
+      "fill": "#1a1a2e",
+      "cornerRadius": 20,
+      "layout": "vertical",
+      "gap": 20,
+      "padding": 28,
+      "justifyContent": "center",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "ellipse",
+          "id": "73c72",
+          "name": "avatar",
+          "fill": "#6366f1",
+          "width": 72,
+          "height": 72
+        },
+        {
+          "type": "icon_font",
+          "id": "SH3Se",
+          "name": "icon",
+          "width": 36,
+          "height": 36,
+          "iconFontName": "sparkles",
+          "iconFontFamily": "lucide",
+          "fill": "#ffffff"
+        },
+        {
+          "type": "text",
+          "id": "fDUhe",
+          "name": "name",
+          "fill": "#f1f5f9",
+          "content": "Auto",
+          "fontFamily": "Inter",
+          "fontSize": 22,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "qsBYK",
+          "name": "tagline",
+          "fill": "#94a3b8",
+          "content": "Your coding assistant in Cursor",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "normal"
+        }
+      ]
+    }
+  ]
+}

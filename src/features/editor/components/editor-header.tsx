@@ -25,19 +25,26 @@ import {
   FileTextIcon,
   MoreVerticalIcon,
   TrashIcon,
+  XIcon,
 } from "lucide-react";
 import { useSuspenseWorkflow, useUpdateWorkflow, useUpdateWorkflowName, useRemoveWorkflow, useDuplicateWorkflow } from "@/features/workflows/hooks/use-workflows";
+import { useSaveTemplate, useRemoveTemplate } from "@/features/templates/hooks/use-templates";
 import { useAtomValue } from "jotai";
 import { editorAtom } from "../store/atoms";
 import { EditorExecutionList } from "./editor-execution-list";
 import { useRouter } from "next/navigation";
+import { useDetailPageNavigation } from "@/hooks/use-detail-page-navigation";
 
 export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   const editor = useAtomValue(editorAtom);
+  const { data: workflow } = useSuspenseWorkflow(workflowId);
   const saveWorkflow = useUpdateWorkflow();
   const removeWorkflow = useRemoveWorkflow();
   const duplicateWorkflow = useDuplicateWorkflow();
+  const saveTemplate = useSaveTemplate();
+  const removeTemplate = useRemoveTemplate();
   const router = useRouter();
+  const { handleCancel } = useDetailPageNavigation("/workflows");
 
   const handleSave = () => {
     if (!editor) {
@@ -55,7 +62,20 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
   };
 
   const handleSaveAsTemplate = () => {
-    // TODO: Implement save as template functionality
+    saveTemplate.mutate({
+      workflowId,
+    });
+  };
+
+  const handleRemoveTemplate = () => {
+    removeTemplate.mutate(
+      { workflowId },
+      {
+        onSuccess: () => {
+          // Workflow is now a regular workflow, not a template
+        },
+      }
+    );
   };
 
 
@@ -76,7 +96,7 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
       { id: workflowId },
       {
         onSuccess: () => {
-          router.push("/workflows");
+          handleCancel();
         },
       }
     );
@@ -98,7 +118,7 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
         size="sm"
         className="rounded-lg"
       >
-        Publish
+        Save workflow
       </Button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -112,10 +132,23 @@ export const EditorSaveButton = ({ workflowId }: { workflowId: string }) => {
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="[--radius:1rem]">
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={handleSaveAsTemplate}>
-              <FileTextIcon />
-              Save as Template
-            </DropdownMenuItem>
+            {workflow.isTemplate ? (
+              <DropdownMenuItem
+                onClick={handleRemoveTemplate}
+                disabled={removeTemplate.isPending}
+              >
+                <XIcon />
+                Remove Template
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem
+                onClick={handleSaveAsTemplate}
+                disabled={saveTemplate.isPending}
+              >
+                <FileTextIcon />
+                Save as Template
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem
               onClick={handleDuplicate}
               disabled={duplicateWorkflow.isPending}
@@ -212,12 +245,21 @@ export const EditorNameInput = ({ workflowId }: { workflowId: string }) => {
 };
 
 export const EditorBreadcrumbs = ({ workflowId }: { workflowId: string }) => {
+  const { handleBreadcrumbClick } = useDetailPageNavigation("/workflows");
+
   return (
     <Breadcrumb>
       <BreadcrumbList>
         <BreadcrumbItem>
           <BreadcrumbLink asChild>
-            <Link prefetch href="/workflows">
+            <Link 
+              prefetch 
+              href="/workflows"
+              onClick={(e) => {
+                e.preventDefault();
+                handleBreadcrumbClick();
+              }}
+            >
               Workflows
             </Link>
           </BreadcrumbLink>

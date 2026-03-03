@@ -1,16 +1,17 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import type { Edge, Node } from "@xyflow/react";
 import { useReactFlow } from "@xyflow/react";
 import { useParams } from "next/navigation";
+import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
-import { useTRPC } from "@/trpc/client";
-import type { Edge, Node } from "@xyflow/react";
 import type {
-  NodeVariables,
-  VariableEntry,
-} from "../types/variables";
+  WebhookStoredSchema,
+  WebhookTriggerNodeData,
+} from "@/features/triggers/components/webhook-trigger/actions";
+import { useTRPC } from "@/trpc/client";
+import type { NodeVariables, VariableEntry } from "../types/variables";
 
 type WorkflowPageParams = {
   workflowId: string;
@@ -45,6 +46,19 @@ const formatPreview = (value: unknown): string => {
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 };
+
+function buildWebhookPayloadFromSchema(
+  schema: WebhookStoredSchema,
+): Record<string, unknown> {
+  return {
+    body: schema.body,
+    headers: schema.headers,
+    query: schema.query,
+    method: "POST",
+    path: "",
+    raw: "",
+  };
+}
 
 const collectPredecessorNodeIds = (
   edges: Edge[],
@@ -173,7 +187,7 @@ const deriveNodeVariables = (
   const result: NodeVariables[] = [];
 
   const relevantNodes = nodes.filter((node) => predecessors.has(node.id));
-  
+
   // Sort nodes by position (execution order: left to right, top to bottom)
   const sortedNodes = sortNodesByPosition(relevantNodes);
 
@@ -254,8 +268,37 @@ export const useWorkflowVariables = (
         .filter((value): value is string => Boolean(value)),
     );
 
+    const webhookTriggerNode = nodes.find(
+      (n) => n.type === "WEBHOOK_TRIGGER" && predecessors.has(n.id),
+    );
+    const webhookEntry = webhookTriggerNode
+      ? derived.find((d) => d.nodeId === webhookTriggerNode.id)
+      : undefined;
+
+    if (webhookEntry) {
+      const webhookValue =
+        context && "webhook" in context
+          ? (context.webhook as Record<string, unknown>)
+          : null;
+      const schema = (webhookTriggerNode?.data as WebhookTriggerNodeData)
+        ?.webhookSchema;
+
+      const source =
+        webhookValue ?? (schema ? buildWebhookPayloadFromSchema(schema) : null);
+      if (source) {
+        const rootEntry = buildVariableTree(source, ["webhook"], {
+          isRoot: true,
+        });
+        webhookEntry.variables = rootEntry.children ?? [];
+        webhookEntry.rootEntry = rootEntry;
+        webhookEntry.variableName = "webhook";
+        webhookEntry.nodeLabel = "Webhook";
+      }
+    }
+
     if (context) {
       for (const [key, value] of Object.entries(context)) {
+        if (key === "webhook") continue;
         if (existingNames.has(key)) {
           continue;
         }
@@ -284,4 +327,3 @@ export const useWorkflowVariables = (
     },
   };
 };
-

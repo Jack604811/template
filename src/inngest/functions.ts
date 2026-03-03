@@ -8,6 +8,7 @@ import { geminiChannel } from "./channels/gemini";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { httpRequestChannel } from "./channels/http-request";
 import { manualTriggerChannel } from "./channels/manual-trigger";
+import { agentChannel } from "./channels/agent";
 import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
@@ -43,6 +44,7 @@ export const executeWorkflow = inngest.createFunction(
       anthropicChannel(),
       discordChannel(),
       slackChannel(),
+      agentChannel(),
     ],
   },
   async ({ event, step, publish }) => {

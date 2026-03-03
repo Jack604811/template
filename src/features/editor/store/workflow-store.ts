@@ -37,8 +37,31 @@ export const useWorkflowStore = create<WorkflowState>()(
       setEdges: (edges) => set({ edges }),
       
       onNodesChange: (changes: NodeChange[]) => {
+        // Apply node changes first
+        const updatedNodes = applyNodeChanges(changes, get().nodes);
+
+        // Collect IDs of removed nodes
+        const removedNodeIds = new Set<string>();
+        for (const change of changes) {
+          if (change.type === "remove" && change.id) {
+            removedNodeIds.add(change.id);
+          }
+        }
+
+        // Remove edges connected to deleted nodes
+        let updatedEdges = get().edges;
+        if (removedNodeIds.size > 0) {
+          updatedEdges = updatedEdges.filter(
+            (edge) =>
+              !removedNodeIds.has(edge.source) &&
+              !removedNodeIds.has(edge.target),
+          );
+        }
+
+        // Update both nodes and edges atomically
         set({
-          nodes: applyNodeChanges(changes, get().nodes),
+          nodes: updatedNodes,
+          edges: updatedEdges,
         });
       },
       

@@ -1,12 +1,12 @@
-import { randomUUID } from "crypto";
 import { generateSlug } from "random-word-slugs";
 import prisma from "@/lib/db";
 import type { Node, Edge } from "@xyflow/react";
-import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure, protectedProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
-import { NodeType, type Prisma } from "@/generated/prisma";
+import { NodeType } from "@/generated/prisma";
 import { sendWorkflowExecution } from "@/inngest/utils";
+import { copyWorkflowStructure } from "../utils/workflow-copy";
 
 export const workflowsRouter = createTRPCRouter({
   execute: organizationProcedure
@@ -76,49 +76,12 @@ export const workflowsRouter = createTRPCRouter({
         },
       });
 
-      // Create a map of old node IDs to new node IDs
-      const nodeIdMap = new Map<string, string>();
-      originalWorkflow.nodes.forEach((node) => {
-        // Generate new ID for each node
-        nodeIdMap.set(node.id, randomUUID());
-      });
-
       // Create new workflow with copied name
       return await prisma.workflow.create({
-        data: {
+        data: copyWorkflowStructure(originalWorkflow, {
           name: `${originalWorkflow.name} (Copy)`,
           organizationId: ctx.organizationId,
-          nodes: {
-            create: originalWorkflow.nodes.map((node) => {
-              const newNodeId = nodeIdMap.get(node.id);
-              if (!newNodeId) {
-                throw new Error(`Failed to find new ID for node ${node.id}`);
-              }
-              return {
-                id: newNodeId,
-                type: node.type,
-                position: node.position as Prisma.InputJsonValue,
-                name: node.name,
-                data: node.data as Prisma.InputJsonValue,
-              };
-            }),
-          },
-          connections: {
-            create: originalWorkflow.connections.map((connection) => {
-              const newFromNodeId = nodeIdMap.get(connection.fromNodeId);
-              const newToNodeId = nodeIdMap.get(connection.toNodeId);
-              if (!newFromNodeId || !newToNodeId) {
-                throw new Error(`Failed to find new IDs for connection`);
-              }
-              return {
-                fromNodeId: newFromNodeId,
-                toNodeId: newToNodeId,
-                fromOutput: connection.fromOutput,
-                toInput: connection.toInput,
-              };
-            }),
-          },
-        },
+        }),
       });
     }),
   update: organizationProcedure
@@ -191,8 +154,23 @@ export const workflowsRouter = createTRPCRouter({
     }),
   updateName: organizationProcedure
     .input(z.object({ id: z.string(), name: z.string().min(1) }))
-    .mutation(({ ctx, input }) => {
-      return prisma.workflow.update({
+    .mutation(async ({ ctx, input }) => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: { id: input.id, organizationId: ctx.organizationId },
+      });
+
+      // If this workflow is a template, update the template name as well
+      if (workflow.isTemplate) {
+        return await prisma.workflow.update({
+          where: { id: input.id, organizationId: ctx.organizationId },
+          data: { 
+            name: input.name,
+            templateName: input.name,
+          },
+        });
+      }
+
+      return await prisma.workflow.update({
         where: { id: input.id, organizationId: ctx.organizationId },
         data: { name: input.name },
       });
@@ -225,6 +203,7 @@ export const workflowsRouter = createTRPCRouter({
       return {
         id: workflow.id,
         name: workflow.name,
+        isTemplate: workflow.isTemplate,
         nodes,
         edges,
       };

@@ -53,7 +53,7 @@ export const SelectOrganizationView = ({ memberships }: Props) => {
                       organizationId: membership.organization.id,
                     })
                   }
-                  disabled={switchOrg.isPending}
+                 
                 >
                   <Building2Icon className="size-5 mr-3" />
                   <div className="flex-1 text-left">

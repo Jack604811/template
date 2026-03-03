@@ -1,7 +1,7 @@
 "use client";
 
-import { MoreHorizontalIcon, UserIcon } from "lucide-react";
-import { useState } from "react";
+import { memo, useState } from "react";
+import { MoreHorizontalIcon, UserIcon, PlusIcon } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,15 +21,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
 import { useSuspenseOrganizationMembers, useRemoveMember, useUpdateMemberRole } from "../hooks/use-organizations";
 import { InviteMemberDialog } from "./invite-member-dialog";
 
 interface Props {
   organizationId: string;
-  currentRole: string;
+  currentRole: "owner" | "admin" | "member";
 }
 
-export const MemberList = ({ organizationId, currentRole }: Props) => {
+export const MemberList = memo(({ organizationId, currentRole }: Props) => {
   const { data: members } = useSuspenseOrganizationMembers(organizationId);
   const removeMember = useRemoveMember();
   const updateRole = useUpdateMemberRole();
@@ -61,7 +62,7 @@ export const MemberList = ({ organizationId, currentRole }: Props) => {
   };
 
   return (
-    <div className="space-y-4">
+    <>
       <InviteMemberDialog
         open={inviteDialogOpen}
         onOpenChange={setInviteDialogOpen}
@@ -86,76 +87,89 @@ export const MemberList = ({ organizationId, currentRole }: Props) => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {canManageMembers && (
-        <Button onClick={() => setInviteDialogOpen(true)}>
-          Invite Member
-        </Button>
-      )}
+      <CardHeader>
+        <CardTitle>Team Members</CardTitle>
+        <CardDescription>
+          Manage who has access to this organization
+        </CardDescription>
+        {canManageMembers && (
+          <CardAction>
+            <Button onClick={() => setInviteDialogOpen(true)} size="sm">
+              <PlusIcon className="size-4" />
+              Add Member
+            </Button>
+          </CardAction>
+        )}
+      </CardHeader>
 
-      <div className="space-y-2">
-        {members.map((member) => (
-          <div
-            key={member.id}
-            className="flex items-center justify-between p-4 border rounded-lg"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                <UserIcon className="w-5 h-5 text-muted-foreground" />
+      <CardContent>
+        <div className="space-y-2">
+          {members.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center justify-between p-4 border rounded-lg"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <UserIcon className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <div className="font-medium">{member.user.name}</div>
+                  <div className="text-sm text-muted-foreground">{member.user.email}</div>
+                </div>
               </div>
-              <div>
-                <div className="font-medium">{member.user.name}</div>
-                <div className="text-sm text-muted-foreground">{member.user.email}</div>
+              <div className="flex items-center gap-2">
+                <Badge variant={member.role === "owner" ? "default" : "secondary"}>
+                  {member.role}
+                </Badge>
+                {canManageMembers && member.role !== "owner" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreHorizontalIcon className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {isOwner && (
+                        <>
+                          <DropdownMenuItem
+                            onClick={() => handleChangeRole(member.user.id, "admin")}
+                            disabled={member.role === "admin"}
+                          >
+                            Make Admin
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleChangeRole(member.user.id, "member")}
+                            disabled={member.role === "member"}
+                          >
+                            Make Member
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      <DropdownMenuItem
+                        className="text-destructive"
+                        onClick={() => {
+                          setSelectedMember({
+                            userId: member.user.id,
+                            name: member.user.name,
+                          });
+                          setRemoveDialogOpen(true);
+                        }}
+                      >
+                        Remove from Organization
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant={member.role === "owner" ? "default" : "secondary"}>
-                {member.role}
-              </Badge>
-              {canManageMembers && member.role !== "owner" && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <MoreHorizontalIcon className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    {isOwner && (
-                      <>
-                        <DropdownMenuItem
-                          onClick={() => handleChangeRole(member.user.id, "admin")}
-                          disabled={member.role === "admin"}
-                        >
-                          Make Admin
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() => handleChangeRole(member.user.id, "member")}
-                          disabled={member.role === "member"}
-                        >
-                          Make Member
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => {
-                        setSelectedMember({
-                          userId: member.user.id,
-                          name: member.user.name,
-                        });
-                        setRemoveDialogOpen(true);
-                      }}
-                    >
-                      Remove from Organization
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
+          ))}
+        </div>
+      </CardContent>
+    </>
   );
-};
+});
+
+MemberList.displayName = "MemberList";
 

@@ -3,6 +3,7 @@
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
+  Bot,
   GlobeIcon,
   MousePointerIcon,
 } from "lucide-react";
@@ -90,6 +91,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Slack",
     description: "Send a message to Slack",
     icon: "/logos/slack.svg",
+  },
+  {
+    type: NodeType.AGENT,
+    label: "Agent",
+    description: "LLM agent with MCP and native tools (AI Gateway)",
+    icon: Bot,
   },
 ];
 

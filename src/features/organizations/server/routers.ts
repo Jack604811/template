@@ -1,5 +1,5 @@
 import { generateSlug } from "random-word-slugs";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, protectedProcedure, adminProcedure } from "@/trpc/init";
 import { TRPCError } from "@trpc/server";
 import prisma from "@/lib/db";
 import z from "zod";
@@ -252,32 +252,58 @@ export const organizationsRouter = createTRPCRouter({
       return updatedMember;
     }),
 
-  updateName: protectedProcedure
+  updateName: adminProcedure
     .input(z.object({ 
-      organizationId: z.string(),
       name: z.string().min(1) 
     }))
     .mutation(async ({ ctx, input }) => {
-      // Check user is owner/admin
-      const membership = await prisma.member.findUnique({
-        where: {
-          organizationId_userId: {
-            organizationId: input.organizationId,
-            userId: ctx.auth.user.id,
-          },
+      return prisma.organization.update({
+        where: { 
+          id: ctx.organizationId,
         },
+        data: { name: input.name },
       });
+    }),
 
-      if (!membership || !["owner", "admin"].includes(membership.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Only owners and admins can update organization settings",
-        });
+  updateSettings: adminProcedure
+    .input(
+      z.object({
+        timezone: z.string().optional(),
+        currency: z.string().optional(),
+        country: z.string().optional(),
+        weekStart: z.enum(["monday", "sunday"]).optional(),
+        dateTimeFormat: z.enum(["12", "24"]).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Build update data object, only including provided fields
+      const updateData: {
+        timezone?: string;
+        currency?: string;
+        country?: string;
+        weekStart?: string;
+        dateTimeFormat?: string;
+      } = {};
+
+      if (input.timezone !== undefined) {
+        updateData.timezone = input.timezone;
+      }
+      if (input.currency !== undefined) {
+        updateData.currency = input.currency;
+      }
+      if (input.country !== undefined) {
+        updateData.country = input.country;
+      }
+      if (input.weekStart !== undefined) {
+        updateData.weekStart = input.weekStart;
+      }
+      if (input.dateTimeFormat !== undefined) {
+        updateData.dateTimeFormat = input.dateTimeFormat;
       }
 
       return prisma.organization.update({
-        where: { id: input.organizationId },
-        data: { name: input.name },
+        where: { id: ctx.organizationId },
+        data: updateData,
       });
     }),
 });

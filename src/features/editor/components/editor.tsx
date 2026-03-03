@@ -1,26 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from 'react';
-import { 
-  ReactFlow, 
+import { useCallback, useRef, useEffect } from "react";
+import {
+  ReactFlow,
   Background,
   MiniMap,
   Panel,
   MarkerType,
-} from '@xyflow/react';
+} from "@xyflow/react";
+import { useTheme } from "next-themes";
+import { useSetAtom } from "jotai";
+import { useShallow } from "zustand/react/shallow";
 import { ErrorView, LoadingView } from "@/components/entity-components";
 import { useSuspenseWorkflow } from "@/features/workflows/hooks/use-workflows";
-import { useTheme } from "next-themes";
-
-import '@xyflow/react/dist/style.css';
-import { nodeComponents } from '@/config/node-components';
-import { AddNodeButton } from './add-node-button';
-import { useSetAtom } from 'jotai';
-import { editorAtom } from '../store/atoms';
-import { useEditorMode } from '../hooks/use-editor-mode';
-import { EditorControls } from './editor-controls';
-import { useWorkflowStore, useWorkflowTemporal } from '../store/workflow-store';
-import { useShallow } from 'zustand/react/shallow';
+import { nodeComponents } from "@/config/node-components";
+import { editorAtom } from "../store/atoms";
+import { useEditorMode } from "../hooks/use-editor-mode";
+import { EditorControls } from "./editor-controls";
+import { useWorkflowStore, useWorkflowTemporal } from "../store/workflow-store";
+import { useClipboard } from "../hooks/use-clipboard";
+import { useKeyboardShortcuts } from "../hooks/use-keyboard-shortcuts";
+import { AddNodeButton } from "./add-node-button";
+import "@xyflow/react/dist/style.css";
 
 export const EditorLoading = () => {
   return <LoadingView message="Loading editor..." />;
@@ -39,6 +40,7 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
   const { mode, setMode, toggle, flowProps } = useEditorMode();
   const temporal = useWorkflowTemporal();
   const { resolvedTheme } = useTheme();
+  const { handleCopy, handleCut, handlePaste, handleDuplicate } = useClipboard();
 
   // Theme-aware background grid color
   const backgroundColor = resolvedTheme === 'dark' ? '#27272A' : '#E4E4E7';
@@ -101,6 +103,14 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
     temporal.getState().resume();
   }, [temporal]);
 
+  // Keyboard shortcuts for copy, cut, paste, and duplicate
+  useKeyboardShortcuts({
+    onCopy: handleCopy,
+    onCut: handleCut,
+    onPaste: handlePaste,
+    onDuplicate: handleDuplicate,
+  });
+
   return (
     <div className='size-full'>
       <ReactFlow
@@ -130,11 +140,11 @@ export const Editor = ({ workflowId }: { workflowId: string }) => {
         snapToGrid
         {...flowProps}
       >
-        <Background
+        {/* <Background
           id="1"
           gap={10}
           color={backgroundColor}
-        />
+        /> */}
         <MiniMap zoomable pannable />
         <EditorControls 
           mode={mode}

@@ -10,6 +10,7 @@ import { WebhookTrigger } from "@/features/triggers/components/webhook-trigger/n
 import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
 import { AnthropicNode } from "@/features/executions/components/anthropic/node";
+import { AgentNode } from "@/features/executions/components/agent/node";
 import { DiscordNode } from "@/features/executions/components/discord/node";
 import { SlackNode } from "@/features/executions/components/slack/node";
 
@@ -25,6 +26,7 @@ export const nodeComponents = {
   [NodeType.ANTHROPIC]: AnthropicNode,
   [NodeType.DISCORD]: DiscordNode,
   [NodeType.SLACK]: SlackNode,
+  [NodeType.AGENT]: AgentNode,
 } as const satisfies NodeTypes;
 
 export type RegisteredNodeType = keyof typeof nodeComponents;

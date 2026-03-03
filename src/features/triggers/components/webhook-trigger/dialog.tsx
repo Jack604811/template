@@ -1,5 +1,9 @@
 "use client";
 
+import { CopyIcon, PlayIcon, StopCircleIcon } from "lucide-react";
+import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,18 +14,60 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { CopyIcon, PlayIcon, StopCircleIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useReactFlow } from "@xyflow/react";
-import { toast } from "sonner";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useWorkflowStore } from "@/features/editor/store/workflow-store";
+import { useUpdateWorkflow } from "@/features/workflows/hooks/use-workflows";
 import type {
   WebhookEvent,
   WebhookEventsResponse,
+  WebhookStoredSchema,
   WebhookTriggerNodeData,
 } from "./actions";
 
 const POLLING_INTERVAL_MS = 2000;
+
+/** Turn technical paths into readable labels for non-developers (e.g. "data.startDate" → "Start date"). */
+function toFriendlyLabel(path: string): string {
+  const lastSegment = path.split(".").pop() ?? path;
+  const withSpaces = lastSegment.replace(/([A-Z])/g, " $1").trim();
+  const titleCased =
+    withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1).toLowerCase();
+  // Keep common acronyms uppercase for readability
+  return titleCased.replace(/\bid\b/i, "ID");
+}
+
+function getVariableNamesFromSchema(
+  schema: WebhookStoredSchema | undefined,
+): string[] {
+  if (
+    !schema?.body ||
+    typeof schema.body !== "object" ||
+    schema.body === null
+  ) {
+    return [];
+  }
+  if (Array.isArray(schema.body)) {
+    return [];
+  }
+  const body = schema.body as Record<string, unknown>;
+  const names: string[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      Object.getPrototypeOf(value) === Object.prototype
+    ) {
+      const sub = value as Record<string, unknown>;
+      for (const subKey of Object.keys(sub)) {
+        names.push(`${key}.${subKey}`);
+      }
+    } else {
+      names.push(key);
+    }
+  }
+  return names;
+}
 
 interface UseWebhookEventsOptions {
   webhookId: string;
@@ -189,14 +235,19 @@ interface Props {
   nodeId: string;
 }
 
-export const WebhookTriggerDialog = ({
-  open,
-  onOpenChange,
-  nodeId,
-}: Props) => {
-  const { getNode, setNodes } = useReactFlow();
-  const node = getNode(nodeId);
-  const currentWebhookId = (node?.data as WebhookTriggerNodeData)?.webhookId || "";
+export const WebhookTriggerDialog = ({ open, onOpenChange, nodeId }: Props) => {
+  const setNodes = useWorkflowStore((s) => s.setNodes);
+  const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === nodeId));
+  const params = useParams<{ workflowId: string }>();
+  const workflowId = params?.workflowId;
+  const saveWorkflow = useUpdateWorkflow();
+  const currentWebhookId =
+    (node?.data as WebhookTriggerNodeData)?.webhookId || "";
+  const webhookSchema = (node?.data as WebhookTriggerNodeData)?.webhookSchema;
+  const variableNames = useMemo(
+    () => getVariableNamesFromSchema(webhookSchema),
+    [webhookSchema],
+  );
 
   const [customPath, setCustomPath] = useState(currentWebhookId);
 
@@ -209,6 +260,46 @@ export const WebhookTriggerDialog = ({
       webhookId: previewWebhookId,
       enabled: open,
     });
+
+  // Store schema when events arrive (first event); replace when user listens again
+  const prevEventsLengthRef = useRef(0);
+  useEffect(() => {
+    const justReceivedEvents =
+      events.length > 0 && prevEventsLengthRef.current === 0;
+    prevEventsLengthRef.current = events.length;
+    if (!justReceivedEvents || !nodeId) return;
+    const event = events[0];
+    const schema: WebhookStoredSchema = {
+      body: event.body,
+      headers: event.headers ?? {},
+      query: event.query ?? {},
+    };
+    const nodes = useWorkflowStore.getState().nodes;
+    setNodes(
+      nodes.map((n) =>
+        n.id === nodeId
+          ? {
+              ...n,
+              data: {
+                ...n.data,
+                webhookSchema: schema,
+              },
+            }
+          : n,
+      ),
+    );
+    toast.success(
+      "Webhook schema saved. Use these variables in your workflow.",
+    );
+    // Persist so non-developers don't have to click Save
+    if (workflowId) {
+      const timeoutId = setTimeout(() => {
+        const { nodes, edges } = useWorkflowStore.getState();
+        saveWorkflow.mutate({ id: workflowId, nodes, edges });
+      }, 0);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [events, nodeId, setNodes, workflowId, saveWorkflow]);
 
   // Reset form when dialog opens
   useEffect(() => {
@@ -235,21 +326,36 @@ export const WebhookTriggerDialog = ({
   };
 
   const handleSave = () => {
-    setNodes((nodes) =>
-      nodes.map((n) =>
-        n.id === nodeId
-          ? {
-              ...n,
-              data: {
-                ...n.data,
-                webhookId: customPath,
-              },
-            }
-          : n,
-      ),
+    const { nodes: currentNodes, edges } = useWorkflowStore.getState();
+    const updatedNodes = currentNodes.map((n) =>
+      n.id === nodeId
+        ? {
+            ...n,
+            data: {
+              ...n.data,
+              webhookId: customPath,
+            },
+          }
+        : n,
     );
-    toast.success("Webhook configured");
-    onOpenChange(false);
+    setNodes(updatedNodes);
+    if (workflowId) {
+      saveWorkflow.mutate(
+        { id: workflowId, nodes: updatedNodes, edges },
+        {
+          onSuccess: () => {
+            toast.success("Webhook configured and saved");
+            onOpenChange(false);
+          },
+          onError: () => {
+            toast.error("Failed to save");
+          },
+        },
+      );
+    } else {
+      toast.success("Webhook configured");
+      onOpenChange(false);
+    }
   };
 
   const handleStartListening = async () => {
@@ -268,35 +374,26 @@ export const WebhookTriggerDialog = ({
         <DialogHeader>
           <DialogTitle>Webhook Trigger Configuration</DialogTitle>
           <DialogDescription>
-            Configure the webhook URL to trigger this workflow from external services.
+            Configure the webhook URL to trigger this workflow from external
+            services.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          {/* Webhook ID Configuration */}
-          <div className="space-y-2">
-            <Label htmlFor="custom-path">Webhook ID</Label>
-            <Input
-              id="custom-path"
-              value={customPath}
-              onChange={(e) => setCustomPath(e.target.value)}
-              placeholder="my-webhook"
-              className="font-mono text-sm"
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional. Leave empty to use the node ID as the webhook path.
-            </p>
-          </div>
-
           {/* Webhook URL Display */}
           <div className="space-y-2">
             <Label htmlFor="webhook-url">Webhook URL</Label>
-            <div className="flex gap-2">
-              <Input
-                id="webhook-url"
-                value={webhookUrl}
-                readOnly
-                className="font-mono text-sm"
-              />
+            <div className="flex min-w-0 gap-2">
+              <div className="flex min-w-0 flex-1 flex-nowrap items-center gap-0 overflow-x-auto rounded-md border border-input bg-background font-mono text-sm ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                <span className="shrink-0 whitespace-nowrap pl-3 py-2 text-sm">
+                  {baseUrl}/api/webhook/
+                </span>
+                <Input
+                  id="webhook-url"
+                  value={previewWebhookId}
+                  onChange={(e) => setCustomPath(e.target.value)}
+                  className="min-w-0 shrink border-0 bg-transparent px-0 py-2 pr-0 font-mono text-sm whitespace-nowrap focus-visible:ring-0 focus-visible:ring-offset-0"
+                />
+              </div>
               <Button
                 type="button"
                 size="icon"
@@ -345,47 +442,29 @@ export const WebhookTriggerDialog = ({
             </p>
           </div>
 
-          {/* Available Variables */}
+          {/* Variables (non-developer friendly) */}
           <div className="rounded-lg bg-muted p-4 space-y-2">
-            <h4 className="font-medium text-sm">Available Variables</h4>
-            <ul className="text-sm text-muted-foreground space-y-1">
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{webhook.body}}"}
-                </code>{" "}
-                - Request body (JSON)
-              </li>
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{webhook.headers}}"}
-                </code>{" "}
-                - Request headers
-              </li>
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{webhook.query}}"}
-                </code>{" "}
-                - Query parameters
-              </li>
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{webhook.method}}"}
-                </code>{" "}
-                - HTTP method
-              </li>
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{webhook.path}}"}
-                </code>{" "}
-                - Request path
-              </li>
-              <li>
-                <code className="bg-background px-1 py-0.5 rounded">
-                  {"{{json webhook}}"}
-                </code>{" "}
-                - Full webhook data as JSON
-              </li>
-            </ul>
+            <h4 className="font-medium text-sm">Variables from this webhook</h4>
+            {webhookSchema ? (
+              <p className="text-sm text-muted-foreground">
+                {variableNames.length > 0 ? (
+                  <>
+                    You can use these in the next steps:{" "}
+                    <span className="font-medium text-foreground">
+                      {variableNames.map(toFriendlyLabel).join(", ")}
+                    </span>
+                  </>
+                ) : (
+                  "No fields were detected in the request body. Send a request with JSON (e.g. name, email) and listen again to capture variables."
+                )}
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Click <strong>Listen for Events</strong>, then send a request to
+                the webhook URL above. The fields you send (e.g. name, email,
+                phone) will appear here so you can use them in later steps.
+              </p>
+            )}
           </div>
 
           {/* Actions */}
@@ -397,8 +476,12 @@ export const WebhookTriggerDialog = ({
             >
               Cancel
             </Button>
-            <Button type="button" onClick={handleSave}>
-              Save
+            <Button
+              type="button"
+              onClick={handleSave}
+              disabled={saveWorkflow.isPending}
+            >
+              {saveWorkflow.isPending ? "Saving…" : "Save"}
             </Button>
           </div>
         </div>
@@ -406,4 +489,3 @@ export const WebhookTriggerDialog = ({
     </Dialog>
   );
 };
-

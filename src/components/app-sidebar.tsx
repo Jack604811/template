@@ -1,18 +1,25 @@
 "use client";
 
+import { Suspense, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
+  CalendarIcon,
   CreditCardIcon,
   FolderOpenIcon,
   HistoryIcon,
-  KeyIcon,
+  HomeIcon,
+  ListIcon,
   LogOutIcon,
+  MessageCircleIcon,
   SettingsIcon,
+  ShoppingCartIcon,
   StarIcon,
+  TagsIcon,
+  UsersIcon,
+  WorkflowIcon,
 } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { Suspense } from "react";
+import { useNavigationHistory } from "@/hooks/use-navigation-history";
 import {
   Sidebar,
   SidebarContent,
@@ -28,20 +35,41 @@ import { authClient } from "@/lib/auth-client";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { OrganizationSwitcher } from "@/features/organizations/components/organization-switcher";
 
+
 const menuItems = [
   {
     title: "Main",
     items: [
       {
-        title: "Workflows",
-        icon: FolderOpenIcon,
-        url: "/workflows",
+        title: "Home",
+        icon: HomeIcon,
+        url: "/chat",
       },
       {
-        title: "Credentials",
-        icon: KeyIcon,
-        url: "/credentials",
+        title: "Calendar",
+        icon: CalendarIcon,
+        url: "/calendar",
       },
+      {
+        title: "Catalog",
+        icon: FolderOpenIcon,
+        url: "/catalog",
+      },
+      {
+        title: "Upsells",
+        icon: TagsIcon,
+        url: "/upsells",
+      },
+      {
+        title: "Workflows",
+        icon: WorkflowIcon,
+        url: "/workflows",
+      },
+      // {
+      //   title: "Integrations",
+      //   icon: KeyIcon,
+      //   url: "/credentials",
+      // },
       {
         title: "Executions",
         icon: HistoryIcon,
@@ -50,7 +78,7 @@ const menuItems = [
       {
         title: "Settings",
         icon: SettingsIcon,
-        url: "/settings/organization",
+        url: "/settings",
       },
     ],
   }
@@ -60,20 +88,50 @@ export const AppSidebar = () => {
   const router = useRouter();
   const pathname = usePathname();
   const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
+  const { saveCurrentRoute, getLastVisited, getBaseRoute, resetRouteHistory } = useNavigationHistory();
+
+  // Save current route whenever pathname changes
+  useEffect(() => {
+    saveCurrentRoute();
+  }, [pathname, saveCurrentRoute]);
+
+  const handleSidebarClick = useCallback((baseUrl: string, e: React.MouseEvent<HTMLAnchorElement>) => {
+    const currentBaseRoute = getBaseRoute(pathname);
+    
+    // If clicking on the same section's sidebar item while on a detail page, reset and go to base
+    // Check: we're on a detail page (pathname !== baseUrl) and it's the same section (currentBaseRoute === baseUrl)
+    if (pathname !== baseUrl && currentBaseRoute === baseUrl) {
+      e.preventDefault();
+      resetRouteHistory(baseUrl);
+      router.push(baseUrl);
+      return;
+    }
+    
+    // Only check last visited if we're NOT already in this section
+    if (currentBaseRoute !== baseUrl) {
+      const lastVisited = getLastVisited(baseUrl);
+      
+      // If there's a last visited sub-route, navigate there instead
+      if (lastVisited && lastVisited !== baseUrl) {
+        e.preventDefault();
+        router.push(lastVisited);
+      }
+    }
+  }, [pathname, getBaseRoute, getLastVisited, resetRouteHistory, router]);
 
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild className="gap-x-4 h-10 px-4">
+          {/* <SidebarMenuItem>
+            <SidebarMenuButton asChild className="gap-x-2 h-10 px-4">
               <Link href="/" prefetch>
-                <Image src="/logos/logo.svg" alt="Nodebase" width={30} height={30} />
-                <span className="font-semibold text-sm">Nodebase</span>
+                <Image src="/logos/logo.svg" alt="Flik" width={30} height={30} />
+                <span className="font-semibold text-lg">Flik</span>
               </Link>
             </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
+          </SidebarMenuItem> */}
+          <SidebarMenuItem className="py-2">
             <Suspense fallback={<div className="h-10" />}>
               <OrganizationSwitcher />
             </Suspense>
@@ -82,7 +140,7 @@ export const AppSidebar = () => {
       </SidebarHeader>
       <SidebarContent>
         {menuItems.map((group) => (
-          <SidebarGroup key={group.title}>
+          <SidebarGroup key={group.title} className="py-8">
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => (
@@ -95,11 +153,16 @@ export const AppSidebar = () => {
                           : pathname.startsWith(item.url)
                       }
                       asChild
-                      className="gap-x-4 h-10 px-4"
+                      className="gap-x-4 h-10 px-4 justify-start"
                     >
-                      <Link href={item.url} prefetch>
-                        <item.icon className="size-4" />
-                        <span>{item.title}</span>
+                      <Link 
+                        href={item.url} 
+                        prefetch 
+                        className="flex items-center gap-x-4 w-full"
+                        onClick={(e) => handleSidebarClick(item.url, e)}
+                      >
+                        <item.icon className="size-4 shrink-0" />
+                        <span className="truncate">{item.title}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -114,29 +177,29 @@ export const AppSidebar = () => {
           {!hasActiveSubscription && !isLoading && (
             <SidebarMenuItem>
               <SidebarMenuButton
-                tooltip="Upgade to Pro"
-                className="gap-x-4 h-10 px-4"
+                tooltip="Upgrade to Pro"
+                className="gap-x-4 h-10 px-4 justify-start"
                 onClick={() => authClient.checkout({ slug: "pro" })}
               >
-                <StarIcon className="h-4 w-4" />
-                <span>Upgrade to Pro</span>
+                <StarIcon className="h-4 w-4 shrink-0" />
+                <span className="truncate">Upgrade to Pro</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Billing Portal"
-              className="gap-x-4 h-10 px-4"
+              className="gap-x-4 h-10 px-4 justify-start"
               onClick={() => authClient.customer.portal()}
             >
-              <CreditCardIcon className="h-4 w-4" />
-              <span>Billing Portal</span>
+              <CreditCardIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">Billing Portal</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip="Sign out"
-              className="gap-x-4 h-10 px-4"
+              className="gap-x-4 h-10 px-4 justify-start"
               onClick={() => authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {
@@ -145,8 +208,8 @@ export const AppSidebar = () => {
                 },
               })}
             >
-              <LogOutIcon className="h-4 w-4" />
-              <span>Sign out</span>
+              <LogOutIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">Sign out</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

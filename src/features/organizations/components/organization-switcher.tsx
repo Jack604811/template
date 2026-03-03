@@ -28,12 +28,12 @@ export const OrganizationSwitcher = memo(() => {
       <CreateOrganizationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <SidebarMenuButton className="gap-x-4 h-10 px-4">
-            <Building2Icon className="size-4" />
+          <SidebarMenuButton className="gap-x-4 h-10 px-4 justify-start">
+            <Building2Icon className="size-4 shrink-0" />
             <span className="flex-1 truncate text-left">
               {currentOrg?.name || "Select Organization"}
             </span>
-            <ChevronsUpDownIcon className="size-4 ml-auto" />
+            <ChevronsUpDownIcon className="size-4 ml-auto shrink-0" />
           </SidebarMenuButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">

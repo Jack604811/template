@@ -1,10 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { 
   EmptyView,
   EntityContainer, 
-  EntityHeader, 
   EntityItem, 
   EntityList, 
   EntityPagination, 
@@ -12,14 +12,18 @@ import {
   ErrorView,
   LoadingView
 } from "@/components/entity-components";
+import { WorkflowsListHeader } from "./workflows-list-header";
 import { useCreateWorkflow, useRemoveWorkflow, useDuplicateWorkflow, useSuspenseWorkflows } from "../hooks/use-workflows"
+import { useRemoveTemplate, useSaveTemplate } from "@/features/templates/hooks/use-templates"
 import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
 import { useRouter } from "next/navigation";
 import { useWorkflowsParams } from "../hooks/use-workflows-params";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import type { Workflow } from "@/generated/prisma";
-import { WorkflowIcon, FileTextIcon, CopyIcon, TrashIcon } from "lucide-react";
+import { WorkflowIcon, FileTextIcon, CopyIcon, TrashIcon, XIcon } from "lucide-react";
 import type { EntityMenuGroup } from "@/components/entity-components";
+import { WorkflowTemplateDialog } from "./workflow-template-dialog";
+import { Badge } from "@/components/ui/badge";
 
 export const WorkflowsSearch = () => {
   const [params, setParams] = useWorkflowsParams();
@@ -51,31 +55,20 @@ export const WorkflowsList = () => {
 };
 
 export const WorkflowsHeader = ({ disabled }: { disabled?: boolean }) => {
-  const router = useRouter();
-  const createWorkflow = useCreateWorkflow();
-  const { handleError, modal } = useUpgradeModal();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { modal } = useUpgradeModal();
 
   const handleCreate = () => {
-    createWorkflow.mutate(undefined, {
-      onSuccess: (data) => {
-        router.push(`/workflows/${data.id}`);
-      },
-      onError: (error) => {
-        handleError(error);
-      },
-    });
+    setDialogOpen(true);
   }
 
   return (
     <>
       {modal}
-      <EntityHeader
-        title="Workflows"
-        description="Create and manage your workflows"
+      <WorkflowTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <WorkflowsListHeader
         onNew={handleCreate}
-        newButtonLabel="New workflow"
         disabled={disabled}
-        isCreating={createWorkflow.isPending}
       />
     </>
   );
@@ -101,13 +94,17 @@ export const WorkflowsContainer = ({
   children: React.ReactNode;
 }) => {
   return (
-    <EntityContainer
-      header={<WorkflowsHeader />}
-      search={<WorkflowsSearch />}
-      pagination={<WorkflowsPagination />}
-    >
-      {children}
-    </EntityContainer>
+    <div className="flex flex-col h-full overflow-hidden">
+      <WorkflowsHeader />
+      <div className="flex-1 overflow-auto">
+        <EntityContainer
+          search={<WorkflowsSearch />}
+          pagination={<WorkflowsPagination />}
+        >
+          {children}
+        </EntityContainer>
+      </div>
+    </div>
   );
 };
 
@@ -120,24 +117,17 @@ export const WorkflowsError = () => {
 };
 
 export const WorkflowsEmpty = () => {
-  const router = useRouter();
-  const createWorkflow = useCreateWorkflow();
-  const { handleError, modal } = useUpgradeModal();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { modal } = useUpgradeModal();
 
   const handleCreate = () => {
-    createWorkflow.mutate(undefined, {
-      onError: (error) => {
-        handleError(error);
-      },
-      onSuccess: (data) => {
-        router.push(`/workflows/${data.id}`);
-      }
-    });
+    setDialogOpen(true);
   };
 
   return (
     <>
       {modal}
+      <WorkflowTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <EmptyView
         onNew={handleCreate}
         message="You haven't created any workflows yet. Get started by creating your first workflow"
@@ -154,9 +144,24 @@ export const WorkflowItem = ({
   const router = useRouter();
   const removeWorkflow = useRemoveWorkflow();
   const duplicateWorkflow = useDuplicateWorkflow();
+  const removeTemplate = useRemoveTemplate();
+  const saveTemplate = useSaveTemplate();
 
   const handleSaveAsTemplate = () => {
-    // TODO: Implement save as template functionality
+    saveTemplate.mutate({
+      workflowId: data.id,
+    });
+  };
+
+  const handleRemoveTemplate = () => {
+    removeTemplate.mutate(
+      { workflowId: data.id },
+      {
+        onSuccess: () => {
+          // Workflow is now a regular workflow, not a template
+        },
+      }
+    );
   };
 
   const handleDuplicate = () => {
@@ -184,11 +189,22 @@ export const WorkflowItem = ({
   const menuGroups: EntityMenuGroup[] = [
     {
       items: [
-        {
-          label: "Save as Template",
-          icon: FileTextIcon,
-          onClick: handleSaveAsTemplate,
-        },
+        ...(data.isTemplate
+          ? [
+              {
+                label: "Remove Template",
+                icon: XIcon,
+                onClick: handleRemoveTemplate,
+                disabled: removeTemplate.isPending,
+              },
+            ]
+          : [
+              {
+                label: "Save as Template",
+                icon: FileTextIcon,
+                onClick: handleSaveAsTemplate,
+              },
+            ]),
         {
           label: "Duplicate Workflow",
           icon: CopyIcon,
@@ -212,22 +228,31 @@ export const WorkflowItem = ({
   ];
 
   return (
-    <EntityItem
-      href={`/workflows/${data.id}`}
-      title={data.name}
-      subtitle={
-        <>
-          Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-          &bull; Created{" "}
-          {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-        </>
-      }
-      image={
-        <div className="size-8 flex items-center justify-center">
-          <WorkflowIcon className="size-5 text-muted-foreground" />
-        </div>
-      }
-      menuGroups={menuGroups}
-    />
-  )
-}
+      <EntityItem
+        href={`/workflows/${data.id}`}
+        title={
+          <div className="flex items-center gap-2">
+            <span>{data.name}</span>
+            {data.isTemplate && (
+              <Badge variant="secondary" className="text-xs font-normal">
+                Template
+              </Badge>
+            )}
+          </div>
+        }
+        subtitle={
+          <>
+            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
+            &bull; Created{" "}
+            {formatDistanceToNow(data.createdAt, { addSuffix: true })}
+          </>
+        }
+        image={
+          <div className="size-8 flex items-center justify-center">
+            <WorkflowIcon className="size-5 text-muted-foreground" />
+          </div>
+        }
+        menuGroups={menuGroups}
+      />
+  );
+};

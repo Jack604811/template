@@ -20,7 +20,7 @@ export const executeWorkflow = inngest.createFunction(
   {
     id: "execute-workflow",
     retries: process.env.NODE_ENV === "production" ? 3 : 0,
-    onFailure: async ({ event, step }) => {
+    onFailure: async ({ event }) => {
       return prisma.execution.update({
         where: { inngestEventId: event.data.event.id },
         data: {
@@ -64,23 +64,17 @@ export const executeWorkflow = inngest.createFunction(
       });
     });
 
-    const { sortedNodes, connections } = await step.run(
-      "prepare-workflow",
-      async () => {
-        const workflow = await prisma.workflow.findUniqueOrThrow({
-          where: { id: workflowId },
-          include: {
-            nodes: true,
-            connections: true,
-          },
-        });
+    const sortedNodes = await step.run("prepare-workflow", async () => {
+      const workflow = await prisma.workflow.findUniqueOrThrow({
+        where: { id: workflowId },
+        include: {
+          nodes: true,
+          connections: true,
+        },
+      });
 
-        return {
-          sortedNodes: topologicalSort(workflow.nodes, workflow.connections),
-          connections: workflow.connections,
-        };
-      },
-    );
+      return topologicalSort(workflow.nodes, workflow.connections);
+    });
 
     const organizationId = await step.run("find-organization-id", async () => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
@@ -93,50 +87,11 @@ export const executeWorkflow = inngest.createFunction(
       return workflow.organizationId;
     });
 
-    // Initialize context with any initial data from the trigger
-    let context = event.data.initialData || {};
+    // Initialize context with initial data from the trigger (template behavior: run all nodes, context flows through)
+    let context = event.data.initialData ?? {};
 
-    const triggerNodeId = event.data.triggerNodeId as string | undefined;
-
-    // Find the trigger node to check if it's a manual trigger
-    const triggerNode = triggerNodeId
-      ? sortedNodes.find((node) => node.id === triggerNodeId)
-      : undefined;
-
-    // Check if this is a manual execution (MANUAL_TRIGGER or INITIAL)
-    const isManualExecution =
-      triggerNode?.type === NodeType.MANUAL_TRIGGER ||
-      triggerNode?.type === NodeType.INITIAL;
-
-    const nodesToExecute = triggerNodeId
-      ? (() => {
-          const queue = [triggerNodeId];
-          const reachable = new Set<string>(queue);
-
-          while (queue.length > 0) {
-            const current = queue.shift();
-            if (!current) break;
-            for (const connection of connections) {
-              if (connection.fromNodeId === current && !reachable.has(connection.toNodeId)) {
-                reachable.add(connection.toNodeId);
-                queue.push(connection.toNodeId);
-              }
-            }
-          }
-
-          return sortedNodes.filter(
-            (node) =>
-              reachable.has(node.id) &&
-              // Allow the actual trigger node to execute (it needs to initialize context)
-              (node.id === triggerNodeId ||
-                // When manually executing, exclude other MANUAL_TRIGGER nodes
-                !(isManualExecution && (node.type === NodeType.MANUAL_TRIGGER || node.type === NodeType.INITIAL))),
-          );
-        })()
-      : sortedNodes;
-
-    // Execute each node
-    for (const node of nodesToExecute) {
+    // Execute each node in topological order so variable values pass downstream
+    for (const node of sortedNodes) {
       const executor = getExecutor(node.type as NodeType);
       context = await executor({
         data: node.data as Record<string, unknown>,

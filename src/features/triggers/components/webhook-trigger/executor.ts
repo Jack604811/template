@@ -2,19 +2,32 @@ import type { NodeExecutor } from "@/features/executions/types";
 import { webhookTriggerChannel } from "@/inngest/channels/webhook-trigger";
 import type { WebhookTriggerNodeData } from "./actions";
 
+function buildWebhookPayloadFromSchema(schema: {
+  body: unknown;
+  headers: Record<string, string>;
+  query: Record<string, string>;
+}) {
+  return {
+    body: schema.body,
+    headers: schema.headers,
+    query: schema.query,
+    method: "POST",
+    path: "",
+    raw: "",
+  };
+}
+
 /**
  * Webhook Trigger Executor
- * 
- * Executes the webhook trigger node. This is a pass-through executor
- * that simply forwards the context (which includes webhook data) to
- * the next node in the workflow.
- * 
- * The webhook data is injected into the context by the webhook API route
- * when the webhook is called.
+ *
+ * When the workflow is triggered by the webhook API route, context already
+ * contains webhook data. When run from the UI (Execute workflow button),
+ * context has no webhook; we inject the node's stored webhookSchema as
+ * sample data so downstream nodes and the Inngest step output are not empty.
  */
 export const webhookTriggerExecutor: NodeExecutor<
   WebhookTriggerNodeData
-> = async ({ nodeId, context, step, publish }) => {
+> = async ({ data, nodeId, context, step, publish }) => {
   await publish(
     webhookTriggerChannel().status({
       nodeId,
@@ -23,8 +36,15 @@ export const webhookTriggerExecutor: NodeExecutor<
   );
 
   const result = await step.run("webhook-trigger", async () => {
-    // Webhook trigger is a pass-through node
-    // The webhook data is already in the context from the API route
+    if (context && "webhook" in context && context.webhook != null) {
+      return context;
+    }
+    if (data?.webhookSchema) {
+      return {
+        ...context,
+        webhook: buildWebhookPayloadFromSchema(data.webhookSchema),
+      };
+    }
     return context;
   });
 

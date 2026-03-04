@@ -12,8 +12,13 @@ import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
 
 Handlebars.registerHelper("json", (context) => {
-  const jsonString = JSON.stringify(context, null, 2);
-  return new Handlebars.SafeString(jsonString);
+  if (context == null) return new Handlebars.SafeString("");
+  try {
+    const jsonString = JSON.stringify(context, null, 2);
+    return new Handlebars.SafeString(jsonString);
+  } catch {
+    return new Handlebars.SafeString("");
+  }
 });
 
 type AgentData = {
@@ -42,20 +47,22 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
   );
 
   if (!data.variableName) {
-    await publish(
-      agentChannel().status({
-        nodeId,
-        status: "error",
-      }),
-    );
+    await publish(agentChannel().status({ nodeId, status: "error" }));
     throw new NonRetriableError("Agent node: Variable name is missing");
+  }
+
+  if (!data.userPrompt) {
+    await publish(agentChannel().status({ nodeId, status: "error" }));
+    throw new NonRetriableError("Agent node: Prompt is required");
   }
 
   const compileTemplate = (template: string | undefined, ctx: Record<string, unknown>) => {
     const value = typeof template === "string" ? template.trim() : "";
     if (!value) return "";
     try {
-      return Handlebars.compile(value)(ctx);
+      const compiled = Handlebars.compile(value)(ctx);
+      if (compiled == null || String(compiled) === "undefined") return "";
+      return typeof compiled === "string" ? compiled : String(compiled);
     } catch {
       return value;
     }

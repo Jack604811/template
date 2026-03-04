@@ -1,7 +1,7 @@
 import { generateSlug } from "random-word-slugs";
 import prisma from "@/lib/db";
 import type { Node, Edge } from "@xyflow/react";
-import { createTRPCRouter, organizationProcedure, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { NodeType } from "@/generated/prisma";
@@ -10,28 +10,24 @@ import { copyWorkflowStructure } from "../utils/workflow-copy";
 
 export const workflowsRouter = createTRPCRouter({
   execute: organizationProcedure
-    .input(z.object({ id: z.string(), triggerNodeId: z.string().optional() }))
+    .input(
+      z.object({
+        id: z.string(),
+        triggerNodeId: z.string().optional(),
+        initialData: z.record(z.string(), z.unknown()).optional(),
+      }),
+    )
     .mutation(async ({ input, ctx }) => {
-      const workflow = await prisma.workflow.findUniqueOrThrow({
+      const workflow = await prisma.workflow.findFirstOrThrow({
         where: {
           id: input.id,
           organizationId: ctx.organizationId,
         },
-        include: {
-          nodes: true,
-        },
       });
-
-      // Use provided triggerNodeId, or fall back to finding the manual trigger node
-      const triggerNodeId =
-        input.triggerNodeId ||
-        workflow.nodes.find(
-          (node) => node.type === NodeType.MANUAL_TRIGGER || node.type === NodeType.INITIAL,
-        )?.id;
 
       await sendWorkflowExecution({
         workflowId: input.id,
-        triggerNodeId,
+        initialData: input.initialData,
       });
 
       return workflow;

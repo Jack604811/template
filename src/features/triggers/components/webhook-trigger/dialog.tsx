@@ -1,5 +1,6 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
 import { CopyIcon, PlayIcon, StopCircleIcon } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -17,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useWorkflowStore } from "@/features/editor/store/workflow-store";
 import { useUpdateWorkflow } from "@/features/workflows/hooks/use-workflows";
+import { useTRPC } from "@/trpc/client";
 import type {
   WebhookEvent,
   WebhookEventsResponse,
@@ -235,18 +237,50 @@ interface Props {
   nodeId: string;
 }
 
+/** Normalize last-execution webhook payload or stored schema to WebhookStoredSchema for variable listing. */
+function toDisplaySchema(
+  contextWebhook: Record<string, unknown> | null | undefined,
+  storedSchema: WebhookStoredSchema | undefined,
+): WebhookStoredSchema | undefined {
+  if (contextWebhook && "body" in contextWebhook) {
+    return {
+      body: contextWebhook.body,
+      headers:
+        (contextWebhook.headers as Record<string, string>) ?? {},
+      query: (contextWebhook.query as Record<string, string>) ?? {},
+    };
+  }
+  return storedSchema;
+}
+
 export const WebhookTriggerDialog = ({ open, onOpenChange, nodeId }: Props) => {
   const setNodes = useWorkflowStore((s) => s.setNodes);
   const node = useWorkflowStore((s) => s.nodes.find((n) => n.id === nodeId));
   const params = useParams<{ workflowId: string }>();
   const workflowId = params?.workflowId;
+  const trpc = useTRPC();
   const saveWorkflow = useUpdateWorkflow();
+
+  const { data: lastExecution } = useQuery({
+    ...trpc.executions.getLastExecutionContext.queryOptions({
+      workflowId: workflowId ?? "",
+    }),
+    enabled: open && Boolean(workflowId),
+  });
+
   const currentWebhookId =
     (node?.data as WebhookTriggerNodeData)?.webhookId || "";
-  const webhookSchema = (node?.data as WebhookTriggerNodeData)?.webhookSchema;
+  const storedSchema = (node?.data as WebhookTriggerNodeData)?.webhookSchema;
+  const contextWebhook = lastExecution?.context?.webhook as
+    | Record<string, unknown>
+    | undefined;
+  const displaySchema = useMemo(
+    () => toDisplaySchema(contextWebhook, storedSchema),
+    [contextWebhook, storedSchema],
+  );
   const variableNames = useMemo(
-    () => getVariableNamesFromSchema(webhookSchema),
-    [webhookSchema],
+    () => getVariableNamesFromSchema(displaySchema),
+    [displaySchema],
   );
 
   const [customPath, setCustomPath] = useState(currentWebhookId);
@@ -442,10 +476,10 @@ export const WebhookTriggerDialog = ({ open, onOpenChange, nodeId }: Props) => {
             </p>
           </div>
 
-          {/* Variables (non-developer friendly) */}
+          {/* Variables (non-developer friendly): same source as variable picker (last execution context or stored schema) */}
           <div className="rounded-lg bg-muted p-4 space-y-2">
             <h4 className="font-medium text-sm">Variables from this webhook</h4>
-            {webhookSchema ? (
+            {displaySchema ? (
               <p className="text-sm text-muted-foreground">
                 {variableNames.length > 0 ? (
                   <>

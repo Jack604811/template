@@ -74,8 +74,8 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
     }
 
     // Prepare webhook data
-    const headers = Object.fromEntries(request.headers);
-    const query = Object.fromEntries(url.searchParams);
+    const headers = Object.fromEntries(request.headers) as Record<string, string>;
+    const query = Object.fromEntries(url.searchParams) as Record<string, string>;
 
     const webhookData = {
       body,
@@ -86,6 +86,22 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
       raw: rawBody,
     };
 
+    // Persist received payload as sample data on the webhook trigger node so the variable picker and editor use this schema
+    const existingData = (node.data ?? {}) as Partial<WebhookTriggerNodeData>;
+    await prisma.node.update({
+      where: { id: node.id },
+      data: {
+        data: {
+          ...existingData,
+          webhookSchema: {
+            body,
+            headers,
+            query,
+          },
+        } as object,
+      },
+    });
+
     // Store event for testing/debugging
     await storeWebhookEvent(webhookId, {
       method: request.method,
@@ -94,10 +110,9 @@ async function handleWebhook(request: NextRequest, context: RouteContext) {
       query,
     });
 
-    // Trigger workflow execution
+    // Trigger workflow execution (initialData flows as context so variables resolve)
     await sendWorkflowExecution({
       workflowId: node.workflowId,
-      triggerNodeId: node.id,
       initialData: {
         webhook: webhookData,
       },

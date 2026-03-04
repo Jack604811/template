@@ -34,12 +34,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { VariableTextarea } from "@/components/ui/variable-textarea";
 import {
   AGENT_MODELS,
   AGENT_NATIVE_TOOLS,
@@ -64,8 +64,8 @@ const formSchema = z.object({
       message:
         "Variable name must start with a letter or underscore and contain only letters, numbers, and underscores",
     }),
+  userPrompt: z.string().min(1, { message: "Prompt is required" }),
   instructions: z.string().optional(),
-  userPrompt: z.string().optional(),
   model: z.string().min(1, "Model is required"),
   outputFormat: z.enum(["text", "json"]),
   responseSchema: z.any().optional(),
@@ -261,28 +261,49 @@ export const AgentDialog = ({
 
               <FormField
                 control={form.control}
-                name="instructions"
+                name="userPrompt"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Instructions</FormLabel>
                     <FormControl>
                       <VariableTextarea
                         nodeId={nodeId}
-                        value={field.value ?? ""}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        ref={field.ref}
-                        placeholder="You are a helpful assistant."
-                        className="min-h-[140px] font-mono text-sm"
+                        placeholder="Summarize the following content: {{json webhook.body}}"
+                        className="min-h-[100px] font-mono text-sm"
+                        rows={6}
+                        {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      System instructions for the agent. Use {"{{variables}}"} for simple values or {"{{json variable}}"} to stringify objects.
+                      What the agent should do. Use the variable picker when focused or type {"{{variableName}}"} / {"{{json variableName}}"} (e.g. {"{{json webhook.body}}"}).
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* <FormField
+                control={form.control}
+                name="instructions"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>System Instructions <span className="text-muted-foreground font-normal">(optional)</span></FormLabel>
+                    <FormControl>
+                      <VariableTextarea
+                        nodeId={nodeId}
+                        placeholder="You are a helpful assistant."
+                        className="min-h-[80px] font-mono text-sm"
+                        rows={4}
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      System-level behavior rules. Use the variable picker when focused or type {"{{variableName}}"} / {"{{json variableName}}"}.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              /> */}
 
               {/* Row: label left, control right - like reference image */}
               <div className="flex items-center justify-between gap-4">

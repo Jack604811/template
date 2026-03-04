@@ -24,7 +24,7 @@ export const ExecuteWorkflowButton = ({
       size="lg"
     >
       <PlayIcon className="size-5" />
-      
+      Execute Workflow
     </Button>
   );
 };

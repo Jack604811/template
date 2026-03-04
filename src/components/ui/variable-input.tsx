@@ -110,8 +110,8 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
     }, [value, defaultValue]);
 
     // Initialize content on mount
-    // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
-        useEffect(() => {
+    // biome-ignore lint/correctness/useExhaustiveDependencies: we only want this to run once on mount
+    useEffect(() => {
       const element = contentEditableRef.current;
       if (!element) {
         return;
@@ -239,13 +239,24 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
 
     const handleBlurEvent = useCallback(
       (event: React.FocusEvent<HTMLDivElement>) => {
-        // Delay blur to allow popover clicks
+        // Delay blur to allow popover interactions (search input, list items, etc.)
         setTimeout(() => {
           const element = contentEditableRef.current;
-          if (element && !element.contains(document.activeElement)) {
-            setIsFocused(false);
-        onBlur?.(event);
+          if (!element) {
+            return;
           }
+
+          // Treat clicks inside the variable picker popover as \"inside\" the control
+          const root =
+            element.closest<HTMLDivElement>('[data-variable-input-root]');
+          const active = document.activeElement;
+
+          if (root && active && root.contains(active)) {
+            return;
+          }
+
+          setIsFocused(false);
+          onBlur?.(event);
         }, 100);
       },
       [onBlur],
@@ -289,8 +300,8 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
     );
 
     return (
-      <div className="relative">
-      <VariablePickerPopover
+      <div className="relative" data-variable-input-root>
+        <VariablePickerPopover
           open={isFocused}
           onOpenChange={setIsFocused}
         variables={variables}
@@ -344,7 +355,7 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
               {...props}
           />
         </div>
-      </VariablePickerPopover>
+        </VariablePickerPopover>
       </div>
     );
   },

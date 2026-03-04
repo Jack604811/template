@@ -2,20 +2,19 @@
 
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { Bot } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useCallback } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import { AgentDialog } from "./dialog";
 import type { AgentFormValues } from "./dialog";
+import { AgentNodeContent } from "./node-content";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { fetchAgentRealtimeToken } from "./actions";
 import { AGENT_CHANNEL_NAME } from "@/inngest/channels/agent";
 
-type AgentNodeData = AgentFormValues;
+type AgentNodeData = AgentFormValues & { variableName?: string };
 
 type AgentNodeType = Node<AgentNodeData>;
 
 export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
   const nodeStatus = useNodeStatus({
@@ -25,51 +24,50 @@ export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
     refreshToken: fetchAgentRealtimeToken,
   });
 
-  const handleOpenSettings = () => setDialogOpen(true);
-
-  const handleSubmit = (values: AgentFormValues) => {
-    setNodes((nodes) =>
-      nodes.map((node) => {
-        if (node.id === props.id) {
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              ...values,
-            },
-          };
-        }
-        return node;
-      }),
-    );
-  };
-
   const nodeData = props.data;
-  const displayName = nodeData?.label?.trim() || "Agent";
-  const description = nodeData?.userPrompt
-    ? `${nodeData.userPrompt.slice(0, 50)}...`
-    : "Not configured";
+  const variableName = nodeData?.variableName ?? "agentResult";
+
+  const handleDataChange = useCallback(
+    (values: AgentFormValues) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, ...values } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
+
+  const handleVariableNameChange = useCallback(
+    (value: string) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, variableName: value } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
 
   return (
-    <>
-      <AgentDialog
+    <BaseExecutionNode
+      {...props}
+      id={props.id}
+      icon={Bot}
+      variableName={variableName}
+      onVariableNameChange={handleVariableNameChange}
+      status={nodeStatus}
+    >
+      <AgentNodeContent
         nodeId={props.id}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleSubmit}
         defaultValues={nodeData}
+        onDataChange={handleDataChange}
       />
-      <BaseExecutionNode
-        {...props}
-        id={props.id}
-        icon={Bot}
-        name={displayName}
-        status={nodeStatus}
-        description={description}
-        onSettings={handleOpenSettings}
-        onDoubleClick={handleOpenSettings}
-      />
-    </>
+    </BaseExecutionNode>
   );
 });
 

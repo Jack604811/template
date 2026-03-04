@@ -1,9 +1,14 @@
 "use client";
 
-import { Position, type Node, type NodeProps } from "@xyflow/react";
+import { useReactFlow, Position, type Node, type NodeProps } from "@xyflow/react";
 import { GitBranch } from "lucide-react";
-import { memo, useMemo, useState } from "react";
-import { BaseNode, BaseNodeContent } from "@/components/react-flow/base-node";
+import { memo, useCallback } from "react";
+import {
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitleInput,
+} from "@/components/react-flow/base-node";
 import { BaseHandle } from "@/components/react-flow/base-handle";
 import {
   type NodeStatus,
@@ -11,7 +16,8 @@ import {
 } from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
 import { useWorkflowStore } from "@/features/editor/store/workflow-store";
-import { IfElseDialog, type IfElseFormValues } from "./dialog";
+import type { IfElseFormValues } from "./dialog";
+import { IfElseNodeContent } from "./node-content";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { IF_ELSE_CHANNEL_NAME } from "@/inngest/channels/if-else";
 import { fetchIfElseRealtimeToken } from "./actions";
@@ -19,19 +25,8 @@ import type { IfElseNodeData } from "./executor";
 
 type IfElseNodeType = Node<IfElseNodeData>;
 
-const getDescription = (conditionsLength: number | undefined): string => {
-  if (!conditionsLength || conditionsLength === 0) {
-    return "Not configured";
-  }
-  if (conditionsLength === 1) {
-    return "Evaluates 1 condition";
-  }
-  return `Evaluates ${conditionsLength} conditions`;
-};
-
 export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const setNodes = useWorkflowStore((state) => state.setNodes);
+  const { setNodes } = useReactFlow();
   const setEdges = useWorkflowStore((state) => state.setEdges);
 
   const nodeStatus: NodeStatus = useNodeStatus({
@@ -41,29 +36,35 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
     refreshToken: fetchIfElseRealtimeToken,
   });
 
-  const handleOpenSettings = () => setDialogOpen(true);
+  const handleDataChange = useCallback(
+    (values: IfElseFormValues) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, ...values } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
 
-  const handleSubmit = (values: IfElseFormValues) => {
-    const currentNodes = useWorkflowStore.getState().nodes;
-    const nextNodes = currentNodes.map((node) => {
-      if (node.id === props.id) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            ...values,
-          },
-        };
-      }
-      return node;
-    });
-    setNodes(nextNodes);
-  };
+  const handleVariableNameChange = useCallback(
+    (value: string) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, variableName: value } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
 
   const handleDelete = () => {
-    const currentNodes = useWorkflowStore.getState().nodes;
     const currentEdges = useWorkflowStore.getState().edges;
-    setNodes(currentNodes.filter((node) => node.id !== props.id));
+    setNodes((nodes) => nodes.filter((node) => node.id !== props.id));
     setEdges(
       currentEdges.filter(
         (edge) => edge.source !== props.id && edge.target !== props.id,
@@ -72,64 +73,34 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
   };
 
   const nodeData = props.data;
-  const conditions = nodeData?.conditions ?? [];
-  const description = useMemo(
-    () => getDescription(conditions.length),
-    [conditions.length],
-  );
-
-  const totalBranches = conditions.length + 1; // conditions + else
+  const variableName = nodeData?.variableName ?? "condition";
 
   return (
-    <>
-      <IfElseDialog
-        nodeId={props.id}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleSubmit}
-        defaultValues={nodeData}
-      />
-      <WorkflowNode
-        name="Condition"
-        description={description}
-        onDelete={handleDelete}
-        onSettings={handleOpenSettings}
-      >
-        <NodeStatusIndicator status={nodeStatus} variant="border">
-          <BaseNode status={nodeStatus} onDoubleClick={handleOpenSettings}>
-            <BaseNodeContent>
-              <GitBranch className="size-4 text-muted-foreground" />
-              <BaseHandle
-                id="target-1"
-                type="target"
-                position={Position.Left}
-              />
-              {conditions.map((condition, index) => (
-                <BaseHandle
-                  key={condition.id ?? `case-${index}`}
-                  id={`case-${index}`}
-                  type="source"
-                  position={Position.Right}
-                  style={{
-                    top: `${((index + 0.5) / totalBranches) * 100}%`,
-                  }}
-                  className="absolute -right-1.5"
-                />
-              ))}
-              <BaseHandle
-                id="else"
-                type="source"
-                position={Position.Right}
-                style={{
-                  top: `${((totalBranches - 0.5) / totalBranches) * 100}%`,
-                }}
-                className="absolute -right-1.5"
-              />
-            </BaseNodeContent>
+    <WorkflowNode onDelete={handleDelete}>
+      <NodeStatusIndicator status={nodeStatus} variant="border">
+        <BaseNode status={nodeStatus}>
+          <BaseNodeHeader>
+            <GitBranch className="size-4 shrink-0 text-muted-foreground" />
+            <BaseNodeHeaderTitleInput
+              value={variableName}
+              onSave={handleVariableNameChange}
+            />
+          </BaseNodeHeader>
+          <BaseNodeContent>
+            <BaseHandle
+              id="target-1"
+              type="target"
+              position={Position.Left}
+            />
+            <IfElseNodeContent
+              nodeId={props.id}
+              defaultValues={nodeData}
+              onDataChange={handleDataChange}
+            />
+          </BaseNodeContent>
           </BaseNode>
         </NodeStatusIndicator>
       </WorkflowNode>
-    </>
   );
 });
 

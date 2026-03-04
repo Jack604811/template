@@ -1,9 +1,14 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  FormControl,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -11,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, X } from "lucide-react";
+import { Plus, Trash2Icon } from "lucide-react";
 import { useCallback, useState } from "react";
 
 const SCHEMA_TYPES = [
@@ -36,6 +41,7 @@ export type ResponseSchemaObject = {
 };
 
 type SchemaField = {
+  id: string;
   name: string;
   type: string;
   description: string;
@@ -44,7 +50,8 @@ type SchemaField = {
 
 function schemaToFields(schema: ResponseSchemaObject | null | undefined): SchemaField[] {
   const properties = schema?.properties ?? {};
-  return Object.entries(properties).map(([name, config]) => ({
+  return Object.entries(properties).map(([name, config], index) => ({
+    id: `field-${index}-${name || crypto.randomUUID()}`,
     name,
     type: config.enum ? "enum" : config.type ?? "string",
     description: config.description ?? "",
@@ -55,7 +62,7 @@ function schemaToFields(schema: ResponseSchemaObject | null | undefined): Schema
 function fieldsToSchema(fields: SchemaField[]): ResponseSchemaObject {
   const properties: ResponseSchemaObject["properties"] = {};
   for (const f of fields) {
-    if (!f.name.trim()) continue;
+    if (!f.name?.trim()) continue;
     const field: ResponseSchemaObject["properties"][string] = {
       type: f.type === "enum" ? "string" : f.type,
       description: f.description.trim() || undefined,
@@ -95,7 +102,13 @@ export function AgentJsonSchema({ schema, onChange }: AgentJsonSchemaProps) {
   const addField = () => {
     const newFields: SchemaField[] = [
       ...fields,
-      { name: "", type: "string", description: "", enumValues: "" },
+      {
+        id: `field-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        name: "",
+        type: "string",
+        description: "",
+        enumValues: "",
+      },
     ];
     setFields(newFields);
   };
@@ -114,65 +127,71 @@ export function AgentJsonSchema({ schema, onChange }: AgentJsonSchemaProps) {
   return (
     <div className="space-y-4">
       {fields.map((field, i) => (
-        <Card
-          key={field.name ? `field-${field.name}-${i}` : `field-empty-${i}`}
-          className="border-border/60 bg-muted/20 p-4 shadow-none"
+        <div
+          key={field.id}
+          className="relative rounded-md border bg-muted/40 px-2 pb-6 pt-2 space-y-2"
         >
-          <div className="flex flex-wrap items-end gap-y-2">
-            <div className="flex flex-[1_1_0] min-w-0 flex-col gap-y-2 pr-4">
-              <Label className="text-xs font-medium text-foreground">
-                Name
-              </Label>
-              <Input
-                value={field.name}
-                onChange={(e) => updateField(i, "name", e.target.value)}
-                placeholder="field_name"
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="flex w-[100px] shrink-0 flex-col gap-y-2 pr-4">
-              <Label className="text-xs font-medium text-foreground">
-                Type
-              </Label>
-              <Select
-                value={field.type}
-                onValueChange={(v) => updateField(i, "type", v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SCHEMA_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      {t.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex flex-[1_1_0] min-w-0 flex-col gap-y-2 pr-4">
-              <Label className="text-xs font-medium text-foreground">
-                Description
-              </Label>
-              <Input
-                value={field.description}
-                onChange={(e) => updateField(i, "description", e.target.value)}
-                placeholder="Optional description"
-                className="h-9 text-sm"
-              />
-            </div>
-            <div className="flex shrink-0 flex-col justify-end pb-0.5">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="size-9 text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={() => removeField(i)}
-                aria-label="Remove field"
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
+          <div className="flex items-center justify-between gap-2">
+            <h4 className="shrink-0 text-sm font-medium">Field {i + 1}</h4>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="nodrag size-9 shrink-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => removeField(i)}
+              aria-label="Remove field"
+            >
+              <Trash2Icon className="size-3.5" />
+            </Button>
+          </div>
+          <div className="flex flex-col space-y-2">
+            <FormItem className="min-w-0">
+              <FormLabel>Name</FormLabel>
+              <FormControl>
+                <Input
+                  value={field.name}
+                  onChange={(e) => updateField(i, "name", e.target.value)}
+                  placeholder="field_name"
+                  className="nodrag bg-muted/50 cursor-text"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+            <FormItem className="min-w-0">
+              <FormLabel>Type</FormLabel>
+              <FormControl>
+                <Select
+                  value={field.type}
+                  onValueChange={(v) => updateField(i, "type", v)}
+                >
+                  <SelectTrigger className="nodrag w-full truncate text-left">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SCHEMA_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+            <FormItem className="min-w-0">
+              <FormLabel>Description</FormLabel>
+              <FormControl>
+                <Input
+                  value={field.description}
+                  onChange={(e) =>
+                    updateField(i, "description", e.target.value)
+                  }
+                  placeholder="Optional description"
+                  className="nodrag bg-muted/50 cursor-text"
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
           </div>
           {field.type === "enum" && (
             <div className="mt-4 space-y-2 border-t border-border/40 pt-4">
@@ -183,17 +202,17 @@ export function AgentJsonSchema({ schema, onChange }: AgentJsonSchemaProps) {
                 value={field.enumValues}
                 onChange={(e) => updateField(i, "enumValues", e.target.value)}
                 placeholder="value1, value2, value3"
-                className="h-9 text-sm"
+                className="nodrag h-9 text-sm"
               />
             </div>
           )}
-        </Card>
+        </div>
       ))}
       <Button
         type="button"
         variant="outline"
         onClick={addField}
-        className="w-full border py-5 text-muted-foreground hover:bg-muted/30 hover:text-foreground"
+        className="nodrag w-full"
       >
         <Plus className="mr-2 size-4" />
         Add field

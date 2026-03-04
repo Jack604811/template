@@ -22,6 +22,34 @@ import {
 import { NodeType } from "@/generated/prisma";
 import { Separator } from "./ui/separator";
 
+const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
+  [NodeType.HTTP_REQUEST]: "myApiCall",
+  [NodeType.IF_ELSE]: "condition",
+  [NodeType.AGENT]: "agentResult",
+  [NodeType.OPENAI]: "myOpenAi",
+  [NodeType.ANTHROPIC]: "myAnthropic",
+  [NodeType.GEMINI]: "myGemini",
+  [NodeType.SLACK]: "mySlack",
+  [NodeType.DISCORD]: "myDiscord",
+};
+
+const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
+  [NodeType.MANUAL_TRIGGER]: "Manual",
+  [NodeType.WEBHOOK_TRIGGER]: "Webhook",
+};
+
+function getInitialDataForType(type: NodeType): Record<string, unknown> {
+  const variableName = DEFAULT_VARIABLE_NAME[type];
+  if (variableName !== undefined) {
+    return { variableName };
+  }
+  const name = DEFAULT_TRIGGER_NAME[type];
+  if (name !== undefined) {
+    return { name };
+  }
+  return {};
+}
+
 export type NodeTypeOption = {
   type: NodeType;
   label: string;
@@ -109,7 +137,7 @@ export function NodeSelector({
 
       const newNode = {
         id: createId(),
-        data: {},
+        data: getInitialDataForType(selection.type),
         position: flowPosition,
         type: selection.type,
       };

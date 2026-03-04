@@ -1,4 +1,6 @@
-import { NodeProps } from "@xyflow/react";
+"use client";
+
+import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { memo, useState } from "react";
 import { BaseTriggerNode } from "../base-trigger-node";
 import { GoogleFormTriggerDialog } from "./dialog";
@@ -8,6 +10,7 @@ import { GOOGLE_FORM_TRIGGER_CHANNEL_NAME } from "@/inngest/channels/google-form
 
 export const GoogleFormTrigger = memo((props: NodeProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const { setNodes } = useReactFlow();
 
   const nodeStatus = useNodeStatus({
     nodeId: props.id,
@@ -18,21 +21,33 @@ export const GoogleFormTrigger = memo((props: NodeProps) => {
 
   const handleOpenSettings = () => setDialogOpen(true);
 
+  const name = (props.data?.name as string | undefined) ?? "Google Form";
+
+  const handleNameChange = (value: string) => {
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === props.id
+          ? { ...node, data: { ...node.data, name: value } }
+          : node
+      )
+    );
+  };
+
   return (
     <>
-      <GoogleFormTriggerDialog 
+      <GoogleFormTriggerDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
       />
       <BaseTriggerNode
         {...props}
         icon="/logos/googleform.svg"
-        name="Google Form"
-        description="When form is submitted"
+        name={name}
+        onNameChange={handleNameChange}
         status={nodeStatus}
         onSettings={handleOpenSettings}
         onDoubleClick={handleOpenSettings}
       />
     </>
-  )
+  );
 });

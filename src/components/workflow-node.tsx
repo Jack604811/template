@@ -1,7 +1,7 @@
 "use client";
 
-import { NodeToolbar, Position } from "@xyflow/react";
-import { PlayIcon, SettingsIcon, TrashIcon } from "lucide-react";
+import { NodeToolbar } from "@xyflow/react";
+import { PlayIcon, SettingsIcon, Trash2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "./ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
@@ -13,9 +13,7 @@ interface WorkflowNodeProps {
   onSettings?: () => void;
   onExecute?: () => void;
   isExecuting?: boolean;
-  name?: string;
-  description?: string;
-};
+}
 
 export function WorkflowNode({
   children,
@@ -24,8 +22,6 @@ export function WorkflowNode({
   onSettings,
   onExecute,
   isExecuting = false,
-  name,
-  description,
 }: WorkflowNodeProps) {
   return (
     <>
@@ -48,20 +44,22 @@ export function WorkflowNode({
               </TooltipContent>
             </Tooltip>
           )}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button size="sm" variant="ghost" onClick={onSettings}>
-                <SettingsIcon className="size-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Settings</p>
-            </TooltipContent>
-          </Tooltip>
+          {onSettings && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" onClick={onSettings}>
+                  <SettingsIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
           <Tooltip>
             <TooltipTrigger asChild>
               <Button size="sm" variant="ghost" onClick={onDelete}>
-                <TrashIcon className="size-4" />
+                <Trash2Icon className="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -71,22 +69,6 @@ export function WorkflowNode({
         </NodeToolbar>
       )}
       {children}
-      {name && (
-        <NodeToolbar
-          position={Position.Bottom}
-          isVisible
-          className="max-w-[200px] text-center"
-        >
-          <p className="font-medium">
-            {name}
-          </p>
-          {description && (
-            <p className="text-muted-foreground truncate text-sm">
-              {description}
-            </p>
-          )}
-        </NodeToolbar>
-      )}
     </>
   );
 };

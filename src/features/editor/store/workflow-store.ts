@@ -37,10 +37,9 @@ export const useWorkflowStore = create<WorkflowState>()(
       setEdges: (edges) => set({ edges }),
       
       onNodesChange: (changes: NodeChange[]) => {
-        // Apply node changes first
-        const updatedNodes = applyNodeChanges(changes, get().nodes);
+        const currentNodes = get().nodes;
+        const updatedNodes = applyNodeChanges(changes, currentNodes);
 
-        // Collect IDs of removed nodes
         const removedNodeIds = new Set<string>();
         for (const change of changes) {
           if (change.type === "remove" && change.id) {
@@ -48,7 +47,6 @@ export const useWorkflowStore = create<WorkflowState>()(
           }
         }
 
-        // Remove edges connected to deleted nodes
         let updatedEdges = get().edges;
         if (removedNodeIds.size > 0) {
           updatedEdges = updatedEdges.filter(
@@ -58,7 +56,13 @@ export const useWorkflowStore = create<WorkflowState>()(
           );
         }
 
-        // Update both nodes and edges atomically
+        const currentEdges = get().edges;
+        if (
+          isEqual(currentNodes, updatedNodes) &&
+          isEqual(currentEdges, updatedEdges)
+        ) {
+          return;
+        }
         set({
           nodes: updatedNodes,
           edges: updatedEdges,
@@ -66,9 +70,10 @@ export const useWorkflowStore = create<WorkflowState>()(
       },
       
       onEdgesChange: (changes: EdgeChange[]) => {
-        set({
-          edges: applyEdgeChanges(changes, get().edges),
-        });
+        const currentEdges = get().edges;
+        const updatedEdges = applyEdgeChanges(changes, currentEdges);
+        if (isEqual(currentEdges, updatedEdges)) return;
+        set({ edges: updatedEdges });
       },
       
       onConnect: (connection: Connection) => {

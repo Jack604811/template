@@ -33,7 +33,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { VariableTextarea } from "@/components/ui/variable-textarea";
 import {
   Popover,
@@ -57,13 +56,6 @@ import z from "zod";
 
 const formSchema = z.object({
   label: z.string().optional(),
-  variableName: z
-    .string()
-    .min(1, { message: "Variable name is required" })
-    .regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, {
-      message:
-        "Variable name must start with a letter or underscore and contain only letters, numbers, and underscores",
-    }),
   userPrompt: z.string().min(1, { message: "Prompt is required" }),
   instructions: z.string().optional(),
   model: z.string().min(1, "Model is required"),
@@ -112,7 +104,6 @@ export const AgentDialog = ({
     resolver: zodResolver(formSchema),
     defaultValues: {
       label: defaultValues.label ?? "",
-      variableName: defaultValues.variableName ?? "",
       instructions: defaultValues.instructions ?? "",
       userPrompt: defaultValues.userPrompt ?? "",
       model: defaultValues.model ?? AGENT_MODELS[0]?.value ?? "",
@@ -125,8 +116,6 @@ export const AgentDialog = ({
     },
   });
 
-  const watchLabel = form.watch("label");
-  const watchVariableName = form.watch("variableName") || "agentResult";
   const watchOutputFormat = form.watch("outputFormat");
   const watchResponseSchema = form.watch("responseSchema");
 
@@ -139,7 +128,6 @@ export const AgentDialog = ({
           : defaultResponseSchema;
       form.reset({
         label: defaultValues.label ?? "",
-        variableName: defaultValues.variableName ?? "",
         instructions: defaultValues.instructions ?? "",
         userPrompt: defaultValues.userPrompt ?? "",
         model: defaultValues.model ?? AGENT_MODELS[0]?.value ?? "",
@@ -196,9 +184,7 @@ export const AgentDialog = ({
     (t) => !tools.some((x) => x.type === "native" && x.value === t.id),
   );
 
-  const settingsTitle = watchLabel?.trim()
-    ? `${watchLabel.trim()} Settings`
-    : "Agent Settings";
+  const settingsTitle = "Agent Settings";
 
   return (
     <>
@@ -220,45 +206,6 @@ export const AgentDialog = ({
               onSubmit={form.handleSubmit(handleSubmit)}
               className="mt-4 space-y-4"
             >
-              <FormField
-                control={form.control}
-                name="label"
-                render={({ field }) => (
-                  <FormItem className="space-y-1">
-                    <FormLabel className="text-xs text-muted-foreground">Agent name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="My Agent"
-                        className="h-8"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="variableName"
-                render={({ field }) => (
-                  <FormItem className="space-y-1">
-                    <FormLabel className="text-xs text-muted-foreground">Variable name</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="agentResult"
-                        className="h-8"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription className="text-xs">
-                      {`{{${watchVariableName}.text}}`} in other nodes
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="userPrompt"

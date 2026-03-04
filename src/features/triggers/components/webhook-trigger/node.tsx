@@ -1,15 +1,15 @@
 "use client";
 
-import type { NodeProps } from "@xyflow/react";
-import { memo, useState } from "react";
+import { useReactFlow, type NodeProps } from "@xyflow/react";
+import { memo } from "react";
 import { BaseTriggerNode } from "../base-trigger-node";
-import { WebhookTriggerDialog } from "./dialog";
+import { WebhookTriggerNodeContent } from "./node-content";
 import { useNodeStatus } from "@/features/executions/hooks/use-node-status";
 import { fetchWebhookTriggerRealtimeToken } from "./actions";
 import { WEBHOOK_TRIGGER_CHANNEL_NAME } from "@/inngest/channels/webhook-trigger";
 
 export const WebhookTrigger = memo((props: NodeProps) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const { setNodes } = useReactFlow();
 
   const nodeStatus = useNodeStatus({
     nodeId: props.id,
@@ -18,25 +18,28 @@ export const WebhookTrigger = memo((props: NodeProps) => {
     refreshToken: fetchWebhookTriggerRealtimeToken,
   });
 
-  const handleOpenSettings = () => setDialogOpen(true);
+  const name = (props.data?.name as string | undefined) ?? "Webhook";
+
+  const handleNameChange = (value: string) => {
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === props.id
+          ? { ...node, data: { ...node.data, name: value } }
+          : node
+      )
+    );
+  };
 
   return (
-    <>
-      <WebhookTriggerDialog 
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        nodeId={props.id}
-      />
-      <BaseTriggerNode
-        {...props}
-        icon="/logos/webhooks.svg"
-        name="Webhook"
-        description="When webhook is called"
-        status={nodeStatus}
-        onSettings={handleOpenSettings}
-        onDoubleClick={handleOpenSettings}
-      />
-    </>
+    <BaseTriggerNode
+      {...props}
+      icon="/logos/webhooks.svg"
+      name={name}
+      onNameChange={handleNameChange}
+      status={nodeStatus}
+    >
+      <WebhookTriggerNodeContent nodeId={props.id} />
+    </BaseTriggerNode>
   );
 });
 

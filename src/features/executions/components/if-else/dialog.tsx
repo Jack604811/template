@@ -45,13 +45,6 @@ const conditionSchema = z.object({
 });
 
 const formSchema = z.object({
-  variableName: z
-    .string()
-    .min(1, { message: "Variable name is required" })
-    .regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, {
-      message:
-        "Variable name must start with a letter or underscore and contain only letters, numbers, and underscores",
-    }),
   conditions: z
     .array(conditionSchema)
     .min(1, { message: "Add at least one condition" }),
@@ -85,7 +78,6 @@ export const IfElseDialog = ({
   const form = useForm<IfElseFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      variableName: defaultValues?.variableName || "condition",
       conditions:
         defaultValues?.conditions && defaultValues.conditions.length > 0
           ? defaultValues.conditions
@@ -101,8 +93,6 @@ export const IfElseDialog = ({
     },
   });
 
-  const watchVariableName = form.watch("variableName") || "condition";
-
   const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "conditions",
@@ -111,7 +101,6 @@ export const IfElseDialog = ({
   useEffect(() => {
     if (open && defaultValues) {
       form.reset({
-        variableName: defaultValues.variableName || "condition",
         conditions:
           defaultValues.conditions && defaultValues.conditions.length > 0
             ? defaultValues.conditions
@@ -157,27 +146,11 @@ export const IfElseDialog = ({
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-6 mt-4"
           >
-            <FormField
-              control={form.control}
-              name="variableName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Result variable name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="condition"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The result of this step will be available as{" "}
-                    {`{{${watchVariableName}.branch}}`} or{" "}
-                    {`{{${watchVariableName}.label}}`} in later steps.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <FormDescription className="text-muted-foreground">
+              The result is available as {"{{nodeName.branch}}"} or{" "}
+              {"{{nodeName.label}}"} in later steps (edit the node name in the
+              node header).
+            </FormDescription>
 
             <div className="space-y-4">
               {fields.map((field, index) => (

@@ -299,6 +299,7 @@ export const useWorkflowVariables = (
     if (context) {
       for (const [key, value] of Object.entries(context)) {
         if (key === "webhook") continue;
+        if (key.startsWith("__")) continue;
         if (existingNames.has(key)) {
           continue;
         }

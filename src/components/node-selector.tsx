@@ -4,6 +4,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
   Bot,
+  GitBranch,
   GlobeIcon,
   MousePointerIcon,
 } from "lucide-react";
@@ -32,7 +33,8 @@ const triggerNodes: NodeTypeOption[] = [
   {
     type: NodeType.MANUAL_TRIGGER,
     label: "Trigger manually",
-    description: "Runs the flow on clicking a button. Good for getting started quickly",
+    description:
+      "Runs the flow on clicking a button. Good for getting started quickly",
     icon: MousePointerIcon,
   },
   {
@@ -40,18 +42,6 @@ const triggerNodes: NodeTypeOption[] = [
     label: "Webhook",
     description: "Runs the flow when a webhook is called",
     icon: "/logos/webhooks.svg",
-  },
-  {
-    type: NodeType.GOOGLE_FORM_TRIGGER,
-    label: "Google Form",
-    description: "Runs the flow when a Google Form is submitted",
-    icon: "/logos/googleform.svg",
-  },
-  {
-    type: NodeType.STRIPE_TRIGGER,
-    label: "Stripe Event",
-    description: "Runs the flow when a Stripe Event is captured",
-    icon: "/logos/stripe.svg",
   },
 ];
 
@@ -63,34 +53,10 @@ const executionNodes: NodeTypeOption[] = [
     icon: GlobeIcon,
   },
   {
-    type: NodeType.GEMINI,
-    label: "Gemini",
-    description: "Uses Google Gemini to generate text",
-    icon: "/logos/gemini.svg",
-  },
-  {
-    type: NodeType.OPENAI,
-    label: "OpenAI",
-    description: "Uses OpenAI to generate text",
-    icon: "/logos/openai.svg",
-  },
-  {
-    type: NodeType.ANTHROPIC,
-    label: "Anthropic",
-    description: "Uses Anthropic to generate text",
-    icon: "/logos/anthropic.svg",
-  },
-  {
-    type: NodeType.DISCORD,
-    label: "Discord",
-    description: "Send a message to Discord",
-    icon: "/logos/discord.svg",
-  },
-  {
-    type: NodeType.SLACK,
-    label: "Slack",
-    description: "Send a message to Slack",
-    icon: "/logos/slack.svg",
+    type: NodeType.IF_ELSE,
+    label: "Condition",
+    description: "Add simple conditions to branch your workflow",
+    icon: GitBranch,
   },
   {
     type: NodeType.AGENT,

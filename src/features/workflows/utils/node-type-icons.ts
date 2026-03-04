@@ -1,5 +1,6 @@
 import {
   Bot,
+  GitBranch,
   GlobeIcon,
   type LucideIcon,
 } from "lucide-react";
@@ -21,6 +22,7 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   
   // Execution nodes (apps)
   [NodeType.HTTP_REQUEST]: GlobeIcon,
+  [NodeType.IF_ELSE]: GitBranch,
   [NodeType.GEMINI]: "/logos/gemini.svg",
   [NodeType.OPENAI]: "/logos/openai.svg",
   [NodeType.ANTHROPIC]: "/logos/anthropic.svg",

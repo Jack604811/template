@@ -35,6 +35,11 @@ type VariableInputProps = Omit<
   onFocus?: (event: React.FocusEvent<HTMLDivElement>) => void;
   onBlur?: (event: React.FocusEvent<HTMLDivElement>) => void;
   disabled?: boolean;
+  /**
+   * When true, always keep at most a single variable/token in this input.
+   * Used for places like the Condition node where only one variable makes sense.
+   */
+  singleVariable?: boolean;
 };
 
 export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
@@ -48,6 +53,7 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
       onFocus,
       onBlur,
       disabled = false,
+      singleVariable = false,
       className,
       ...props
     },
@@ -104,7 +110,8 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
     }, [value, defaultValue]);
 
     // Initialize content on mount
-    useEffect(() => {
+    // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
+        useEffect(() => {
       const element = contentEditableRef.current;
       if (!element) {
         return;
@@ -131,6 +138,17 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    const moveCaretToEnd = (element: HTMLDivElement) => {
+      const selection = window.getSelection();
+      if (!selection) return;
+
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    };
+
     const handleInput = useCallback(() => {
       if (isUpdatingRef.current) {
         return;
@@ -152,34 +170,50 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
       }
     }, [onChange]);
 
-    const handleKeyDown = useCallback((event: React.KeyboardEvent) => {
-      // Handle backspace on variables
-      if (event.key === "Backspace") {
-        if (handleBackspaceOnVariable(event.nativeEvent)) {
-          handleInput();
-          return;
+    const handleKeyDown = useCallback(
+      (event: React.KeyboardEvent) => {
+        const element = contentEditableRef.current;
+
+        // Handle backspace on variables
+        if (event.key === "Backspace") {
+          if (singleVariable && element) {
+            // In single-variable mode, if there's any variable chip, clear it entirely
+            const hasVariable = element.querySelector("[data-variable]");
+            if (hasVariable) {
+              event.preventDefault();
+              element.innerHTML = "";
+              handleInput();
+              return;
+            }
+          }
+
+          if (handleBackspaceOnVariable(event.nativeEvent)) {
+            handleInput();
+            return;
+          }
         }
-      }
 
-      // Handle delete on variables
-      if (event.key === "Delete") {
-        if (handleDeleteOnVariable(event.nativeEvent)) {
-          handleInput();
-          return;
+        // Handle delete on variables
+        if (event.key === "Delete") {
+          if (handleDeleteOnVariable(event.nativeEvent)) {
+            handleInput();
+            return;
+          }
         }
-      }
 
-      // Prevent Enter key (single line input)
-      if (event.key === "Enter") {
-        event.preventDefault();
-      }
+        // Prevent Enter key (single line input)
+        if (event.key === "Enter") {
+          event.preventDefault();
+        }
 
-      // Handle Escape to blur
-      if (event.key === "Escape") {
-        event.preventDefault();
-        contentEditableRef.current?.blur();
-      }
-    }, [handleInput]);
+        // Handle Escape to blur
+        if (event.key === "Escape") {
+          event.preventDefault();
+          contentEditableRef.current?.blur();
+        }
+      },
+      [handleInput, singleVariable],
+    );
 
     const handlePasteEvent = useCallback(
       (event: React.ClipboardEvent<HTMLDivElement>) => {
@@ -237,6 +271,11 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
         // Focus the element first
         element.focus();
 
+        // In "singleVariable" mode, always replace existing content with just this variable
+        if (singleVariable) {
+          element.innerHTML = "";
+        }
+
         // Insert variable at cursor
         insertVariableAtCursor(template, display);
 
@@ -246,7 +285,7 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
         // Keep focus
         element.focus();
       },
-      [handleInput],
+      [handleInput, singleVariable],
     );
 
     return (
@@ -265,7 +304,7 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
             {/* Placeholder */}
             {isEmpty && placeholder && (
           <div
-                className="pointer-events-none absolute inset-0 flex items-center px-3 text-sm text-muted-foreground"
+                className="pointer-events-none absolute inset-0 flex items-center truncate px-3 text-sm text-muted-foreground"
             aria-hidden="true"
               >
                 {placeholder}
@@ -285,9 +324,11 @@ export const VariableInput = forwardRef<HTMLDivElement, VariableInputProps>(
               onFocus={handleFocusEvent}
               onBlur={handleBlurEvent}
               onClick={(e) => {
-                // Ensure focus on click
+                // Ensure focus and place caret at the end so it feels editable
                 if (!disabled && contentEditableRef.current) {
-                  contentEditableRef.current.focus();
+                  const el = contentEditableRef.current;
+                  el.focus();
+                  moveCaretToEnd(el);
                 }
                 props.onClick?.(e);
               }}

@@ -17,7 +17,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -25,7 +24,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { VariableInput } from "@/components/ui/variable-input";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -33,23 +33,15 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const formSchema = z.object({
-  variableName: z
-    .string()
-    .min(1, { message: "Variable name is required" })
-    .regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, { 
-      message: "Variable name must start with a letter or underscore and container only letters, numbers, and underscores",
-    }),
-  endpoint: z.string()
-    .min(1, { message: "Please enter a valid URL" }),
+  endpoint: z.string().min(1, { message: "Please enter a valid URL" }),
   method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
-  body: z
-    .string()
-    .optional()
+  body: z.string().optional(),
 });
 
 export type HttpRequestFormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -57,6 +49,7 @@ interface Props {
 };
 
 export const HttpRequestDialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -65,18 +58,15 @@ export const HttpRequestDialog = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      variableName: defaultValues.variableName || "",
       endpoint: defaultValues.endpoint || "",
       method: defaultValues.method || "GET",
       body: defaultValues.body || "",
     },
   });
 
-  // Reset form values when dialog opens with new defaults
   useEffect(() => {
     if (open) {
       form.reset({
-        variableName: defaultValues.variableName || "",
         endpoint: defaultValues.endpoint || "",
         method: defaultValues.method || "GET",
         body: defaultValues.body || "",
@@ -84,7 +74,6 @@ export const HttpRequestDialog = ({
     }
   }, [open, defaultValues, form]);
 
-  const watchVariableName = form.watch("variableName") || "myApiCall";
   const watchMethod = form.watch("method");
   const showBodyField = ["POST", "PUT", "PATCH"].includes(watchMethod);
 
@@ -107,26 +96,6 @@ export const HttpRequestDialog = ({
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-8 mt-4"
           >
-            <FormField
-              control={form.control}
-              name="variableName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variable Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="myApiCall"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Use this name to reference the result in other nodes:{" "}
-                    {`{{${watchVariableName}.httpResponse.data}}`}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="method"
@@ -164,7 +133,8 @@ export const HttpRequestDialog = ({
                 <FormItem>
                   <FormLabel>Endpoint URL</FormLabel>
                   <FormControl>
-                    <Input
+                    <VariableInput
+                      nodeId={nodeId}
                       placeholder="https://api.example.com/users/{{httpResponse.data.id}}"
                       {...field}
                     />
@@ -184,7 +154,8 @@ export const HttpRequestDialog = ({
                 <FormItem>
                   <FormLabel>Request Body</FormLabel>
                   <FormControl>
-                    <Textarea
+                    <VariableTextarea
+                      nodeId={nodeId}
                       placeholder={
                         '{\n  "userId": "{{httpResponse.data.id}}",\n  "name": "{{httpResponse.data.name}}",\n  "items": "{{httpResponse.data.items}}"\n}'
                       }

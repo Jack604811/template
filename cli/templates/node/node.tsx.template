@@ -1,0 +1,76 @@
+"use client";
+
+import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
+import { {{ICON_IMPORT}} } from "lucide-react";
+import { memo, useState } from "react";
+import { Base{{NODE_TYPE}}Node } from "../base-{{NODE_TYPE_LOWER}}-node";
+import { {{NODE_NAME}}FormValues, {{NODE_NAME}}Dialog } from "./dialog";
+import { useNodeStatus } from "../../hooks/use-node-status";
+import { {{CHANNEL_NAME}} } from "@/inngest/channels/{{KEBAB_NAME}}";
+import { fetch{{NODE_NAME}}RealtimeToken } from "./actions";
+
+type {{NODE_NAME}}NodeData = {
+  variableName?: string;
+  // Add your node-specific data fields here
+};
+
+type {{NODE_NAME}}NodeType = Node<{{NODE_NAME}}NodeData>;
+
+export const {{NODE_NAME}}Node = memo((props: NodeProps<{{NODE_NAME}}NodeType>) => {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { setNodes } = useReactFlow();
+
+  const nodeStatus = useNodeStatus({
+    nodeId: props.id,
+    channel: {{CHANNEL_NAME}},
+    topic: "status",
+    refreshToken: fetch{{NODE_NAME}}RealtimeToken,
+  });
+
+  const handleOpenSettings = () => setDialogOpen(true);
+
+  const handleSubmit = (values: {{NODE_NAME}}FormValues) => {
+    setNodes((nodes) => nodes.map((node) => {
+      if (node.id === props.id) {
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            ...values,
+          }
+        }
+      }
+      return node;
+    }))
+  };
+
+  const nodeData = props.data;
+  const description = nodeData?.variableName
+    ? `Variable: ${nodeData.variableName}`
+    : "Not configured";
+
+  return (
+    <>
+      <{{NODE_NAME}}Dialog
+        nodeId={props.id}
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        onSubmit={handleSubmit}
+        defaultValues={nodeData}
+      />
+      <Base{{NODE_TYPE}}Node
+        {...props}
+        id={props.id}
+        icon={{{ICON_NAME}}}
+        name="{{DISPLAY_NAME}}"
+        status={nodeStatus}
+        description={description}
+        onSettings={handleOpenSettings}
+        onDoubleClick={handleOpenSettings}
+      />
+    </>
+  )
+});
+
+{{NODE_NAME}}Node.displayName = "{{NODE_NAME}}Node";
+

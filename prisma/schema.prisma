@@ -5,8 +5,9 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -15,32 +16,33 @@ datasource db {
 }
 
 model User {
-  id            String    @id
+  id            String     @id
   name          String
   email         String
-  emailVerified Boolean   @default(false)
+  emailVerified Boolean    @default(false)
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @default(now()) @updatedAt
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @default(now()) @updatedAt
   sessions      Session[]
   accounts      Account[]
-  workflows     Workflow[]
-  credentials   Credential[]
+  memberships   Member[]
+  templates     Workflow[]
 
   @@unique([email])
   @@map("user")
 }
 
 model Session {
-  id        String   @id
-  expiresAt DateTime
-  token     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  ipAddress String?
-  userAgent String?
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                   String   @id
+  expiresAt            DateTime
+  token                String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  ipAddress            String?
+  userAgent            String?
+  userId               String
+  activeOrganizationId String?
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([token])
   @@map("session")
@@ -76,16 +78,86 @@ model Verification {
   @@map("verification")
 }
 
-model Credential {
-  id String @id @default(cuid())
-  name String
-  value String
-  type CredentialType
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Organization {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  logo           String?
+  timezone       String?  @default("America/New_York")
+  currency       String?  @default("USD")
+  country        String?  @default("USA")
+  weekStart      String?  @default("sunday")
+  dateTimeFormat String?  @default("24")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members             Member[]
+  invitations         Invitation[]
+  workflows           Workflow[]
+  credentials         Credential[]
+  bookings            Booking[]
+  customers           Customer[]
+  bookables           Bookable[]
+  bookableCollections BookableCollection[]
+  customFields        CustomField[]
+  mcpServers          McpServer[]
+
+  @@map("organization")
+}
+
+model Member {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           String
+  inviterId      String
+  expiresAt      DateTime
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("invitation")
+}
+
+model McpServer {
+  id             String   @id @default(cuid())
+  organizationId String
+  label          String
+  url           String
+  token         String?  // Encrypted; optional for no-auth servers
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("mcp_server")
+}
+
+model Credential {
+  id        String         @id @default(cuid())
+  name      String
+  value     String
+  type      CredentialType
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   Node Node[]
 }
@@ -94,67 +166,101 @@ enum CredentialType {
   OPENAI
   ANTHROPIC
   GEMINI
+  GMAIL
+  DRIVE
+  SHEETS
+  WHATSAPP
+  INSTAGRAM
+  TIKTOK
+  MESSENGER
+  MYBUSINESS
+}
+
+model TemplateCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  templates Workflow[]
+
+  @@map("template_category")
 }
 
 model Workflow {
-  id String @id @default(cuid())
-  name String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  templateName String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  nodes Node[]
+  isTemplate       Boolean @default(false)
+  isPublicTemplate Boolean @default(false)
+  categoryId       String?
+  userId           String?
+
+  nodes       Node[]
   connections Connection[]
-  executions Execution[]
+  executions  Execution[]
 
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  category TemplateCategory? @relation(fields: [categoryId], references: [id])
+  user     User?             @relation(fields: [userId], references: [id])
 }
 
 enum NodeType {
   INITIAL
   MANUAL_TRIGGER
   HTTP_REQUEST
+  IF_ELSE
   GOOGLE_FORM_TRIGGER
   STRIPE_TRIGGER
+  WEBHOOK_TRIGGER
   ANTHROPIC
   GEMINI
   OPENAI
   DISCORD
   SLACK
+  AGENT
 }
 
 model Node {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  name String
-  type NodeType
+  name     String
+  type     NodeType
   position Json
-  data Json @default("{}")
+  data     Json     @default("{}")
 
   credentialId String?
-  credential Credential? @relation(fields: [credentialId], references: [id])
+  credential   Credential? @relation(fields: [credentialId], references: [id])
 
   outputConnections Connection[] @relation("FromNode")
-  inputConnections Connection[] @relation("ToNode")
+  inputConnections  Connection[] @relation("ToNode")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
 model Connection {
-  id String @id @default(cuid())
+  id         String   @id @default(cuid())
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
   fromNodeId String
-  fromNode Node @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
-  toNodeId String
-  toNode Node @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
+  fromNode   Node   @relation("FromNode", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNodeId   String
+  toNode     Node   @relation("ToNode", fields: [toNodeId], references: [id], onDelete: Cascade)
 
   fromOutput String @default("main")
-  toInput String @default("main")
+  toInput    String @default("main")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -172,16 +278,291 @@ model Execution {
   id String @id @default(cuid())
 
   workflowId String
-  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  status ExecutionStatus @default(RUNNING)
-  error String? @db.Text
-  errorStack String? @db.Text
+  status     ExecutionStatus @default(RUNNING)
+  error      String?         @db.Text
+  errorStack String?         @db.Text
 
-  startedAt DateTime @default(now())
+  startedAt   DateTime  @default(now())
   completedAt DateTime?
 
   inngestEventId String @unique
 
   output Json?
+}
+
+model Customer {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name          String
+  email         String?
+  phone         String?
+  idType        String?
+  idNumber      String?
+  streetAddress String?
+  cityCountry   String?
+  isRecurrent   Boolean @default(false)
+
+  bookings           Booking[]
+  customFieldValues  CustomFieldValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("customer")
+}
+
+model BookableCollection {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name  String
+  icon  String?
+  order Int     @default(0)
+
+  bookables Bookable[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookable_collection")
+}
+
+model CustomField {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  name            String
+  type            CustomFieldType
+  options         Json? // Array of option strings for OPTIONS/MULTISELECT types
+  defaultValue    String? // Default value for the field (stored as string, parsed based on type)
+  placeholder     String? // Placeholder text for input fields
+  order           Int                        @default(0)
+  required        Boolean                    @default(false)
+  enabled         Boolean                    @default(true)
+  displayLocation CustomFieldDisplayLocation @default(BOOKING)
+  identifier      String                     @unique
+
+  fieldValues CustomFieldValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("custom_field")
+}
+
+model CustomFieldValue {
+  id      String      @id @default(cuid())
+  fieldId String
+  field   CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  value Json // Stores the actual field value based on type
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([bookingId, fieldId])
+  @@unique([customerId, fieldId])
+  @@map("custom_field_value")
+}
+
+model Bookable {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  collectionId String?
+  collection   BookableCollection? @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  // Basic fields
+  title       String
+  description String?       @db.Text
+  images      Json          @default("[]") // Array of image URLs/objects
+  basePrice  Float          @default(0)
+  priceTiers Json? // Array of { name: string, price: number }
+  units      Int?
+  allowMultipleGuests Boolean @default(false)
+  minGuests  Int?
+  maxGuestsPerBooking Int?
+  status     BookableStatus @default(DRAFT)
+
+  // Duration - stored as value and unit
+  durationValue Int
+  durationUnit  DurationUnit
+
+  // Booking windows - stored as value + unit (same pattern as duration)
+  minAdvanceValue Int?
+  minAdvanceUnit  MinAdvanceUnit?
+  maxAdvanceValue Int?
+  maxAdvanceUnit  MaxAdvanceUnit?
+  blockedDates    Json @default("[]") // Array of date strings
+
+  // Operating window and slot rules (replaces per-day availability in UI)
+  startTime String?  // HH:mm, e.g. "13:00"
+  endTime   String?  // HH:mm, e.g. "23:00"
+  bufferMinutes      Int?     @default(0) // Minutes between consecutive slots
+  allowMultipleDays  Boolean  @default(false) // When true, booking can span multiple days; end date = last day booked
+
+  // Availability by day (deprecated in UI; kept for backward compatibility)
+  availability Json @default("[]") // Array of { day: string, ranges: Array<{ startTime: string, endTime: string }> }
+
+  // Tax configuration
+  taxType  TaxType?
+  taxValue Float?
+
+  // Payment and redirect (Advance section)
+  requirePayment   Boolean @default(false)
+  requireDeposit   Boolean @default(false)
+  depositPercent   Int?    // 0–100, used when requireDeposit is true
+  successRedirectUrl String?  @map("success_redirect_url")
+  cancelRedirectUrl  String?  @map("cancel_redirect_url")
+
+  // Additional settings (Advance section)
+  hideBookingType Boolean  @default(false)
+  internalNotes   String?  @map("internal_notes")
+
+  // Legacy fields (kept for backward compatibility during migration)
+  name       String?
+  type       String?
+  price      Float?
+  isMultiDay Boolean @default(false)
+  icon       String?
+
+  // Relations
+  bookings Booking[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bookable")
+}
+
+enum BookingStatus {
+  pending
+  approved
+  in_progress
+  canceled
+  completed
+}
+
+enum BookableStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum DurationUnit {
+  MINUTES
+  HOURS
+  DAYS
+  NIGHTS
+}
+
+enum MinAdvanceUnit {
+  MINUTES
+  HOURS
+  DAYS
+}
+
+enum MaxAdvanceUnit {
+  DAYS
+  WEEKS
+}
+
+enum TaxType {
+  PERCENTAGE
+  FIXED
+}
+
+enum CustomFieldType {
+  TEXT
+  TEXTAREA
+  NUMBER
+  BOOLEAN
+  DATE
+  TIME
+  OPTIONS
+  MULTISELECT
+}
+
+enum CustomFieldDisplayLocation {
+  BOOKING
+  CUSTOMER
+}
+
+model Booking {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  bookableId String
+  bookable   Bookable @relation(fields: [bookableId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  startTime    DateTime
+  endTime      DateTime
+  status       BookingStatus @default(pending)
+  notes        String?       @db.Text
+
+  basePrice    Float @default(0)
+  upsellsTotal Float @default(0)
+  serviceFee   Float @default(0)
+  tax          Float @default(0)
+  discount     Float @default(0)
+  total        Float @default(0)
+
+  payments          Payment[]
+  upsells           BookingUpsell[]
+  customFieldValues CustomFieldValue[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("booking")
+}
+
+model Payment {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  method String
+  amount Float
+  date   DateTime
+  status String   @default("pending")
+  notes  String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("payment")
+}
+
+model BookingUpsell {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  name        String
+  description String? @db.Text
+  price       Float
+  status      String  @default("pending")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("booking_upsell")
 }

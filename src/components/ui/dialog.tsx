@@ -50,13 +50,18 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  disablePortal = false,
+  overlayClassName,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
+  disablePortal?: boolean
+  /** Optional class for the overlay (e.g. z-[10000] to appear above React Flow). */
+  overlayClassName?: string
 }) {
-  return (
-    <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+  const content = (
+    <>
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(
@@ -76,6 +81,16 @@ function DialogContent({
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
+    </>
+  )
+
+  if (disablePortal) {
+    return content
+  }
+
+  return (
+    <DialogPortal data-slot="dialog-portal">
+      {content}
     </DialogPortal>
   )
 }

@@ -1,0 +1,11 @@
+import { createSearchParamsCache, parseAsInteger, parseAsString } from "nuqs/server";
+import { PAGINATION } from "@/config/constants";
+
+export const {{CAMEL_NAME}}SearchParams = {
+  page: parseAsInteger.withDefault(PAGINATION.DEFAULT_PAGE),
+  pageSize: parseAsInteger.withDefault(PAGINATION.DEFAULT_PAGE_SIZE),
+  search: parseAsString.withDefault(""),
+};
+
+export const {{CAMEL_NAME}}ParamsCache = createSearchParamsCache({{CAMEL_NAME}}SearchParams);
+

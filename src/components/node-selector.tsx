@@ -3,9 +3,12 @@
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
 import {
+  Bot,
+  GitBranch,
   GlobeIcon,
   MousePointerIcon,
 } from "lucide-react";
+import Image from "next/image";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import {
@@ -19,6 +22,34 @@ import {
 import { NodeType } from "@/generated/prisma";
 import { Separator } from "./ui/separator";
 
+const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
+  [NodeType.HTTP_REQUEST]: "myApiCall",
+  [NodeType.IF_ELSE]: "condition",
+  [NodeType.AGENT]: "Agent",
+  [NodeType.OPENAI]: "myOpenAi",
+  [NodeType.ANTHROPIC]: "myAnthropic",
+  [NodeType.GEMINI]: "myGemini",
+  [NodeType.SLACK]: "mySlack",
+  [NodeType.DISCORD]: "myDiscord",
+};
+
+const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
+  [NodeType.MANUAL_TRIGGER]: "Manual",
+  [NodeType.WEBHOOK_TRIGGER]: "Webhook",
+};
+
+function getInitialDataForType(type: NodeType): Record<string, unknown> {
+  const variableName = DEFAULT_VARIABLE_NAME[type];
+  if (variableName !== undefined) {
+    return { variableName };
+  }
+  const name = DEFAULT_TRIGGER_NAME[type];
+  if (name !== undefined) {
+    return { name };
+  }
+  return {};
+}
+
 export type NodeTypeOption = {
   type: NodeType;
   label: string;
@@ -30,20 +61,15 @@ const triggerNodes: NodeTypeOption[] = [
   {
     type: NodeType.MANUAL_TRIGGER,
     label: "Trigger manually",
-    description: "Runs the flow on clicking a button. Good for getting started quickly",
+    description:
+      "Runs the flow on clicking a button. Good for getting started quickly",
     icon: MousePointerIcon,
   },
   {
-    type: NodeType.GOOGLE_FORM_TRIGGER,
-    label: "Google Form",
-    description: "Runs the flow when a Google Form is submitted",
-    icon: "/logos/googleform.svg",
-  },
-  {
-    type: NodeType.STRIPE_TRIGGER,
-    label: "Stripe Event",
-    description: "Runs the flow when a Stripe Event is captured",
-    icon: "/logos/stripe.svg",
+    type: NodeType.WEBHOOK_TRIGGER,
+    label: "Webhook",
+    description: "Runs the flow when a webhook is called",
+    icon: "/logos/webhooks.svg",
   },
 ];
 
@@ -55,34 +81,16 @@ const executionNodes: NodeTypeOption[] = [
     icon: GlobeIcon,
   },
   {
-    type: NodeType.GEMINI,
-    label: "Gemini",
-    description: "Uses Google Gemini to generate text",
-    icon: "/logos/gemini.svg",
+    type: NodeType.IF_ELSE,
+    label: "Condition",
+    description: "Add simple conditions to branch your workflow",
+    icon: GitBranch,
   },
   {
-    type: NodeType.OPENAI,
-    label: "OpenAI",
-    description: "Uses OpenAI to generate text",
-    icon: "/logos/openai.svg",
-  },
-  {
-    type: NodeType.ANTHROPIC,
-    label: "Anthropic",
-    description: "Uses Anthropic to generate text",
-    icon: "/logos/anthropic.svg",
-  },
-  {
-    type: NodeType.DISCORD,
-    label: "Discord",
-    description: "Send a message to Discord",
-    icon: "/logos/discord.svg",
-  },
-  {
-    type: NodeType.SLACK,
-    label: "Slack",
-    description: "Send a message to Slack",
-    icon: "/logos/slack.svg",
+    type: NodeType.AGENT,
+    label: "Agent",
+    description: "LLM agent with MCP and native tools (AI Gateway)",
+    icon: Bot,
   },
 ];
 
@@ -129,7 +137,7 @@ export function NodeSelector({
 
       const newNode = {
         id: createId(),
-        data: {},
+        data: getInitialDataForType(selection.type),
         position: flowPosition,
         type: selection.type,
       };
@@ -166,16 +174,19 @@ export function NodeSelector({
             const Icon = nodeType.icon;
 
             return (
-              <div
+              <button
                 key={nodeType.type}
-                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary"
+                type="button"
+                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary text-left"
                 onClick={() => handleNodeSelect(nodeType)}
               >
                 <div className="flex items-center gap-6 w-full overflow-hidden">
                   {typeof Icon === "string" ? (
-                    <img
+                    <Image
                       src={Icon}
                       alt={nodeType.label}
+                      width={20}
+                      height={20}
                       className="size-5 object-contain rounded-sm"
                     />
                   ) : (
@@ -190,7 +201,7 @@ export function NodeSelector({
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -200,16 +211,19 @@ export function NodeSelector({
             const Icon = nodeType.icon;
 
             return (
-              <div
+              <button
                 key={nodeType.type}
-                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary"
+                type="button"
+                className="w-full justify-start h-auto py-5 px-4 rounded-none cursor-pointer border-l-2 border-transparent hover:border-l-primary text-left"
                 onClick={() => handleNodeSelect(nodeType)}
               >
                 <div className="flex items-center gap-6 w-full overflow-hidden">
                   {typeof Icon === "string" ? (
-                    <img
+                    <Image
                       src={Icon}
                       alt={nodeType.label}
+                      width={20}
+                      height={20}
                       className="size-5 object-contain rounded-sm"
                     />
                   ) : (
@@ -224,7 +238,7 @@ export function NodeSelector({
                     </span>
                   </div>
                 </div>
-              </div>
+              </button>
             )
           })}
         </div>

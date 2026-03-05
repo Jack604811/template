@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  // Explicitly set Turbopack root to prevent lockfile detection warnings
+  experimental: {
+    turbo: {
+      root: process.cwd(),
+    },
+  },
   async redirects() {
     return [
       {

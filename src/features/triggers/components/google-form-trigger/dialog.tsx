@@ -20,17 +20,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 };
 
-export const GoogleFormTriggerDialog = ({
-  open,
-  onOpenChange
-}: Props) => {
+export const GoogleFormTriggerDialog = ({ open, onOpenChange }: Props) => {
   const params = useParams();
   const workflowId = params.workflowId as string;
 
   // Construct the webhook URL
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
-  const webhookUrl = 
-    `${baseUrl}/api/webhooks/google-form?workflowId=${workflowId}`;
+  const baseUrl =
+    typeof window !== "undefined"
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const webhookUrl = `${baseUrl}/api/google-form?workflowId=${workflowId}`;
 
   const copyToClipboard = async () => {
     try {

@@ -4,7 +4,6 @@ import { formatDistanceToNow } from "date-fns";
 import { 
   EmptyView,
   EntityContainer, 
-  EntityHeader, 
   EntityItem, 
   EntityList, 
   EntityPagination, 
@@ -13,34 +12,37 @@ import {
 } from "@/components/entity-components";
 import { useSuspenseExecutions } from "../hooks/use-executions"
 import { useExecutionsParams } from "../hooks/use-executions-params";
+import { ExecutionsListHeader } from "./executions-list-header";
 import type { Execution } from "@/generated/prisma";
 import { ExecutionStatus } from "@/generated/prisma";
 import { CheckCircle2Icon, ClockIcon, Loader2Icon, XCircleIcon } from "lucide-react";
 
-export const ExecutionsList = () => {
-  const executions = useSuspenseExecutions();
+export const ExecutionsList = ({ 
+  workflowId, 
+  disableNavigation = false 
+}: { 
+  workflowId?: string;
+  disableNavigation?: boolean;
+}) => {
+  const executions = useSuspenseExecutions(workflowId);
 
   return (
     <EntityList
       items={executions.data.items}
       getKey={(execution) => execution.id}
-      renderItem={(execution) => <ExecutionItem data={execution} />}
+      renderItem={(execution) => (
+        <ExecutionItem 
+          data={execution} 
+          disableNavigation={disableNavigation} 
+        />
+      )}
       emptyView={<ExecutionsEmpty />}
     />
   );
 };
 
-export const ExecutionsHeader = () => {
-  return (
-    <EntityHeader
-      title="Executions"
-      description="View your workflow execution history"
-    />
-  );
-};
-
-export const ExecutionsPagination = () => {
-  const executions = useSuspenseExecutions();
+export const ExecutionsPagination = ({ workflowId }: { workflowId?: string }) => {
+  const executions = useSuspenseExecutions(workflowId);
   const [params, setParams] = useExecutionsParams();
 
   return (
@@ -59,12 +61,16 @@ export const ExecutionsContainer = ({
   children: React.ReactNode;
 }) => {
   return (
-    <EntityContainer
-      header={<ExecutionsHeader />}
-      pagination={<ExecutionsPagination />}
-    >
-      {children}
-    </EntityContainer>
+    <div className="flex flex-col h-full overflow-hidden">
+      <ExecutionsListHeader />
+      <div className="flex-1 overflow-auto">
+        <EntityContainer
+          pagination={<ExecutionsPagination />}
+        >
+          {children}
+        </EntityContainer>
+      </div>
+    </div>
   );
 };
 
@@ -103,6 +109,7 @@ const formatStatus = (status: ExecutionStatus) => {
 
 export const ExecutionItem = ({
   data,
+  disableNavigation = false,
 }: { 
   data: Execution & {
     workflow: {
@@ -110,6 +117,7 @@ export const ExecutionItem = ({
       name: string;
     };
   };
+  disableNavigation?: boolean;
 }) => {
   const duration = data.completedAt
     ? Math.round(
@@ -127,7 +135,7 @@ export const ExecutionItem = ({
 
   return (
     <EntityItem
-      href={`/executions/${data.id}`}
+      href={disableNavigation ? undefined : `/executions/${data.id}`}
       title={formatStatus(data.status)}
       subtitle={subtitle}
       image={
@@ -135,6 +143,7 @@ export const ExecutionItem = ({
           {getStatusIcon(data.status)}
         </div>
       }
+      className={disableNavigation ? "cursor-default hover:shadow-none" : undefined}
     />
   )
 };

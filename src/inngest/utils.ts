@@ -1,4 +1,4 @@
-import { Connection, Node } from "@/generated/prisma";
+import type { Connection, Node } from "@/generated/prisma";
 import toposort from "toposort";
 import { inngest } from "./client";
 import { createId } from "@paralleldrive/cuid2";
@@ -7,36 +7,17 @@ export const topologicalSort = (
   nodes: Node[],
   connections: Connection[],
 ): Node[] => {
-  // If no connections, return node as-is (they're all independent)
-  if (connections.length === 0) {
-    return nodes;
-  }
+  if (nodes.length === 0) return nodes;
 
-  // Create edges array for toposort
+  const nodeIds = nodes.map((n) => n.id);
   const edges: [string, string][] = connections.map((conn) => [
     conn.fromNodeId,
     conn.toNodeId,
   ]);
 
-  // Add nodes with no connections as self-edges to ensure they're included
-  const connectedNodeIds = new Set<string>();
-  for (const conn of connections) {
-    connectedNodeIds.add(conn.fromNodeId);
-    connectedNodeIds.add(conn.toNodeId);
-  }
-
-  for (const node of nodes) {
-    if (!connectedNodeIds.has(node.id)) {
-      edges.push([node.id, node.id]);
-    }
-  }
-
-  // Perform topological sort
   let sortedNodeIds: string[];
   try {
-    sortedNodeIds = toposort(edges);
-    // Remove duplicates (from self-edges)
-    sortedNodeIds = [...new Set(sortedNodeIds)];
+    sortedNodeIds = toposort.array(nodeIds, edges);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Cyclic")) {
       throw new Error("Workflow contains a cycle");
@@ -44,18 +25,47 @@ export const topologicalSort = (
     throw error;
   }
 
-  // Map sorted IDs back to node objects
   const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-  return sortedNodeIds.map((id) => nodeMap.get(id)!).filter(Boolean);
+  return sortedNodeIds
+    .map((id) => nodeMap.get(id))
+    .filter((n): n is Node => n != null);
 };
 
-export const sendWorkflowExecution = async (data: {
+interface SendWorkflowExecutionParams {
   workflowId: string;
-  [key: string]: any;
-}) => {
+  initialData?: Record<string, unknown>;
+  triggerNodeId?: string;
+  workflowSnapshot?: {
+    nodes: {
+      id: string;
+      type?: string | null;
+      data?: Record<string, unknown>;
+    }[];
+    edges: {
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    }[];
+  };
+}
+
+/**
+ * Send workflow execution event to Inngest.
+ * Pass-through payload like template: workflowId + initialData (and optional triggerNodeId) are forwarded as event.data so variable values flow from triggers.
+ */
+export const sendWorkflowExecution = async (
+  params: SendWorkflowExecutionParams,
+) => {
+  const { workflowId, initialData = {}, triggerNodeId, workflowSnapshot } = params;
   return inngest.send({
     name: "workflows/execute.workflow",
-    data,
+    data: {
+      workflowId,
+      initialData,
+      ...(triggerNodeId != null && { triggerNodeId }),
+      ...(workflowSnapshot != null && { workflowSnapshot }),
+    },
     id: createId(),
   });
 };

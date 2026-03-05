@@ -1,0 +1,12 @@
+{
+  "version": "1.0.0",
+  "files": [
+    "params.ts",
+    "hooks/use-feature-params.ts",
+    "hooks/use-feature.ts",
+    "server/prefetch.ts",
+    "server/routers.ts",
+    "server/params-loader.ts"
+  ]
+}
+

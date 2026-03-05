@@ -2,9 +2,10 @@
 
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { GlobeIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useCallback } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import { HttpRequestFormValues, HttpRequestDialog } from "./dialog";
+import type { HttpRequestFormValues } from "./dialog";
+import { HttpRequestNodeContent } from "./node-content";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { HTTP_REQUEST_CHANNEL_NAME } from "@/inngest/channels/http-request";
 import { fetchHttpRequestRealtimeToken } from "./actions";
@@ -19,7 +20,6 @@ type HttpRequestNodeData = {
 type HttpRequestNodeType = Node<HttpRequestNodeData>;
 
 export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
   const nodeStatus = useNodeStatus({
@@ -29,48 +29,51 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
     refreshToken: fetchHttpRequestRealtimeToken,
   });
 
-  const handleOpenSettings = () => setDialogOpen(true);
-
-  const handleSubmit = (values: HttpRequestFormValues) => {
-    setNodes((nodes) => nodes.map((node) => {
-      if (node.id === props.id) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            ...values,
-          }
-        }
-      }
-      return node;
-    }))
-  };
-
   const nodeData = props.data;
-  const description = nodeData?.endpoint
-    ? `${nodeData.method || "GET"}: ${nodeData.endpoint}`
-    : "Not configured";
+  const variableName = nodeData?.variableName ?? "myApiCall";
+
+  const handleDataChange = useCallback(
+    (values: HttpRequestFormValues) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, ...values } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
+
+  const handleVariableNameChange = useCallback(
+    (value: string) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, variableName: value } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
 
   return (
-    <>
-      <HttpRequestDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleSubmit}
+    <BaseExecutionNode
+      {...props}
+      id={props.id}
+      icon={GlobeIcon}
+      variableName={variableName}
+      onVariableNameChange={handleVariableNameChange}
+      status={nodeStatus}
+    >
+      <HttpRequestNodeContent
+        nodeId={props.id}
         defaultValues={nodeData}
+        onDataChange={handleDataChange}
       />
-      <BaseExecutionNode
-        {...props}
-        id={props.id}
-        icon={GlobeIcon}
-        name="HTTP Request"
-        status={nodeStatus}
-        description={description}
-        onSettings={handleOpenSettings}
-        onDoubleClick={handleOpenSettings}
-      />
-    </>
-  )
+    </BaseExecutionNode>
+  );
 });
 
 HttpRequestNode.displayName = "HttpRequestNode";

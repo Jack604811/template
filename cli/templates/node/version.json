@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "files": [
+    "node.tsx",
+    "dialog.tsx",
+    "actions.ts",
+    "executor.ts",
+    "channel.ts"
+  ]
+}
+

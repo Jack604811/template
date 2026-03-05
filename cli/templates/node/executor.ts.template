@@ -1,0 +1,70 @@
+import { NonRetriableError } from "inngest";
+import type { NodeExecutor } from "@/features/executions/types";
+import { {{CAMEL_NAME}}Channel } from "@/inngest/channels/{{KEBAB_NAME}}";
+
+type {{NODE_NAME}}Data = {
+  variableName?: string;
+  // Add your node-specific data types here
+};
+
+export const {{CAMEL_NAME}}Executor: NodeExecutor<{{NODE_NAME}}Data> = async ({
+  data,
+  nodeId,
+  userId,
+  context,
+  step,
+  publish,
+}) => {
+  await publish(
+    {{CAMEL_NAME}}Channel().status({
+      nodeId,
+      status: "loading",
+    }),
+  );
+
+  try {
+    const result = await step.run("{{KEBAB_NAME}}", async () => {
+      // Validate required fields
+      if (!data.variableName) {
+        await publish(
+          {{CAMEL_NAME}}Channel().status({
+            nodeId,
+            status: "error",
+          }),
+        );
+        throw new NonRetriableError("{{NODE_NAME}} node: Variable name not configured");
+      }
+
+      // TODO: Implement your node logic here
+      // Example: Make API call, process data, etc.
+      const result = {
+        // Your result data
+        success: true,
+      };
+
+      // Return updated context with result
+      return {
+        ...context,
+        [data.variableName]: result,
+      };
+    });
+
+    await publish(
+      {{CAMEL_NAME}}Channel().status({
+        nodeId,
+        status: "success",
+      }),
+    );
+
+    return result;
+  } catch (error) {
+    await publish(
+      {{CAMEL_NAME}}Channel().status({
+        nodeId,
+        status: "error",
+      }),
+    );
+    throw error;
+  }
+};
+

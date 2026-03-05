@@ -1,24 +1,31 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { 
+import Image from "next/image";
+import { useState } from "react";
+import {
   EmptyView,
-  EntityContainer, 
-  EntityHeader, 
-  EntityItem, 
-  EntityList, 
-  EntityPagination, 
+  EntityContainer,
+  EntityHeader,
+  EntityItem,
+  EntityList,
+  EntityPagination,
   EntitySearch,
   ErrorView,
-  LoadingView
+  LoadingView,
 } from "@/components/entity-components";
-import { useRemoveCredential, useSuspenseCredentials } from "../hooks/use-credentials"
-import { useRouter } from "next/navigation";
-import { useCredentialsParams } from "../hooks/use-credentials-params";
-import { useEntitySearch } from "@/hooks/use-entity-search";
 import type { Credential } from "@/generated/prisma";
-import { CredentialType } from "@/generated/prisma";
-import Image from "next/image";
+import { useEntitySearch } from "@/hooks/use-entity-search";
+import {
+  useRemoveCredential,
+  useSuspenseCredentials,
+} from "../hooks/use-credentials";
+import { useCredentialsParams } from "../hooks/use-credentials-params";
+import { AppDirectoryDialog } from "./app-directory";
+import { credentialLogos } from "./credential";
+import { CredentialConnectionDialog } from "./credential-connection-dialog";
+import { TrashIcon, PencilIcon } from "lucide-react";
+import type { EntityMenuGroup } from "@/components/entity-components";
 
 export const CredentialsSearch = () => {
   const [params, setParams] = useCredentialsParams();
@@ -50,14 +57,22 @@ export const CredentialsList = () => {
 };
 
 export const CredentialsHeader = ({ disabled }: { disabled?: boolean }) => {
+  const [appDirectoryOpen, setAppDirectoryOpen] = useState(false);
+
   return (
-    <EntityHeader
-      title="Credentials"
-      description="Create and manage your credentials"
-      newButtonHref="/credentials/new"
-      newButtonLabel="New credential"
-      disabled={disabled}
-    />
+    <>
+      <EntityHeader
+        title="Credentials"
+        description="Create and manage your credentials"
+        onNew={() => setAppDirectoryOpen(true)}
+        newButtonLabel="New credential"
+        disabled={disabled}
+      />
+      <AppDirectoryDialog
+        open={appDirectoryOpen}
+        onOpenChange={setAppDirectoryOpen}
+      />
+    </>
   );
 };
 
@@ -76,7 +91,7 @@ export const CredentialsPagination = () => {
 };
 
 export const CredentialsContainer = ({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) => {
@@ -100,57 +115,88 @@ export const CredentialsError = () => {
 };
 
 export const CredentialsEmpty = () => {
-  const router = useRouter();
-
-  const handleCreate = () => {
-    router.push(`/credentials/new`);
-  };
+  const [appDirectoryOpen, setAppDirectoryOpen] = useState(false);
 
   return (
-    <EmptyView
-      onNew={handleCreate}
-      message="You haven't created any credentials yet. Get started by creating your first credential"
-    />
+    <>
+      <EmptyView
+        onNew={() => setAppDirectoryOpen(true)}
+        message="You haven't created any credentials yet. Get started by creating your first credential"
+      />
+      <AppDirectoryDialog
+        open={appDirectoryOpen}
+        onOpenChange={setAppDirectoryOpen}
+      />
+    </>
   );
 };
 
-const credentialLogos: Record<CredentialType, string> = {
-  [CredentialType.OPENAI]: "/logos/openai.svg",
-  [CredentialType.ANTHROPIC]: "/logos/anthropic.svg",
-  [CredentialType.GEMINI]: "/logos/gemini.svg",
-};
-
-export const CredentialItem = ({
-  data,
-}: { 
-  data: Credential
-}) => {
+export const CredentialItem = ({ data }: { data: Credential }) => {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const removeCredential = useRemoveCredential();
 
-  const handleRemove = () => {
+  const handleEdit = () => {
+    setEditDialogOpen(true);
+  };
+
+  const handleDelete = () => {
     removeCredential.mutate({ id: data.id });
   };
 
   const logo = credentialLogos[data.type] || "/logos/openai.svg";
 
+  const menuGroups: EntityMenuGroup[] = [
+    {
+      items: [
+        {
+          label: "Edit Credential",
+          icon: PencilIcon,
+          onClick: handleEdit,
+        },
+      ],
+    },
+    {
+      separator: true,
+      items: [
+        {
+          label: "Delete Credential",
+          icon: TrashIcon,
+          onClick: handleDelete,
+          variant: "destructive",
+          disabled: removeCredential.isPending,
+        },
+      ],
+    },
+  ];
+
   return (
-    <EntityItem
-      href={`/credentials/${data.id}`}
-      title={data.name}
-      subtitle={
-        <>
-          Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-          &bull; Created{" "}
-          {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-        </>
-      }
-      image={
-        <div className="size-8 flex items-center justify-center">
-          <Image src={logo} alt={data.type} width={20} height={20} />
-        </div>
-      }
-      onRemove={handleRemove}
-      isRemoving={removeCredential.isPending}
-    />
-  )
+    <>
+      <EntityItem
+        title={data.name}
+        subtitle={
+          <>
+            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
+            &bull; Created{" "}
+            {formatDistanceToNow(data.createdAt, { addSuffix: true })}
+          </>
+        }
+        image={
+          <div className="size-8 flex items-center justify-center">
+            <Image src={logo} alt={data.type} width={20} height={20} />
+          </div>
+        }
+        menuGroups={menuGroups}
+      />
+      <CredentialConnectionDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        credentialType={data.type}
+        existingCredential={{
+          id: data.id,
+          name: data.name,
+          value: data.value,
+        }}
+      />
+    </>
+  );
 };

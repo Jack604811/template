@@ -1,5 +1,5 @@
 import { useTRPC } from "@/trpc/client"
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useWorkflowsParams } from "./use-workflows-params";
 
@@ -130,3 +130,26 @@ export const useExecuteWorkflow = () => {
     }),
   );
 };
+
+/**
+ * Hook to duplicate a workflow
+ */
+export const useDuplicateWorkflow = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.workflows.duplicate.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(`Workflow "${data.name}" duplicated`);
+        queryClient.invalidateQueries(
+          trpc.workflows.getMany.queryOptions({}),
+        );
+      },
+      onError: (error) => {
+        toast.error(`Failed to duplicate workflow: ${error.message}`);
+      },
+    }),
+  );
+};
+

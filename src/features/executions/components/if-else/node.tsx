@@ -1,0 +1,114 @@
+"use client";
+
+import { useReactFlow, Position, type Node, type NodeProps } from "@xyflow/react";
+import { GitBranch } from "lucide-react";
+import { memo, useCallback } from "react";
+import {
+  BaseNode,
+  BaseNodeContent,
+  BaseNodeHeader,
+  BaseNodeHeaderTitleInput,
+} from "@/components/react-flow/base-node";
+import { BaseHandle } from "@/components/react-flow/base-handle";
+import {
+  type NodeStatus,
+  NodeStatusIndicator,
+} from "@/components/react-flow/node-status-indicator";
+import { WorkflowNode } from "@/components/workflow-node";
+import { useWorkflowStore } from "@/features/editor/store/workflow-store";
+import type { IfElseFormValues } from "./dialog";
+import { IfElseNodeContent } from "./node-content";
+import { useNodeStatus } from "../../hooks/use-node-status";
+import { IF_ELSE_CHANNEL_NAME } from "@/inngest/channels/if-else";
+import { fetchIfElseRealtimeToken } from "./actions";
+import type { IfElseNodeData } from "./executor";
+
+type IfElseNodeType = Node<IfElseNodeData>;
+
+export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
+  const { setNodes } = useReactFlow();
+  const setEdges = useWorkflowStore((state) => state.setEdges);
+
+  const nodeStatus: NodeStatus = useNodeStatus({
+    nodeId: props.id,
+    channel: IF_ELSE_CHANNEL_NAME,
+    topic: "status",
+    refreshToken: fetchIfElseRealtimeToken,
+  });
+
+  const handleDataChange = useCallback(
+    (values: IfElseFormValues) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, ...values } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
+
+  const handleVariableNameChange = useCallback(
+    (value: string) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, variableName: value } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
+
+  const handleDelete = () => {
+    const currentEdges = useWorkflowStore.getState().edges;
+    setNodes((nodes) => nodes.filter((node) => node.id !== props.id));
+    setEdges(
+      currentEdges.filter(
+        (edge) => edge.source !== props.id && edge.target !== props.id,
+      ),
+    );
+  };
+
+  const nodeData = props.data;
+  const variableName = nodeData?.variableName ?? "condition";
+
+  return (
+    <WorkflowNode onDelete={handleDelete}>
+      <NodeStatusIndicator status={nodeStatus} variant="border">
+        <BaseNode status={nodeStatus}>
+          <BaseNodeHeader>
+            <GitBranch className="size-4 shrink-0 text-muted-foreground" />
+            <BaseNodeHeaderTitleInput
+              value={variableName}
+              onSave={handleVariableNameChange}
+            />
+          </BaseNodeHeader>
+          <BaseNodeContent>
+            <BaseHandle
+              id="target-1"
+              type="target"
+              position={Position.Left}
+            />
+            <IfElseNodeContent
+              nodeId={props.id}
+              defaultValues={nodeData}
+              onDataChange={handleDataChange}
+            />
+          </BaseNodeContent>
+        </BaseNode>
+      </NodeStatusIndicator>
+      <BaseHandle
+        id="else"
+        type="source"
+        position={Position.Right}
+        label="Else"
+      />
+    </WorkflowNode>
+  );
+});
+
+IfElseNode.displayName = "IfElseNode";
+

@@ -7,6 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ExecuteWorkflowButton } from "@/features/editor/components/execute-workflow-button";
+import { useParams } from "next/navigation";
 
 interface Props {
   open: boolean;
@@ -17,6 +19,11 @@ export const ManualTriggerDialog = ({
   open,
   onOpenChange
 }: Props) => {
+  const { workflowId, nodeId } = useParams() as {
+    workflowId: string;
+    nodeId?: string;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -26,10 +33,14 @@ export const ManualTriggerDialog = ({
             Configure settings for the manual trigger node.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4">
+        <div className="py-4 flex flex-col gap-4">
           <p className="text-sm text-muted-foreground">
-            Used to manually execute a workflow, no configuration available.
+            Used to manually execute a workflow. Click the button below to run it now.
           </p>
+          
+          <div className="flex justify-center">
+             <ExecuteWorkflowButton workflowId={workflowId} nodeId={nodeId} />
+          </div>
         </div>
       </DialogContent>
     </Dialog>

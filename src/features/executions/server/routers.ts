@@ -1,17 +1,18 @@
 import prisma from "@/lib/db";
-import { createTRPCRouter, protectedProcedure } from "@/trpc/init";
+import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
+import { ExecutionStatus } from "@/generated/prisma";
 
 export const executionsRouter = createTRPCRouter({
-  getOne: protectedProcedure
+  getOne: organizationProcedure
     .input(z.object({ id: z.string() }))
     .query(({ ctx, input }) => {
       return prisma.execution.findUniqueOrThrow({
         where: { 
           id: input.id, 
           workflow: { 
-            userId: ctx.auth.user.id
+            organizationId: ctx.organizationId
           }
         },
         include: {
@@ -24,7 +25,7 @@ export const executionsRouter = createTRPCRouter({
         }
       });
     }),
-  getMany: protectedProcedure
+  getMany: organizationProcedure
     .input(
       z.object({
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
@@ -33,20 +34,24 @@ export const executionsRouter = createTRPCRouter({
           .min(PAGINATION.MIN_PAGE_SIZE)
           .max(PAGINATION.MAX_PAGE_SIZE)
           .default(PAGINATION.DEFAULT_PAGE_SIZE),
+        workflowId: z.string().optional(),
       })
     )
     .query(async ({ ctx, input }) => {
-      const { page, pageSize } = input;
+      const { page, pageSize, workflowId } = input;
+
+      const whereClause = {
+        workflow: {
+          organizationId: ctx.organizationId,
+          ...(workflowId ? { id: workflowId } : {}),
+        },
+      };
 
       const [items, totalCount] = await Promise.all([
         prisma.execution.findMany({
           skip: (page - 1) * pageSize,
           take: pageSize,
-          where: { 
-            workflow: {
-              userId: ctx.auth.user.id,
-            },
-          },
+          where: whereClause,
           orderBy: {
             startedAt: "desc",
           },
@@ -60,11 +65,7 @@ export const executionsRouter = createTRPCRouter({
           },
         }),
         prisma.execution.count({
-          where: {
-            workflow: {
-              userId: ctx.auth.user.id,
-            },
-          },
+          where: whereClause,
         }),
       ]);
 
@@ -80,6 +81,48 @@ export const executionsRouter = createTRPCRouter({
         totalPages,
         hasNextPage,
         hasPreviousPage,
+      };
+    }),
+  getLastExecutionContext: organizationProcedure
+    .input(
+      z.object({
+        workflowId: z.string(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const execution = await prisma.execution.findFirst({
+        where: {
+          workflowId: input.workflowId,
+          workflow: {
+            organizationId: ctx.organizationId,
+          },
+          status: ExecutionStatus.SUCCESS,
+        },
+        orderBy: [
+          {
+            completedAt: "desc",
+          },
+          {
+            startedAt: "desc",
+          },
+        ],
+        select: {
+          id: true,
+          workflowId: true,
+          completedAt: true,
+          output: true,
+        },
+      });
+
+      if (!execution || !execution.output) {
+        return null;
+      }
+
+      return {
+        executionId: execution.id,
+        workflowId: execution.workflowId,
+        completedAt: execution.completedAt,
+        context: execution.output as Record<string, unknown>,
       };
     }),
 });

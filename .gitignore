@@ -24,6 +24,11 @@
 .DS_Store
 *.pem
 
+# lockfiles (using bun, ignore npm/yarn lockfiles)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
 # debug
 npm-debug.log*
 yarn-debug.log*

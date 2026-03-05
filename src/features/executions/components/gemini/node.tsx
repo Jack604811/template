@@ -1,9 +1,10 @@
 "use client";
 
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
-import { memo, useState } from "react";
+import { memo, useCallback } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import { GeminiDialog, GeminiFormValues } from "./dialog";
+import type { GeminiFormValues } from "./dialog";
+import { GeminiNodeContent } from "./node-content";
 import { useNodeStatus } from "../../hooks/use-node-status";
 import { fetchGeminiRealtimeToken } from "./actions";
 import { GEMINI_CHANNEL_NAME } from "@/inngest/channels/gemini";
@@ -18,7 +19,6 @@ type GeminiNodeData = {
 type GeminiNodeType = Node<GeminiNodeData>;
 
 export const GeminiNode = memo((props: NodeProps<GeminiNodeType>) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
   const nodeStatus = useNodeStatus({
@@ -28,48 +28,51 @@ export const GeminiNode = memo((props: NodeProps<GeminiNodeType>) => {
     refreshToken: fetchGeminiRealtimeToken,
   });
 
-  const handleOpenSettings = () => setDialogOpen(true);
-
-  const handleSubmit = (values: GeminiFormValues) => {
-    setNodes((nodes) => nodes.map((node) => {
-      if (node.id === props.id) {
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            ...values,
-          }
-        }
-      }
-      return node;
-    }))
-  };
-
   const nodeData = props.data;
-  const description = nodeData?.userPrompt
-    ? `gemini-2.0-flash: ${nodeData.userPrompt.slice(0, 50)}...`
-    : "Not configured";
+  const variableName = nodeData?.variableName ?? "myGemini";
+
+  const handleDataChange = useCallback(
+    (values: GeminiFormValues) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, ...values } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
+
+  const handleVariableNameChange = useCallback(
+    (value: string) => {
+      setNodes((nodes) =>
+        nodes.map((node) =>
+          node.id === props.id
+            ? { ...node, data: { ...node.data, variableName: value } }
+            : node
+        )
+      );
+    },
+    [props.id, setNodes]
+  );
 
   return (
-    <>
-      <GeminiDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSubmit={handleSubmit}
+    <BaseExecutionNode
+      {...props}
+      id={props.id}
+      icon="/logos/gemini.svg"
+      variableName={variableName}
+      onVariableNameChange={handleVariableNameChange}
+      status={nodeStatus}
+    >
+      <GeminiNodeContent
+        nodeId={props.id}
         defaultValues={nodeData}
+        onDataChange={handleDataChange}
       />
-      <BaseExecutionNode
-        {...props}
-        id={props.id}
-        icon="/logos/gemini.svg"
-        name="Gemini"
-        status={nodeStatus}
-        description={description}
-        onSettings={handleOpenSettings}
-        onDoubleClick={handleOpenSettings}
-      />
-    </>
-  )
+    </BaseExecutionNode>
+  );
 });
 
 GeminiNode.displayName = "GeminiNode";

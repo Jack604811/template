@@ -18,7 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { VariableTextarea } from "@/components/ui/variable-textarea";
 import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -26,21 +26,14 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 const formSchema = z.object({
-  variableName: z
-    .string()
-    .min(1, { message: "Variable name is required" })
-    .regex(/^[A-Za-z_$][A-Za-z0-9_$]*$/, { 
-      message: "Variable name must start with a letter or underscore and container only letters, numbers, and underscores",
-    }),
-  content: z
-    .string()
-    .min(1, "Message content is required"),
+  content: z.string().min(1, "Message content is required"),
   webhookUrl: z.string().min(1, "Webhook URL is required"),
 });
 
 export type SlackFormValues = z.infer<typeof formSchema>;
 
 interface Props {
+  nodeId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: z.infer<typeof formSchema>) => void;
@@ -48,6 +41,7 @@ interface Props {
 };
 
 export const SlackDialog = ({
+  nodeId,
   open,
   onOpenChange,
   onSubmit,
@@ -56,24 +50,19 @@ export const SlackDialog = ({
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      variableName: defaultValues.variableName || "",
       content: defaultValues.content || "",
       webhookUrl: defaultValues.webhookUrl || "",
     },
   });
 
-  // Reset form values when dialog opens with new defaults
   useEffect(() => {
     if (open) {
       form.reset({
-        variableName: defaultValues.variableName || "",
         content: defaultValues.content || "",
         webhookUrl: defaultValues.webhookUrl || "",
       });
     }
   }, [open, defaultValues, form]);
-
-  const watchVariableName = form.watch("variableName") || "mySlack";
 
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     onSubmit(values);
@@ -94,27 +83,6 @@ export const SlackDialog = ({
             onSubmit={form.handleSubmit(handleSubmit)}
             className="space-y-8 mt-4"
           >
-            <FormField
-              control={form.control}
-              name="variableName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Variable Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="mySlack"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    Use this name to reference the result in other nodes:{" "}
-                    {`{{${watchVariableName}.text}}`}
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
             <FormField
               control={form.control}
               name="webhookUrl"
@@ -145,7 +113,8 @@ export const SlackDialog = ({
               <FormItem>
                 <FormLabel>Message Content</FormLabel>
                 <FormControl>
-                  <Textarea
+                  <VariableTextarea
+                    nodeId={nodeId}
                     placeholder="Summary: {{myGemini.text}}"
                     className="min-h-[80px] font-mono text-sm"
                     {...field}

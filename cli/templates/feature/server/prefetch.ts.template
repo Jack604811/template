@@ -1,0 +1,19 @@
+import type { inferInput } from "@trpc/tanstack-react-query";
+import { prefetch, trpc } from "@/trpc/server";
+
+type Input = inferInput<typeof trpc.{{CAMEL_NAME}}.getMany>;
+
+/**
+ * Prefetch all {{FEATURE_NAME}}s
+ */
+export const prefetch{{PASCAL_NAME}}s = (params: Input) => {
+  return prefetch(trpc.{{CAMEL_NAME}}.getMany.queryOptions(params));
+};
+
+/**
+ * Prefetch a single {{FEATURE_NAME}}
+ */
+export const prefetch{{PASCAL_NAME}} = (id: string) => {
+  return prefetch(trpc.{{CAMEL_NAME}}.getOne.queryOptions({ id }));
+};
+

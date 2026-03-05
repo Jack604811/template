@@ -25,7 +25,7 @@ import { Separator } from "./ui/separator";
 const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.HTTP_REQUEST]: "myApiCall",
   [NodeType.IF_ELSE]: "condition",
-  [NodeType.AGENT]: "agentResult",
+  [NodeType.AGENT]: "Agent",
   [NodeType.OPENAI]: "myOpenAi",
   [NodeType.ANTHROPIC]: "myAnthropic",
   [NodeType.GEMINI]: "myGemini",

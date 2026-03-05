@@ -31,6 +31,8 @@ type AgentData = {
   responseSchema?: Record<string, unknown> | string | null;
 };
 
+const DEFAULT_AGENT_VARIABLE_NAME = "Agent";
+
 export const agentExecutor: NodeExecutor<AgentData> = async ({
   data,
   nodeId,
@@ -46,10 +48,10 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
     }),
   );
 
-  if (!data.variableName) {
-    await publish(agentChannel().status({ nodeId, status: "error" }));
-    throw new NonRetriableError("Agent node: Variable name is missing");
-  }
+  const variableName =
+    typeof data.variableName === "string" && data.variableName.trim().length > 0
+      ? data.variableName.trim()
+      : DEFAULT_AGENT_VARIABLE_NAME;
 
   if (!data.userPrompt) {
     await publish(agentChannel().status({ nodeId, status: "error" }));
@@ -196,11 +198,11 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
   if (result.isJson) {
     return {
       ...context,
-      [data.variableName]: result.output,
+      [variableName]: result.output,
     };
   }
   return {
     ...context,
-    [data.variableName]: { text: result.text },
+    [variableName]: { text: result.text },
   };
 };

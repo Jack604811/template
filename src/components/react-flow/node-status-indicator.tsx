@@ -20,7 +20,7 @@ export const SpinnerLoadingIndicator = ({
   children: ReactNode;
 }) => {
   return (
-    <div className="relative">
+    <div className="relative w-full h-full">
       <StatusBorder className="border-blue-700/40">{children}</StatusBorder>
 
       <div className="absolute inset-0 z-50 rounded-[7px] bg-background/50 backdrop-blur-sm" />
@@ -54,6 +54,7 @@ export const BorderLoadingIndicator = ({
           position: absolute;
           left: 50%;
           top: 50%;
+          height: 140%;
           width: 140%;
           aspect-ratio: 1;
           transform-origin: center;
@@ -61,7 +62,7 @@ export const BorderLoadingIndicator = ({
       `}
         </style>
         <div className={cn(
-          "absolute inset-0 overflow-hidden rounded-sm",
+          "absolute inset-0 overflow-hidden rounded-xl",
           className,
         )}>
           <div className="spinner rounded-full bg-[conic-gradient(from_0deg_at_50%_50%,_rgba(42,67,233,0.5)_0deg,_rgba(42,138,246,0)_360deg)]" />
@@ -83,7 +84,7 @@ const StatusBorder = ({
     <>
       <div
         className={cn(
-          "absolute -left-[2px] -top-[2px] h-[calc(100%+4px)] w-[calc(100%+4px)] rounded-md border-3",
+          "absolute -left-[2px] -top-[2px] h-[calc(100%+4px)] w-[calc(100%+4px)] rounded-xl border-3",
           className,
         )}
       />

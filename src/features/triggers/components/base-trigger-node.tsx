@@ -40,7 +40,7 @@ export const BaseTriggerNode = memo(
     onSettings,
     onDoubleClick,
   }: BaseTriggerNodeProps) => {
-    const { setNodes, setEdges } = useReactFlow();
+    const { setNodes, setEdges, getNodes, getEdges } = useReactFlow();
     const { workflowId } = useParams() as { workflowId: string };
     const executeWorkflow = useExecuteWorkflow();
 
@@ -59,7 +59,14 @@ export const BaseTriggerNode = memo(
     };
 
     const handleExecute = () => {
-      executeWorkflow.mutate({ id: workflowId, triggerNodeId: id });
+      const nodes = getNodes();
+      const edges = getEdges();
+      executeWorkflow.mutate({
+        id: workflowId,
+        triggerNodeId: id,
+        nodes,
+        edges,
+      });
     };
 
     return (

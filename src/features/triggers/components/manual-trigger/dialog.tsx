@@ -19,7 +19,10 @@ export const ManualTriggerDialog = ({
   open,
   onOpenChange
 }: Props) => {
-  const { workflowId } = useParams() as { workflowId: string };
+  const { workflowId, nodeId } = useParams() as {
+    workflowId: string;
+    nodeId?: string;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -36,7 +39,7 @@ export const ManualTriggerDialog = ({
           </p>
           
           <div className="flex justify-center">
-             <ExecuteWorkflowButton workflowId={workflowId} />
+             <ExecuteWorkflowButton workflowId={workflowId} nodeId={nodeId} />
           </div>
         </div>
       </DialogContent>

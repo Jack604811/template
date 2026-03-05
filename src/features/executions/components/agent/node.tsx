@@ -2,7 +2,7 @@
 
 import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { Bot } from "lucide-react";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useEffect } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
 import type { AgentFormValues } from "./dialog";
 import { AgentNodeContent } from "./node-content";
@@ -13,6 +13,7 @@ import { AGENT_CHANNEL_NAME } from "@/inngest/channels/agent";
 type AgentNodeData = AgentFormValues & { variableName?: string };
 
 type AgentNodeType = Node<AgentNodeData>;
+const DEFAULT_AGENT_VARIABLE_NAME = "Agent";
 
 export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
   const { setNodes } = useReactFlow();
@@ -25,7 +26,26 @@ export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
   });
 
   const nodeData = props.data;
-  const variableName = nodeData?.variableName ?? "agentResult";
+  const variableName = nodeData?.variableName ?? DEFAULT_AGENT_VARIABLE_NAME;
+
+  useEffect(() => {
+    if (nodeData?.variableName) {
+      return;
+    }
+    setNodes((nodes) =>
+      nodes.map((node) =>
+        node.id === props.id
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                variableName: DEFAULT_AGENT_VARIABLE_NAME,
+              },
+            }
+          : node,
+      ),
+    );
+  }, [nodeData?.variableName, props.id, setNodes]);
 
   const handleDataChange = useCallback(
     (values: AgentFormValues) => {

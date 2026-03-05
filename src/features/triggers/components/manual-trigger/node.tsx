@@ -39,7 +39,7 @@ export const ManualTriggerNode = memo((props: NodeProps) => {
       onNameChange={handleNameChange}
       status={nodeStatus}
     >
-      <ManualTriggerNodeContent />
+      <ManualTriggerNodeContent nodeId={props.id} />
     </BaseTriggerNode>
   );
 });

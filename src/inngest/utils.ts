@@ -35,6 +35,19 @@ interface SendWorkflowExecutionParams {
   workflowId: string;
   initialData?: Record<string, unknown>;
   triggerNodeId?: string;
+  workflowSnapshot?: {
+    nodes: {
+      id: string;
+      type?: string | null;
+      data?: Record<string, unknown>;
+    }[];
+    edges: {
+      source: string;
+      target: string;
+      sourceHandle?: string | null;
+      targetHandle?: string | null;
+    }[];
+  };
 }
 
 /**
@@ -44,13 +57,14 @@ interface SendWorkflowExecutionParams {
 export const sendWorkflowExecution = async (
   params: SendWorkflowExecutionParams,
 ) => {
-  const { workflowId, initialData = {}, triggerNodeId } = params;
+  const { workflowId, initialData = {}, triggerNodeId, workflowSnapshot } = params;
   return inngest.send({
     name: "workflows/execute.workflow",
     data: {
       workflowId,
       initialData,
       ...(triggerNodeId != null && { triggerNodeId }),
+      ...(workflowSnapshot != null && { workflowSnapshot }),
     },
     id: createId(),
   });

@@ -213,7 +213,7 @@ export function AgentNodeContent({
                   <VariableTextarea
                     nodeId={nodeId}
                     placeholder="Summarize the following content: {{json webhook.body}}"
-                    className="nodrag min-w-0 min-h-[100px] font-mono text-sm cursor-text"
+                    className="nodrag min-w-0 min-h-[100px] text-sm cursor-text"
                     rows={6}
                     {...field}
                   />

@@ -190,7 +190,7 @@ export const McpDialog = ({
             <div className="space-y-3 pt-2">
               <fieldset className="space-y-2">
                 <legend className="text-sm font-medium">Tools</legend>
-                <div className="max-h-60 space-y-2 overflow-y-auto rounded-md border p-2">
+                <div className="max-h-60 w-[398px] space-y-2 overflow-y-auto rounded-md border p-2">
                   {tools.map((tool) => (
                     <label
                       key={tool.name}

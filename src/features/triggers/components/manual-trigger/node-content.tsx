@@ -3,7 +3,11 @@
 import { useParams } from "next/navigation";
 import { ExecuteWorkflowButton } from "@/features/editor/components/execute-workflow-button";
 
-export function ManualTriggerNodeContent() {
+interface ManualTriggerNodeContentProps {
+  nodeId: string;
+}
+
+export function ManualTriggerNodeContent({ nodeId }: ManualTriggerNodeContentProps) {
   const { workflowId } = useParams() as { workflowId: string };
 
   return (
@@ -13,7 +17,7 @@ export function ManualTriggerNodeContent() {
         now.
       </p>
       <div className="nodrag flex justify-center">
-        <ExecuteWorkflowButton workflowId={workflowId} />
+        <ExecuteWorkflowButton workflowId={workflowId} nodeId={nodeId} />
       </div>
     </div>
   );

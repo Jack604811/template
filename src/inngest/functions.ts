@@ -67,6 +67,49 @@ export const executeWorkflow = inngest.createFunction(
     });
 
     const { sortedNodes, connections } = await step.run("prepare-workflow", async () => {
+      const workflowSnapshot =
+        event.data.workflowSnapshot as
+          | {
+              nodes: {
+                id: string;
+                type?: string | null;
+                data?: Record<string, unknown>;
+              }[];
+              edges: {
+                source: string;
+                target: string;
+                sourceHandle?: string | null;
+                targetHandle?: string | null;
+              }[];
+            }
+          | undefined;
+
+      if (
+        workflowSnapshot &&
+        Array.isArray(workflowSnapshot.nodes) &&
+        Array.isArray(workflowSnapshot.edges)
+      ) {
+        const snapshotNodes = workflowSnapshot.nodes.map((node) => ({
+          id: node.id,
+          type: node.type ?? "unknown",
+          data: node.data ?? {},
+        }));
+        const snapshotConnections = workflowSnapshot.edges.map((edge) => ({
+          fromNodeId: edge.source,
+          toNodeId: edge.target,
+          fromOutput: edge.sourceHandle || "main",
+          toInput: edge.targetHandle || "main",
+        }));
+
+        return {
+          sortedNodes: topologicalSort(
+            snapshotNodes as unknown as Parameters<typeof topologicalSort>[0],
+            snapshotConnections as unknown as Parameters<typeof topologicalSort>[1],
+          ),
+          connections: snapshotConnections,
+        };
+      }
+
       const workflow = await prisma.workflow.findUniqueOrThrow({
         where: { id: workflowId },
         include: {
@@ -95,18 +138,31 @@ export const executeWorkflow = inngest.createFunction(
     // Initialize context with initial data from the trigger (template behavior: run all nodes, context flows through)
     let context = event.data.initialData ?? {};
 
-    // Determine starting nodes (no incoming connections)
+    const triggerNodeId =
+      typeof event.data.triggerNodeId === "string" &&
+      event.data.triggerNodeId.trim().length > 0
+        ? event.data.triggerNodeId
+        : undefined;
+
+    // Determine starting nodes:
+    // - If triggerNodeId is provided, run only the reachable path from that node.
+    // - Otherwise, run all root nodes (nodes without incoming connections).
     const nodesWithIncoming = new Set(connections.map((c) => c.toNodeId));
     const nodesToExecute = new Set<string>();
 
-    for (const node of sortedNodes) {
-      if (!nodesWithIncoming.has(node.id)) {
-        nodesToExecute.add(node.id);
+    if (triggerNodeId) {
+      nodesToExecute.add(triggerNodeId);
+    } else {
+      for (const node of sortedNodes) {
+        if (!nodesWithIncoming.has(node.id)) {
+          nodesToExecute.add(node.id);
+        }
       }
     }
 
-    if (nodesToExecute.size === 0 && sortedNodes.length > 0) {
-      nodesToExecute.add(sortedNodes[0]!.id);
+    const firstNode = sortedNodes[0];
+    if (nodesToExecute.size === 0 && firstNode) {
+      nodesToExecute.add(firstNode.id);
     }
 
     // Execute nodes respecting conditional branches

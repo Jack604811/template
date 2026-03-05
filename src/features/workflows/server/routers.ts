@@ -15,6 +15,25 @@ export const workflowsRouter = createTRPCRouter({
         id: z.string(),
         triggerNodeId: z.string().optional(),
         initialData: z.record(z.string(), z.unknown()).optional(),
+        nodes: z
+          .array(
+            z.object({
+              id: z.string(),
+              type: z.string().nullish(),
+              data: z.record(z.string(), z.any()).optional(),
+            }),
+          )
+          .optional(),
+        edges: z
+          .array(
+            z.object({
+              source: z.string(),
+              target: z.string(),
+              sourceHandle: z.string().nullish(),
+              targetHandle: z.string().nullish(),
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -28,6 +47,15 @@ export const workflowsRouter = createTRPCRouter({
       await sendWorkflowExecution({
         workflowId: input.id,
         initialData: input.initialData,
+        triggerNodeId: input.triggerNodeId,
+        ...(input.nodes && input.edges
+          ? {
+              workflowSnapshot: {
+                nodes: input.nodes,
+                edges: input.edges,
+              },
+            }
+          : {}),
       });
 
       return workflow;

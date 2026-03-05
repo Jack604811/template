@@ -102,6 +102,7 @@ export const BaseTriggerNode = memo(
                 id="source-1"
                 type="source"
                 position={Position.Right}
+                label="Output"
               />
             </BaseNodeContent>
           </BaseNode>

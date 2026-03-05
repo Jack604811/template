@@ -207,8 +207,7 @@ export function IfElseNodeContent({
                 id={`case-${index}`}
                 type="source"
                 position={Position.Right}
-                className="!absolute !right-0 !bottom-0"
-                style={{ position: "absolute", right: -8, bottom: 0 }}
+                label="Output"
               />
             </div>
           ))}
@@ -223,15 +222,6 @@ export function IfElseNodeContent({
             <Plus className="mr-2 size-4" />
             Add condition
           </Button>
-          <div className="relative h-6 w-full">
-            <BaseHandle
-              id="else"
-              type="source"
-              position={Position.Right}
-              className="!absolute !right-0 !bottom-0"
-              style={{ position: "absolute", right: -8, bottom: 0 }}
-            />
-          </div>
         </div>
       </form>
     </Form>

@@ -98,9 +98,15 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
               onDataChange={handleDataChange}
             />
           </BaseNodeContent>
-          </BaseNode>
-        </NodeStatusIndicator>
-      </WorkflowNode>
+        </BaseNode>
+      </NodeStatusIndicator>
+      <BaseHandle
+        id="else"
+        type="source"
+        position={Position.Right}
+        label="Else"
+      />
+    </WorkflowNode>
   );
 });
 

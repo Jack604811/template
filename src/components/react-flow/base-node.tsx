@@ -2,7 +2,6 @@ import { cn } from "@/lib/utils";
 import { forwardRef, useEffect, useRef, useState } from "react";
 import type { HTMLAttributes } from "react";
 import type { NodeStatus } from "./node-status-indicator";
-import { CheckCircle2Icon, Loader2Icon, XCircleIcon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 const VARIABLE_NAME_REGEX = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -18,21 +17,12 @@ export const BaseNode = forwardRef<
   <div
     ref={ref}
     className={cn(
-      "relative w-[320px] min-w-[320px] rounded-xl border-2 border-muted-foreground/10 bg-card text-card-foreground hover:border-primary",
+      "relative w-[320px] min-w-[320px] rounded-xl border-2 border-muted-foreground/10 bg-card text-card-foreground hover:border-primary pb-8",
       className,
     )}
     {...props}
   >
     {props.children}
-    {status === "error" && (
-      <XCircleIcon className="absolute right-0.5 bottom-0.5 size-2 text-red-700 stroke-3" />
-    )}
-    {status === "success" && (
-      <CheckCircle2Icon className="absolute right-0.5 bottom-0.5 size-2 text-green-700 stroke-3" />
-    )}
-    {status === "loading" && (
-      <Loader2Icon className="absolute -right-0.5 -bottom-0.5 size-2 text-blue-700 stroke-3 animate-spin" />
-    )}
   </div>
 ));
 BaseNode.displayName = "BaseNode";

@@ -29,6 +29,7 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   [NodeType.DISCORD]: "/logos/discord.svg",
   [NodeType.SLACK]: "/logos/slack.svg",
   [NodeType.AGENT]: Bot,
+  [NodeType.BOLD_TRIGGER]: "/logos/Bold.svg",
 };
 
 /**

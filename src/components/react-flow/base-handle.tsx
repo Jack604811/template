@@ -13,7 +13,7 @@ function BaseHandleInner({ className, style, label, children, innerRef, ...props
   const positionStyle =
     props.position === Position.Right
       ? { top: "auto", bottom: 6, transform: "translateY(0) translateX(-70%)" }
-      : { bottom: "auto", top: 24, transform: "translateY(0) translateX(-50%)" };
+      : { bottom: "auto", top: "24", transform: "translateY(0) translateX(-50%)" };
 
   return (
     <Handle

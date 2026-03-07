@@ -14,6 +14,7 @@ import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { webhookTriggerChannel } from "./channels/webhook-trigger";
+import { boldTriggerChannel } from "./channels/bold-trigger";
 import { inngest } from "./client";
 import { topologicalSort } from "./utils";
 
@@ -47,6 +48,7 @@ export const executeWorkflow = inngest.createFunction(
       discordChannel(),
       slackChannel(),
       agentChannel(),
+      boldTriggerChannel(),
     ],
   },
   async ({ event, step, publish }) => {

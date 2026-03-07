@@ -36,6 +36,7 @@ const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
 const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.MANUAL_TRIGGER]: "Manual",
   [NodeType.WEBHOOK_TRIGGER]: "Webhook",
+  [NodeType.BOLD_TRIGGER]: "Bold",
 };
 
 function getInitialDataForType(type: NodeType): Record<string, unknown> {
@@ -70,6 +71,12 @@ const triggerNodes: NodeTypeOption[] = [
     label: "Webhook",
     description: "Runs the flow when a webhook is called",
     icon: "/logos/webhooks.svg",
+  },
+  {
+    type: NodeType.BOLD_TRIGGER,
+    label: "Bold",
+    description: "Recibe eventos de pago desde Bold",
+    icon: "/logos/Bold.svg",
   },
 ];
 

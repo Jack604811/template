@@ -53,6 +53,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import type { AgentFormValues } from "./dialog";
+import type { AgentToolCall } from "../../hooks/use-agent-stream";
+import { CheckCircle2, Loader2, Wrench } from "lucide-react";
 
 const formSchema = z.object({
   userPrompt: z.string().min(1, { message: "Prompt is required" }),
@@ -77,12 +79,18 @@ interface AgentNodeContentProps {
   nodeId: string;
   defaultValues: Partial<AgentFormValues>;
   onDataChange: (values: AgentFormValues) => void;
+  streamText?: string;
+  toolCalls?: AgentToolCall[];
+  isStreaming?: boolean;
 }
 
 export function AgentNodeContent({
   nodeId,
   defaultValues,
   onDataChange,
+  streamText = "",
+  toolCalls = [],
+  isStreaming = false,
 }: AgentNodeContentProps) {
   const [tools, setTools] = useState<AgentToolItem[]>(
     defaultValues.tools ?? [],
@@ -436,6 +444,39 @@ export function AgentNodeContent({
           )}
         </form>
       </Form>
+
+      {(isStreaming || toolCalls.length > 0 || streamText) && (
+        <div className="mt-3 space-y-2 border-t pt-3">
+          {toolCalls.length > 0 && (
+            <div className="space-y-1">
+              {toolCalls.map((tc) => (
+                <div
+                  key={tc.toolCallId}
+                  className="flex items-center gap-2 rounded-md bg-muted/50 px-2 py-1.5 text-xs"
+                >
+                  {tc.done ? (
+                    <CheckCircle2 className="size-3 shrink-0 text-green-600" />
+                  ) : (
+                    <Loader2 className="size-3 shrink-0 animate-spin text-blue-500" />
+                  )}
+                  <Wrench className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate font-mono text-muted-foreground">
+                    {tc.toolName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {streamText && (
+            <div className="max-h-24 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5">
+              <p className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+                {streamText}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

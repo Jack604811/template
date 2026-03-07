@@ -6,9 +6,8 @@ import { memo, useCallback, useEffect } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
 import type { AgentFormValues } from "./dialog";
 import { AgentNodeContent } from "./node-content";
-import { useNodeStatus } from "../../hooks/use-node-status";
+import { useAgentStream } from "../../hooks/use-agent-stream";
 import { fetchAgentRealtimeToken } from "./actions";
-import { AGENT_CHANNEL_NAME } from "@/inngest/channels/agent";
 
 type AgentNodeData = AgentFormValues & { variableName?: string };
 
@@ -18,10 +17,8 @@ const DEFAULT_AGENT_VARIABLE_NAME = "Agent";
 export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status, streamText, toolCalls } = useAgentStream({
     nodeId: props.id,
-    channel: AGENT_CHANNEL_NAME,
-    topic: "status",
     refreshToken: fetchAgentRealtimeToken,
   });
 
@@ -80,12 +77,15 @@ export const AgentNode = memo((props: NodeProps<AgentNodeType>) => {
       icon={Bot}
       variableName={variableName}
       onVariableNameChange={handleVariableNameChange}
-      status={nodeStatus}
+      status={status}
     >
       <AgentNodeContent
         nodeId={props.id}
         defaultValues={nodeData}
         onDataChange={handleDataChange}
+        streamText={streamText}
+        toolCalls={toolCalls}
+        isStreaming={status === "loading"}
       />
     </BaseExecutionNode>
   );

@@ -4,6 +4,7 @@ import type { NodeTypes } from "@xyflow/react";
 
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { ManualTriggerNode } from "@/features/triggers/components/manual-trigger/node";
+import { BoldTriggerNode } from "@/features/triggers/components/bold-trigger/node";
 import { GoogleFormTrigger } from "@/features/triggers/components/google-form-trigger/node";
 import { StripeTriggerNode } from "@/features/triggers/components/stripe-trigger/node";
 import { WebhookTrigger } from "@/features/triggers/components/webhook-trigger/node";
@@ -29,6 +30,7 @@ export const nodeComponents = {
   [NodeType.DISCORD]: DiscordNode,
   [NodeType.SLACK]: SlackNode,
   [NodeType.AGENT]: AgentNode,
+  [NodeType.BOLD_TRIGGER]: BoldTriggerNode,
 } as const satisfies NodeTypes;
 
 export type RegisteredNodeType = keyof typeof nodeComponents;

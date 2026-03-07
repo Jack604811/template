@@ -10,6 +10,7 @@ import type {
   WebhookStoredSchema,
   WebhookTriggerNodeData,
 } from "@/features/triggers/components/webhook-trigger/actions";
+import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
 import { useTRPC } from "@/trpc/client";
 import type { NodeVariables, VariableEntry } from "../types/variables";
 
@@ -296,9 +297,39 @@ export const useWorkflowVariables = (
       }
     }
 
+    // Generic registry-driven enrichment for all registered trigger nodes
+    const registeredContextKeys = new Set<string>(["webhook"]);
+    for (const [nodeType, schema] of Object.entries(triggerSchemaRegistry)) {
+      if (!schema) continue;
+      registeredContextKeys.add(schema.contextKey);
+
+      const triggerNode = nodes.find(
+        (n) => n.type === nodeType && predecessors.has(n.id),
+      );
+      const triggerEntry = triggerNode
+        ? derived.find((d) => d.nodeId === triggerNode.id)
+        : undefined;
+
+      if (triggerEntry) {
+        const liveValue =
+          context && schema.contextKey in context
+            ? (context[schema.contextKey] as Record<string, unknown>)
+            : null;
+
+        const source = liveValue ?? schema.samplePayload;
+        const rootEntry = buildVariableTree(source, [schema.contextKey], {
+          isRoot: true,
+        });
+        triggerEntry.variables = rootEntry.children ?? [];
+        triggerEntry.rootEntry = rootEntry;
+        triggerEntry.variableName = schema.contextKey;
+        triggerEntry.nodeLabel = schema.label;
+      }
+    }
+
     if (context) {
       for (const [key, value] of Object.entries(context)) {
-        if (key === "webhook") continue;
+        if (registeredContextKeys.has(key)) continue;
         if (key.startsWith("__")) continue;
         if (existingNames.has(key)) {
           continue;

@@ -6,7 +6,14 @@ import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
+import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
 import type { NodeVariables, VariableEntry } from "../types/variables";
+
+const registeredTriggerContextKeys = new Set(
+  Object.values(triggerSchemaRegistry)
+    .filter(Boolean)
+    .map((s) => s!.contextKey),
+);
 
 interface VariablePickerPopoverProps {
   open: boolean;
@@ -26,16 +33,21 @@ type FlattenedVariable = {
   root: string;
 };
 
-/** Convert technical paths to readable labels for non-developers (e.g. "body.amount" → "Amount", "body.payer_email" → "Payer email"). */
+/** Convert technical paths to readable labels for non-developers (e.g. "paymentMethod" → "Payment Method", "payer_email" → "Payer Email"). */
 function toFriendlyDisplayLabel(path: string): string {
   const lastSegment = path.split(".").pop() ?? path;
   const withSpaces = lastSegment
     .replace(/([A-Z])/g, " $1")
     .replace(/_/g, " ")
     .trim();
-  const titleCased =
-    withSpaces.charAt(0).toUpperCase() + withSpaces.slice(1).toLowerCase();
-  return titleCased.replace(/\bid\b/i, "ID");
+  return withSpaces
+    .split(" ")
+    .map((word) =>
+      word.toLowerCase() === "id"
+        ? "ID"
+        : word.charAt(0).toUpperCase() + word.slice(1).toLowerCase(),
+    )
+    .join(" ");
 }
 
 const flattenVariables = (
@@ -225,6 +237,18 @@ const VariablesColumn = ({
     ) {
       return "Request data";
     }
+
+    const contextKey = entry.path[0];
+    if (contextKey && registeredTriggerContextKeys.has(contextKey)) {
+      const schema = Object.values(triggerSchemaRegistry).find(
+        (s) => s?.contextKey === contextKey,
+      );
+      const fieldKey = entry.path[entry.path.length - 1] ?? "";
+      if (schema?.fieldLabels?.[fieldKey]) {
+        return schema.fieldLabels[fieldKey];
+      }
+    }
+
     return toFriendlyDisplayLabel(label);
   };
 
@@ -387,6 +411,10 @@ export const VariablePickerPopover = memo(
         return [];
       }
 
+      const isTriggerNode =
+        activeNode.variableName === "webhook" ||
+        registeredTriggerContextKeys.has(activeNode.variableName);
+
       if (searchTerm) {
         const filtered = filteredNodes.find(
           (item) => item.nodeId === activeNode.nodeId,
@@ -397,6 +425,8 @@ export const VariablePickerPopover = memo(
             (m) =>
               m.entry.path[0] === "webhook" && m.entry.path[1] === "body",
           );
+        } else if (isTriggerNode) {
+          matches = matches.filter((m) => m.entry.path.length === 2);
         }
         return matches;
       }
@@ -412,6 +442,10 @@ export const VariablePickerPopover = memo(
             item.entry.path[0] === "webhook" &&
             item.entry.path[1] === "body",
         );
+      }
+
+      if (isTriggerNode) {
+        return flattened.filter((item) => item.entry.path.length === 2);
       }
 
       if (activeNode.rootEntry) {

@@ -5,6 +5,7 @@ import { httpRequestExecutor } from "../components/http-request/executor";
 import { googleFormTriggerExecutor } from "@/features/triggers/components/google-form-trigger/executor";
 import { stripeTriggerExecutor } from "@/features/triggers/components/stripe-trigger/executor";
 import { webhookTriggerExecutor } from "@/features/triggers/components/webhook-trigger/executor";
+import { boldTriggerExecutor } from "@/features/triggers/components/bold-trigger/executor";
 import { geminiExecutor } from "../components/gemini/executor";
 import { agentExecutor } from "../components/agent/executor";
 import { openAiExecutor } from "../components/openai/executor";
@@ -27,6 +28,7 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.DISCORD]: discordExecutor,
   [NodeType.SLACK]: slackExecutor,
   [NodeType.AGENT]: agentExecutor,
+  [NodeType.BOLD_TRIGGER]: boldTriggerExecutor,
 };
 
 export const getExecutor = (type: NodeType): NodeExecutor => {

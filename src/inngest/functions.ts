@@ -2,19 +2,20 @@ import { NonRetriableError } from "inngest";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
 import { ExecutionStatus, NodeType } from "@/generated/prisma";
 import prisma from "@/lib/db";
+import { agentChannel } from "./channels/agent";
 import { anthropicChannel } from "./channels/anthropic";
+import { boldTriggerChannel } from "./channels/bold-trigger";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
+import { gmailChannel } from "./channels/gmail";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { httpRequestChannel } from "./channels/http-request";
 import { ifElseChannel } from "./channels/if-else";
 import { manualTriggerChannel } from "./channels/manual-trigger";
-import { agentChannel } from "./channels/agent";
 import { openAiChannel } from "./channels/openai";
 import { slackChannel } from "./channels/slack";
 import { stripeTriggerChannel } from "./channels/stripe-trigger";
 import { webhookTriggerChannel } from "./channels/webhook-trigger";
-import { boldTriggerChannel } from "./channels/bold-trigger";
 import { inngest } from "./client";
 import { topologicalSort } from "./utils";
 
@@ -49,6 +50,7 @@ export const executeWorkflow = inngest.createFunction(
       slackChannel(),
       agentChannel(),
       boldTriggerChannel(),
+      gmailChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -68,9 +70,10 @@ export const executeWorkflow = inngest.createFunction(
       });
     });
 
-    const { sortedNodes, connections } = await step.run("prepare-workflow", async () => {
-      const workflowSnapshot =
-        event.data.workflowSnapshot as
+    const { sortedNodes, connections } = await step.run(
+      "prepare-workflow",
+      async () => {
+        const workflowSnapshot = event.data.workflowSnapshot as
           | {
               nodes: {
                 id: string;
@@ -86,45 +89,48 @@ export const executeWorkflow = inngest.createFunction(
             }
           | undefined;
 
-      if (
-        workflowSnapshot &&
-        Array.isArray(workflowSnapshot.nodes) &&
-        Array.isArray(workflowSnapshot.edges)
-      ) {
-        const snapshotNodes = workflowSnapshot.nodes.map((node) => ({
-          id: node.id,
-          type: node.type ?? "unknown",
-          data: node.data ?? {},
-        }));
-        const snapshotConnections = workflowSnapshot.edges.map((edge) => ({
-          fromNodeId: edge.source,
-          toNodeId: edge.target,
-          fromOutput: edge.sourceHandle || "main",
-          toInput: edge.targetHandle || "main",
-        }));
+        if (
+          workflowSnapshot &&
+          Array.isArray(workflowSnapshot.nodes) &&
+          Array.isArray(workflowSnapshot.edges)
+        ) {
+          const snapshotNodes = workflowSnapshot.nodes.map((node) => ({
+            id: node.id,
+            type: node.type ?? "unknown",
+            data: node.data ?? {},
+          }));
+          const snapshotConnections = workflowSnapshot.edges.map((edge) => ({
+            fromNodeId: edge.source,
+            toNodeId: edge.target,
+            fromOutput: edge.sourceHandle || "main",
+            toInput: edge.targetHandle || "main",
+          }));
+
+          return {
+            sortedNodes: topologicalSort(
+              snapshotNodes as unknown as Parameters<typeof topologicalSort>[0],
+              snapshotConnections as unknown as Parameters<
+                typeof topologicalSort
+              >[1],
+            ),
+            connections: snapshotConnections,
+          };
+        }
+
+        const workflow = await prisma.workflow.findUniqueOrThrow({
+          where: { id: workflowId },
+          include: {
+            nodes: true,
+            connections: true,
+          },
+        });
 
         return {
-          sortedNodes: topologicalSort(
-            snapshotNodes as unknown as Parameters<typeof topologicalSort>[0],
-            snapshotConnections as unknown as Parameters<typeof topologicalSort>[1],
-          ),
-          connections: snapshotConnections,
+          sortedNodes: topologicalSort(workflow.nodes, workflow.connections),
+          connections: workflow.connections,
         };
-      }
-
-      const workflow = await prisma.workflow.findUniqueOrThrow({
-        where: { id: workflowId },
-        include: {
-          nodes: true,
-          connections: true,
-        },
-      });
-
-      return {
-        sortedNodes: topologicalSort(workflow.nodes, workflow.connections),
-        connections: workflow.connections,
-      };
-    });
+      },
+    );
 
     const organizationId = await step.run("find-organization-id", async () => {
       const workflow = await prisma.workflow.findUniqueOrThrow({
@@ -168,20 +174,26 @@ export const executeWorkflow = inngest.createFunction(
     }
 
     // Execute nodes respecting conditional branches
+    let executionError: unknown;
     for (const node of sortedNodes) {
       if (!nodesToExecute.has(node.id)) {
         continue;
       }
 
       const executor = getExecutor(node.type as NodeType);
-      context = await executor({
-        data: node.data as Record<string, unknown>,
-        nodeId: node.id,
-        organizationId,
-        context,
-        step,
-        publish,
-      });
+      try {
+        context = await executor({
+          data: node.data as Record<string, unknown>,
+          nodeId: node.id,
+          organizationId,
+          context,
+          step,
+          publish,
+        });
+      } catch (err) {
+        executionError = err;
+        break;
+      }
 
       const outgoing = connections.filter((c) => c.fromNodeId === node.id);
 
@@ -201,6 +213,20 @@ export const executeWorkflow = inngest.createFunction(
       for (const id of nextNodeIds) {
         nodesToExecute.add(id);
       }
+    }
+
+    if (executionError) {
+      // Save whatever partial context we accumulated so the variable picker
+      // can show real values even when a run fails mid-way.
+      if (Object.keys(context).length > 0) {
+        await step.run("save-partial-context", async () => {
+          return prisma.execution.update({
+            where: { inngestEventId, workflowId },
+            data: { output: context },
+          });
+        });
+      }
+      throw executionError;
     }
 
     await step.run("update-execution", async () => {

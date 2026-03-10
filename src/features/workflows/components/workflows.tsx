@@ -1,29 +1,41 @@
 "use client";
 
-import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { 
+import {
+  CopyIcon,
+  FileTextIcon,
+  TrashIcon,
+  WorkflowIcon,
+  XIcon,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import type { EntityMenuGroup } from "@/components/entity-components";
+import {
   EmptyView,
-  EntityContainer, 
-  EntityItem, 
-  EntityList, 
-  EntityPagination, 
+  EntityContainer,
+  EntityItem,
+  EntityList,
+  EntityPagination,
   EntitySearch,
   ErrorView,
-  LoadingView
+  LoadingView,
 } from "@/components/entity-components";
-import { WorkflowsListHeader } from "./workflows-list-header";
-import { useCreateWorkflow, useRemoveWorkflow, useDuplicateWorkflow, useSuspenseWorkflows } from "../hooks/use-workflows"
-import { useRemoveTemplate, useSaveTemplate } from "@/features/templates/hooks/use-templates"
-import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
-import { useRouter } from "next/navigation";
-import { useWorkflowsParams } from "../hooks/use-workflows-params";
-import { useEntitySearch } from "@/hooks/use-entity-search";
-import type { Workflow } from "@/generated/prisma";
-import { WorkflowIcon, FileTextIcon, CopyIcon, TrashIcon, XIcon } from "lucide-react";
-import type { EntityMenuGroup } from "@/components/entity-components";
-import { WorkflowTemplateDialog } from "./workflow-template-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  useRemoveTemplate,
+  useSaveTemplate,
+} from "@/features/templates/hooks/use-templates";
+import type { Workflow } from "@/generated/prisma";
+import { useEntitySearch } from "@/hooks/use-entity-search";
+import { useUpgradeModal } from "@/hooks/use-upgrade-modal";
+import {
+  useCreateWorkflow,
+  useDuplicateWorkflow,
+  useRemoveWorkflow,
+  useSuspenseWorkflows,
+} from "../hooks/use-workflows";
+import { useWorkflowsParams } from "../hooks/use-workflows-params";
+import { WorkflowsListHeader } from "./workflows-list-header";
 
 export const WorkflowsSearch = () => {
   const [params, setParams] = useWorkflowsParams();
@@ -51,24 +63,29 @@ export const WorkflowsList = () => {
       renderItem={(workflow) => <WorkflowItem data={workflow} />}
       emptyView={<WorkflowsEmpty />}
     />
-  )
+  );
 };
 
 export const WorkflowsHeader = ({ disabled }: { disabled?: boolean }) => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const createWorkflow = useCreateWorkflow();
   const { modal } = useUpgradeModal();
+  const router = useRouter();
 
   const handleCreate = () => {
-    setDialogOpen(true);
-  }
+    createWorkflow.mutate(undefined, {
+      onSuccess: (data) => {
+        router.push(`/workflows/${data.id}`);
+      },
+    });
+  };
 
   return (
     <>
       {modal}
-      <WorkflowTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <WorkflowsListHeader
         onNew={handleCreate}
         disabled={disabled}
+        isCreating={createWorkflow.isPending}
       />
     </>
   );
@@ -89,7 +106,7 @@ export const WorkflowsPagination = () => {
 };
 
 export const WorkflowsContainer = ({
-  children
+  children,
 }: {
   children: React.ReactNode;
 }) => {
@@ -117,17 +134,21 @@ export const WorkflowsError = () => {
 };
 
 export const WorkflowsEmpty = () => {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const createWorkflow = useCreateWorkflow();
   const { modal } = useUpgradeModal();
+  const router = useRouter();
 
   const handleCreate = () => {
-    setDialogOpen(true);
+    createWorkflow.mutate(undefined, {
+      onSuccess: (data) => {
+        router.push(`/workflows/${data.id}`);
+      },
+    });
   };
 
   return (
     <>
       {modal}
-      <WorkflowTemplateDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <EmptyView
         onNew={handleCreate}
         message="You haven't created any workflows yet. Get started by creating your first workflow"
@@ -136,11 +157,7 @@ export const WorkflowsEmpty = () => {
   );
 };
 
-export const WorkflowItem = ({
-  data,
-}: { 
-  data: Workflow
-}) => {
+export const WorkflowItem = ({ data }: { data: Workflow }) => {
   const router = useRouter();
   const removeWorkflow = useRemoveWorkflow();
   const duplicateWorkflow = useDuplicateWorkflow();
@@ -160,7 +177,7 @@ export const WorkflowItem = ({
         onSuccess: () => {
           // Workflow is now a regular workflow, not a template
         },
-      }
+      },
     );
   };
 
@@ -171,7 +188,7 @@ export const WorkflowItem = ({
         onSuccess: (duplicated) => {
           router.push(`/workflows/${duplicated.id}`);
         },
-      }
+      },
     );
   };
 
@@ -182,7 +199,7 @@ export const WorkflowItem = ({
         onSuccess: () => {
           router.push("/workflows");
         },
-      }
+      },
     );
   };
 
@@ -228,31 +245,31 @@ export const WorkflowItem = ({
   ];
 
   return (
-      <EntityItem
-        href={`/workflows/${data.id}`}
-        title={
-          <div className="flex items-center gap-2">
-            <span>{data.name}</span>
-            {data.isTemplate && (
-              <Badge variant="secondary" className="text-xs font-normal">
-                Template
-              </Badge>
-            )}
-          </div>
-        }
-        subtitle={
-          <>
-            Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
-            &bull; Created{" "}
-            {formatDistanceToNow(data.createdAt, { addSuffix: true })}
-          </>
-        }
-        image={
-          <div className="size-8 flex items-center justify-center">
-            <WorkflowIcon className="size-5 text-muted-foreground" />
-          </div>
-        }
-        menuGroups={menuGroups}
-      />
+    <EntityItem
+      href={`/workflows/${data.id}`}
+      title={
+        <div className="flex items-center gap-2">
+          <span>{data.name}</span>
+          {data.isTemplate && (
+            <Badge variant="secondary" className="text-xs font-normal">
+              Template
+            </Badge>
+          )}
+        </div>
+      }
+      subtitle={
+        <>
+          Updated {formatDistanceToNow(data.updatedAt, { addSuffix: true })}{" "}
+          &bull; Created{" "}
+          {formatDistanceToNow(data.createdAt, { addSuffix: true })}
+        </>
+      }
+      image={
+        <div className="size-8 flex items-center justify-center">
+          <WorkflowIcon className="size-5 text-muted-foreground" />
+        </div>
+      }
+      menuGroups={menuGroups}
+    />
   );
 };

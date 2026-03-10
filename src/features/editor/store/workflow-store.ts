@@ -1,24 +1,25 @@
-import { create } from 'zustand';
-import { temporal } from 'zundo';
-import { 
-  type Edge, 
-  type Node, 
-  type OnNodesChange, 
-  type OnEdgesChange, 
-  type OnConnect, 
-  type NodeChange, 
-  type EdgeChange, 
-  type Connection, 
-  applyNodeChanges, 
-  applyEdgeChanges, 
+import {
   addEdge,
-} from '@xyflow/react';
-import { isEqual } from 'lodash';
+  applyEdgeChanges,
+  applyNodeChanges,
+  type Connection,
+  type Edge,
+  type EdgeChange,
+  type Node,
+  type NodeChange,
+  type OnConnect,
+  type OnEdgesChange,
+  type OnNodesChange,
+} from "@xyflow/react";
+import { isEqual } from "lodash";
+import { temporal } from "zundo";
+import { create } from "zustand";
+import { ensureNodesWithStartNode } from "../utils/node-selector-utils";
 
 export interface WorkflowState {
   nodes: Node[];
   edges: Edge[];
-  
+
   // Actions
   setNodes: (nodes: Node[]) => void;
   setEdges: (edges: Edge[]) => void;
@@ -32,10 +33,10 @@ export const useWorkflowStore = create<WorkflowState>()(
     (set, get) => ({
       nodes: [],
       edges: [],
-      
-      setNodes: (nodes) => set({ nodes }),
+
+      setNodes: (nodes) => set({ nodes: ensureNodesWithStartNode(nodes) }),
       setEdges: (edges) => set({ edges }),
-      
+
       onNodesChange: (changes: NodeChange[]) => {
         const currentNodes = get().nodes;
         const updatedNodes = applyNodeChanges(changes, currentNodes);
@@ -63,19 +64,20 @@ export const useWorkflowStore = create<WorkflowState>()(
         ) {
           return;
         }
+        const normalizedNodes = ensureNodesWithStartNode(updatedNodes);
         set({
-          nodes: updatedNodes,
-          edges: updatedEdges,
+          nodes: normalizedNodes,
+          edges: updatedNodes.length === 0 ? [] : updatedEdges,
         });
       },
-      
+
       onEdgesChange: (changes: EdgeChange[]) => {
         const currentEdges = get().edges;
         const updatedEdges = applyEdgeChanges(changes, currentEdges);
         if (isEqual(currentEdges, updatedEdges)) return;
         set({ edges: updatedEdges });
       },
-      
+
       onConnect: (connection: Connection) => {
         // defaultEdgeOptions in editor.tsx will handle marker and style configuration
         set({
@@ -89,11 +91,14 @@ export const useWorkflowStore = create<WorkflowState>()(
         edges: state.edges,
       }),
       equality: (past, present) => {
-        return isEqual(past.nodes, present.nodes) && isEqual(past.edges, present.edges);
+        return (
+          isEqual(past.nodes, present.nodes) &&
+          isEqual(past.edges, present.edges)
+        );
       },
       limit: undefined, // Infinite history
-    }
-  )
+    },
+  ),
 );
 
 export const useWorkflowTemporal = () => useWorkflowStore.temporal;

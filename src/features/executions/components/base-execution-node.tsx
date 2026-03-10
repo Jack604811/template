@@ -4,15 +4,19 @@ import { type NodeProps, Position, useReactFlow } from "@xyflow/react";
 import type { LucideIcon } from "lucide-react";
 import Image from "next/image";
 import { memo, type ReactNode } from "react";
+import { BaseHandle } from "@/components/react-flow/base-handle";
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitleInput,
 } from "@/components/react-flow/base-node";
-import { BaseHandle } from "@/components/react-flow/base-handle";
+import {
+  type NodeStatus,
+  NodeStatusIndicator,
+} from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
-import { type NodeStatus, NodeStatusIndicator } from "@/components/react-flow/node-status-indicator";
+import { ensureNodesWithStartNode } from "@/features/editor/utils/node-selector-utils";
 
 interface BaseExecutionNodeProps extends NodeProps {
   icon: LucideIcon | string;
@@ -39,12 +43,12 @@ export const BaseExecutionNode = memo(
     const handleDelete = () => {
       setNodes((currentNodes) => {
         const updatedNodes = currentNodes.filter((node) => node.id !== id);
-        return updatedNodes;
+        return ensureNodesWithStartNode(updatedNodes);
       });
 
       setEdges((currentEdges) => {
         const updatedEdges = currentEdges.filter(
-          (edge) => edge.source !== id && edge.target !== id
+          (edge) => edge.source !== id && edge.target !== id,
         );
         return updatedEdges;
       });

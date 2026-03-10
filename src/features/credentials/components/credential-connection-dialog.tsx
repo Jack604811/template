@@ -117,8 +117,11 @@ export const CredentialConnectionDialog = ({
     return null;
   }
 
-  // For OAuth apps (placeholder for future implementation)
+  // For OAuth apps (Gmail: redirect to OAuth flow)
   if (app.authMethod === "oauth") {
+    const isGmail = credentialType === CredentialType.GMAIL;
+    const connectUrl = isGmail ? "/api/credentials/gmail/connect" : null;
+
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
@@ -140,9 +143,16 @@ export const CredentialConnectionDialog = ({
               className="mb-4"
             />
             <h3 className="font-semibold text-lg mb-2">Connect {app.label}</h3>
-            <p className="text-sm text-muted-foreground text-center">
-              OAuth authentication will be implemented soon
-            </p>
+            {connectUrl ? (
+              <p className="text-sm text-muted-foreground text-center mb-4">
+                You will be redirected to Google to authorize access to your
+                Gmail account.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground text-center">
+                OAuth authentication will be implemented soon
+              </p>
+            )}
           </div>
           <DialogFooter>
             <Button
@@ -152,9 +162,15 @@ export const CredentialConnectionDialog = ({
             >
               Cancel
             </Button>
-            <Button type="button" disabled>
-              Connect
-            </Button>
+            {connectUrl ? (
+              <Button type="button" asChild>
+                <a href={connectUrl}>Connect with Google</a>
+              </Button>
+            ) : (
+              <Button type="button" disabled>
+                Connect
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

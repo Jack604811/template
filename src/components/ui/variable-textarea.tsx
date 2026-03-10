@@ -1,5 +1,6 @@
 "use client";
 
+import { useReactFlow } from "@xyflow/react";
 import {
   forwardRef,
   useCallback,
@@ -9,18 +10,17 @@ import {
   useRef,
   useState,
 } from "react";
-import { useReactFlow } from "@xyflow/react";
-import { cn } from "@/lib/utils";
 import { VariablePickerPopover } from "@/features/editor/components/variable-picker-popover";
 import { useWorkflowVariables } from "@/features/editor/hooks/use-workflow-variables";
+import { cn } from "@/lib/utils";
 import {
-  parseValueToTokens,
-  renderTokensToNodes,
-  serializeContentToValue,
-  insertVariableAtCursor,
   handleBackspaceOnVariable,
   handleDeleteOnVariable,
   handlePaste,
+  insertVariableAtCursor,
+  parseValueToTokens,
+  renderTokensToNodes,
+  serializeContentToValue,
 } from "@/lib/variable-utils";
 
 type VariableTextareaProps = Omit<
@@ -31,7 +31,9 @@ type VariableTextareaProps = Omit<
   value?: string;
   defaultValue?: string;
   placeholder?: string;
-  onChange?: ((value: string) => void) | ((event: { target: { value: string } }) => void);
+  onChange?:
+    | ((value: string) => void)
+    | ((event: { target: { value: string } }) => void);
   onFocus?: (event: React.FocusEvent<HTMLDivElement>) => void;
   onBlur?: (event: React.FocusEvent<HTMLDivElement>) => void;
   disabled?: boolean;
@@ -64,13 +66,17 @@ export const VariableTextarea = forwardRef<
     const isUpdatingRef = useRef(false);
     const { getNode } = useReactFlow();
 
-    const { variables, isLoading, isFetching, refetch } =
-      useWorkflowVariables(nodeId);
+    const { variables, isLoading, isFetching, refetch } = useWorkflowVariables(
+      nodeId,
+      { liveUpdatesEnabled: isFocused },
+    );
 
     // Get the current node's variableName from React Flow node data
     const currentNodeVariableName = useMemo(() => {
       const node = getNode(nodeId);
-      return (node?.data?.variableName as string | undefined)?.trim() || undefined;
+      return (
+        (node?.data?.variableName as string | undefined)?.trim() || undefined
+      );
     }, [getNode, nodeId]);
 
     // Expose the contentEditable element via ref
@@ -117,7 +123,8 @@ export const VariableTextarea = forwardRef<
       }
 
       // Only initialize if element is truly empty
-      const hasContent = element.textContent?.trim() || element.querySelector('[data-variable]');
+      const hasContent =
+        element.textContent?.trim() || element.querySelector("[data-variable]");
       if (hasContent) {
         setIsEmpty(false);
         return;
@@ -150,7 +157,7 @@ export const VariableTextarea = forwardRef<
       const serialized = serializeContentToValue(element);
       const empty = !serialized || serialized.trim() === "";
       setIsEmpty(empty);
-      
+
       // React Hook Form's onChange accepts the value directly
       if (onChange) {
         // @ts-expect-error - React Hook Form onChange can accept string directly
@@ -219,8 +226,9 @@ export const VariableTextarea = forwardRef<
           }
 
           // Treat clicks inside the variable picker popover as "inside" the control
-          const root =
-            element.closest<HTMLDivElement>('[data-variable-input-root]');
+          const root = element.closest<HTMLDivElement>(
+            "[data-variable-input-root]",
+          );
           const active = document.activeElement;
 
           if (root && active && root.contains(active)) {
@@ -274,19 +282,20 @@ export const VariableTextarea = forwardRef<
         <VariablePickerPopover
           open={isFocused}
           onOpenChange={setIsFocused}
-        variables={variables}
-        isLoading={isLoading}
-        isFetching={isFetching}
-        onSelect={handleSelectVariable}
+          variables={variables}
+          isLoading={isLoading}
+          isFetching={isFetching}
+          onSelect={handleSelectVariable}
           currentNodeId={nodeId}
           currentNodeVariableName={currentNodeVariableName}
-      >
-        <div className="relative">
+          onRefresh={refetch}
+        >
+          <div className="relative">
             {/* Placeholder */}
             {isEmpty && placeholder && (
-          <div
+              <div
                 className="pointer-events-none absolute left-3 top-2 text-sm text-muted-foreground"
-            aria-hidden="true"
+                aria-hidden="true"
               >
                 {placeholder}
               </div>
@@ -313,17 +322,17 @@ export const VariableTextarea = forwardRef<
               }}
               tabIndex={disabled ? -1 : 0}
               style={{ minHeight }}
-            className={cn(
+              className={cn(
                 "w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs transition-colors outline-none",
                 "whitespace-pre-wrap break-words",
                 "md:text-sm",
                 "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
                 "disabled:cursor-not-allowed disabled:opacity-50",
-              className,
-            )}
+                className,
+              )}
               {...props}
-          />
-        </div>
+            />
+          </div>
         </VariablePickerPopover>
       </div>
     );

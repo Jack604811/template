@@ -1,19 +1,34 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Loader2Icon, SearchIcon } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
+import { cn } from "@/lib/utils";
 import type { NodeVariables, VariableEntry } from "../types/variables";
+import { isPointerTargetInsideVariableInputRoot } from "../utils/variable-picker-visibility";
 
+// Static set of fixed contextKeys from the registry (e.g. "bold", "stripe").
 const registeredTriggerContextKeys = new Set(
   Object.values(triggerSchemaRegistry)
-    .filter(Boolean)
-    .map((s) => s!.contextKey),
+    .filter((s): s is NonNullable<typeof s> => Boolean(s))
+    .map((s) => s.contextKey),
 );
+
+// Build a lookup: variableName (could be user-defined) → schema, for display labels.
+function findSchemaForVariableName(variableName: string) {
+  // First try exact contextKey match
+  const byKey = Object.values(triggerSchemaRegistry).find(
+    (s) => s?.contextKey === variableName,
+  );
+  if (byKey) return byKey;
+  // Then try by NodeType key to match node type entries in the registry
+  return Object.values(triggerSchemaRegistry).find(
+    (s) => s?.label.toLowerCase() === variableName.toLowerCase(),
+  );
+}
 
 interface VariablePickerPopoverProps {
   open: boolean;
@@ -25,6 +40,7 @@ interface VariablePickerPopoverProps {
   onSelect: (variablePath: string) => void;
   currentNodeId?: string;
   currentNodeVariableName?: string;
+  onRefresh?: () => void | Promise<void>;
 }
 
 type FlattenedVariable = {
@@ -89,12 +105,12 @@ const shouldExcludeNode = (
   if (!currentNodeId) {
     return false;
   }
-  
+
   // Exclude if nodeId matches exactly
   if (node.nodeId === currentNodeId) {
     return true;
   }
-  
+
   // Exclude context variables that match the current node's variableName
   // Context variables have nodeId format: "context:${variableName}"
   if (
@@ -104,7 +120,7 @@ const shouldExcludeNode = (
   ) {
     return true;
   }
-  
+
   return false;
 };
 
@@ -118,8 +134,7 @@ const filterConnectedNodes = (
   currentNodeVariableName?: string,
 ): NodeVariables[] => {
   return nodes.filter(
-    (node) =>
-      !shouldExcludeNode(node, currentNodeId, currentNodeVariableName),
+    (node) => !shouldExcludeNode(node, currentNodeId, currentNodeVariableName),
   );
 };
 
@@ -239,10 +254,12 @@ const VariablesColumn = ({
     }
 
     const contextKey = entry.path[0];
-    if (contextKey && registeredTriggerContextKeys.has(contextKey)) {
-      const schema = Object.values(triggerSchemaRegistry).find(
-        (s) => s?.contextKey === contextKey,
-      );
+    if (contextKey) {
+      const schema = registeredTriggerContextKeys.has(contextKey)
+        ? Object.values(triggerSchemaRegistry).find(
+            (s) => s?.contextKey === contextKey,
+          )
+        : findSchemaForVariableName(contextKey);
       const fieldKey = entry.path[entry.path.length - 1] ?? "";
       if (schema?.fieldLabels?.[fieldKey]) {
         return schema.fieldLabels[fieldKey];
@@ -273,22 +290,22 @@ const VariablesColumn = ({
         {variables.map(({ entry, label }, index) => {
           const isSelected = index === selectedVariableIndex;
           return (
-          <button
-            key={entry.path.join(".")}
+            <button
+              key={entry.path.join(".")}
               ref={isSelected ? selectedVariableRef : null}
-            type="button"
-            tabIndex={-1}
-            onClick={() => onSelect({ entry, label, root: entry.path[0] })}
+              type="button"
+              tabIndex={-1}
+              onClick={() => onSelect({ entry, label, root: entry.path[0] })}
               className={cn(
                 "flex flex-col gap-1 border-b border-border/50 px-3 py-2 text-left transition-colors hover:bg-muted/70 max-w-[358px]",
                 isSelected && "bg-muted",
               )}
-          >
+            >
               <span className="truncate text-sm font-medium" title={label}>
                 {getDisplayName(entry, label)}
               </span>
-            <VariablePreview preview={getPreview(entry)} />
-          </button>
+              <VariablePreview preview={getPreview(entry)} />
+            </button>
           );
         })}
       </div>
@@ -307,6 +324,7 @@ export const VariablePickerPopover = memo(
     onSelect,
     currentNodeId,
     currentNodeVariableName,
+    onRefresh,
   }: VariablePickerPopoverProps) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
@@ -398,6 +416,26 @@ export const VariablePickerPopover = memo(
       }
     }, [open]);
 
+    useEffect(() => {
+      if (!open) {
+        return;
+      }
+
+      const handlePointerDown = (event: PointerEvent) => {
+        if (isPointerTargetInsideVariableInputRoot(event.target)) {
+          return;
+        }
+
+        onOpenChange(false);
+      };
+
+      document.addEventListener("pointerdown", handlePointerDown, true);
+
+      return () => {
+        document.removeEventListener("pointerdown", handlePointerDown, true);
+      };
+    }, [open, onOpenChange]);
+
     const activeNode = useMemo(() => {
       if (!collection.length || !activeNodeId) {
         return null;
@@ -413,7 +451,8 @@ export const VariablePickerPopover = memo(
 
       const isTriggerNode =
         activeNode.variableName === "webhook" ||
-        registeredTriggerContextKeys.has(activeNode.variableName);
+        registeredTriggerContextKeys.has(activeNode.variableName) ||
+        Boolean(findSchemaForVariableName(activeNode.variableName));
 
       if (searchTerm) {
         const filtered = filteredNodes.find(
@@ -422,8 +461,7 @@ export const VariablePickerPopover = memo(
         let matches = filtered?.matches ?? [];
         if (activeNode.variableName === "webhook") {
           matches = matches.filter(
-            (m) =>
-              m.entry.path[0] === "webhook" && m.entry.path[1] === "body",
+            (m) => m.entry.path[0] === "webhook" && m.entry.path[1] === "body",
           );
         } else if (isTriggerNode) {
           matches = matches.filter((m) => m.entry.path.length === 2);
@@ -439,8 +477,7 @@ export const VariablePickerPopover = memo(
       if (activeNode.variableName === "webhook") {
         return flattened.filter(
           (item) =>
-            item.entry.path[0] === "webhook" &&
-            item.entry.path[1] === "body",
+            item.entry.path[0] === "webhook" && item.entry.path[1] === "body",
         );
       }
 
@@ -464,7 +501,7 @@ export const VariablePickerPopover = memo(
 
     const handleSelectVariable = useCallback(
       (item: FlattenedVariable) => {
-      onSelect(item.entry.template);
+        onSelect(item.entry.template);
         setSearchTerm("");
         setSelectedVariableIndex(0);
       },
@@ -481,7 +518,9 @@ export const VariablePickerPopover = memo(
         } else {
           // Single-click - activate node
           setActiveNodeId(node.nodeId);
-          setSelectedNodeIndex(collection.findIndex((n) => n.nodeId === node.nodeId));
+          setSelectedNodeIndex(
+            collection.findIndex((n) => n.nodeId === node.nodeId),
+          );
           setSelectedVariableIndex(0);
         }
       },
@@ -492,79 +531,94 @@ export const VariablePickerPopover = memo(
       (nodeId: string) => {
         const node = collection.find((n) => n.nodeId === nodeId);
         if (node?.rootEntry) {
-      onSelect(node.rootEntry.template);
+          onSelect(node.rootEntry.template);
           setSearchTerm("");
         }
       },
       [collection, onSelect],
     );
 
-
-    
     return (
       <>
         {children}
         {open && (
-          /* biome-ignore lint/a11y/noStaticElementInteractions: div needs onMouseDown to prevent focus loss */
+          /* biome-ignore lint/a11y/noStaticElementInteractions: div needs onMouseDown to prevent focus loss, onWheel to prevent canvas pan */
           <div
-            className="absolute right-full top-0 mr-8 z-50 w-[520px] rounded-md border bg-popover text-popover-foreground shadow-md p-0"
+            className="nowheel absolute right-full top-0 mr-8 z-50 w-[520px] rounded-md border bg-popover text-popover-foreground shadow-md p-0"
             onMouseDown={(e) => e.preventDefault()}
+            onWheel={(e) => e.stopPropagation()}
           >
-          <div className="border-b border-border/60 px-3 py-2">
-            <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5">
-              <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
-              <Input
+            <div className="border-b border-border/60 px-3 py-2">
+              <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5">
+                <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
+                <Input
                   ref={searchInputRef}
-                value={searchTerm}
+                  value={searchTerm}
                   onChange={(event) => {
                     setSearchTerm(event.target.value);
                     setSelectedVariableIndex(0);
                   }}
-                placeholder="Search variables..."
-                className="h-7 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
+                  placeholder="Search variables..."
+                  className="h-7 flex-1 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
                   autoFocus
-              />
-              {isFetching && (
-                <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-              )}
+                />
+                {onRefresh && (
+                  <button
+                    type="button"
+                    onClick={() => void onRefresh()}
+                    disabled={isFetching}
+                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    title="Refresh variables"
+                    aria-label="Refresh variables"
+                  >
+                    {isFetching ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : (
+                      <RefreshCwIcon className="size-4" />
+                    )}
+                  </button>
+                )}
+                {isFetching && !onRefresh && (
+                  <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
+                )}
+              </div>
             </div>
-          </div>
 
-          <div className="flex divide-x divide-border/60">
-            <div className="w-40">
-              {isLoading ? (
-                <div className="space-y-2 p-3">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : (
-                <NodeColumn
+            <div className="flex divide-x divide-border/60">
+              <div className="w-40">
+                {isLoading ? (
+                  <div className="space-y-2 p-3">
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                    <Skeleton className="h-10 w-full" />
+                  </div>
+                ) : (
+                  <NodeColumn
                     nodes={collection}
                     activeNodeId={activeNodeId}
                     selectedNodeIndex={selectedNodeIndex}
                     onSelectNode={handleSelectNode}
                     onActivateNode={handleActivateNode}
-                />
-              )}
+                  />
+                )}
+              </div>
+              <div className="flex-1">
+                {isLoading ? (
+                  <div className="space-y-2 p-3">
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                    <Skeleton className="h-14 w-full" />
+                  </div>
+                ) : (
+                  <VariablesColumn
+                    variables={flattenedVariables}
+                    selectedVariableIndex={selectedVariableIndex}
+                    searchTerm={searchTerm}
+                    onSelect={handleSelectVariable}
+                  />
+                )}
+              </div>
             </div>
-            <div className="flex-1">
-              {isLoading ? (
-                <div className="space-y-2 p-3">
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                </div>
-              ) : (
-                <VariablesColumn
-                  variables={flattenedVariables}
-                  selectedVariableIndex={selectedVariableIndex}
-                  searchTerm={searchTerm}
-                  onSelect={handleSelectVariable}
-                />
-              )}
-            </div>
-          </div>
           </div>
         )}
       </>

@@ -1,27 +1,33 @@
 "use client";
 
-import { useReactFlow, Position, type Node, type NodeProps } from "@xyflow/react";
+import {
+  type Node,
+  type NodeProps,
+  Position,
+  useReactFlow,
+} from "@xyflow/react";
 import { GitBranch } from "lucide-react";
 import { memo, useCallback } from "react";
+import { BaseHandle } from "@/components/react-flow/base-handle";
 import {
   BaseNode,
   BaseNodeContent,
   BaseNodeHeader,
   BaseNodeHeaderTitleInput,
 } from "@/components/react-flow/base-node";
-import { BaseHandle } from "@/components/react-flow/base-handle";
 import {
   type NodeStatus,
   NodeStatusIndicator,
 } from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
 import { useWorkflowStore } from "@/features/editor/store/workflow-store";
-import type { IfElseFormValues } from "./dialog";
-import { IfElseNodeContent } from "./node-content";
-import { useNodeStatus } from "../../hooks/use-node-status";
+import { ensureNodesWithStartNode } from "@/features/editor/utils/node-selector-utils";
 import { IF_ELSE_CHANNEL_NAME } from "@/inngest/channels/if-else";
+import { useNodeStatus } from "../../hooks/use-node-status";
 import { fetchIfElseRealtimeToken } from "./actions";
+import type { IfElseFormValues } from "./dialog";
 import type { IfElseNodeData } from "./executor";
+import { IfElseNodeContent } from "./node-content";
 
 type IfElseNodeType = Node<IfElseNodeData>;
 
@@ -42,11 +48,11 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
         nodes.map((node) =>
           node.id === props.id
             ? { ...node, data: { ...node.data, ...values } }
-            : node
-        )
+            : node,
+        ),
       );
     },
-    [props.id, setNodes]
+    [props.id, setNodes],
   );
 
   const handleVariableNameChange = useCallback(
@@ -55,16 +61,18 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
         nodes.map((node) =>
           node.id === props.id
             ? { ...node, data: { ...node.data, variableName: value } }
-            : node
-        )
+            : node,
+        ),
       );
     },
-    [props.id, setNodes]
+    [props.id, setNodes],
   );
 
   const handleDelete = () => {
     const currentEdges = useWorkflowStore.getState().edges;
-    setNodes((nodes) => nodes.filter((node) => node.id !== props.id));
+    setNodes((nodes) =>
+      ensureNodesWithStartNode(nodes.filter((node) => node.id !== props.id)),
+    );
     setEdges(
       currentEdges.filter(
         (edge) => edge.source !== props.id && edge.target !== props.id,
@@ -87,11 +95,7 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
             />
           </BaseNodeHeader>
           <BaseNodeContent>
-            <BaseHandle
-              id="target-1"
-              type="target"
-              position={Position.Left}
-            />
+            <BaseHandle id="target-1" type="target" position={Position.Left} />
             <IfElseNodeContent
               nodeId={props.id}
               defaultValues={nodeData}
@@ -111,4 +115,3 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
 });
 
 IfElseNode.displayName = "IfElseNode";
-

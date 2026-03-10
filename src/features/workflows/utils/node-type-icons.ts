@@ -1,9 +1,4 @@
-import {
-  Bot,
-  GitBranch,
-  GlobeIcon,
-  type LucideIcon,
-} from "lucide-react";
+import { Bot, GitBranch, GlobeIcon, type LucideIcon } from "lucide-react";
 import { NodeType } from "@/generated/prisma";
 
 export type NodeIcon = string | LucideIcon;
@@ -19,7 +14,7 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   [NodeType.WEBHOOK_TRIGGER]: "/logos/webhooks.svg",
   [NodeType.GOOGLE_FORM_TRIGGER]: "/logos/googleform.svg",
   [NodeType.STRIPE_TRIGGER]: "/logos/stripe.svg",
-  
+
   // Execution nodes (apps)
   [NodeType.HTTP_REQUEST]: GlobeIcon,
   [NodeType.IF_ELSE]: GitBranch,
@@ -30,6 +25,8 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   [NodeType.SLACK]: "/logos/slack.svg",
   [NodeType.AGENT]: Bot,
   [NodeType.BOLD_TRIGGER]: "/logos/Bold.svg",
+  [NodeType.GMAIL]: "/logos/gmail.svg",
+  [NodeType.GMAIL_TRIGGER]: "/logos/gmail.svg",
 };
 
 /**
@@ -44,9 +41,11 @@ export const getNodeTypeIcon = (nodeType: NodeType): NodeIcon | null => {
  * Extract unique app node types from a list of nodes
  * Filters out INITIAL and MANUAL_TRIGGER
  */
-export const extractAppNodeTypes = (nodes: Array<{ type: NodeType }>): NodeType[] => {
+export const extractAppNodeTypes = (
+  nodes: Array<{ type: NodeType }>,
+): NodeType[] => {
   const uniqueTypes = new Set<NodeType>();
-  
+
   nodes.forEach((node) => {
     if (
       node.type !== NodeType.INITIAL &&
@@ -56,8 +55,6 @@ export const extractAppNodeTypes = (nodes: Array<{ type: NodeType }>): NodeType[
       uniqueTypes.add(node.type);
     }
   });
-  
+
   return Array.from(uniqueTypes);
 };
-
-

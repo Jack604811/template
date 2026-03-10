@@ -6,13 +6,14 @@ import { useReactFlow } from "@xyflow/react";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { toast } from "sonner";
+import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
 import type {
   WebhookStoredSchema,
   WebhookTriggerNodeData,
 } from "@/features/triggers/components/webhook-trigger/actions";
-import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
 import { useTRPC } from "@/trpc/client";
 import type { NodeVariables, VariableEntry } from "../types/variables";
+import { getWorkflowVariablesQuerySettings } from "../utils/workflow-variable-query-options";
 
 type WorkflowPageParams = {
   workflowId: string;
@@ -231,18 +232,22 @@ export interface UseWorkflowVariablesResult {
 
 export const useWorkflowVariables = (
   currentNodeId: string,
+  options: { liveUpdatesEnabled?: boolean } = {},
 ): UseWorkflowVariablesResult => {
   const { getNodes, getEdges } = useReactFlow();
   const params = useParams<WorkflowPageParams>();
   const trpc = useTRPC();
 
   const workflowId = params.workflowId;
+  const { liveUpdatesEnabled = false } = options;
+  const querySettings = getWorkflowVariablesQuerySettings(liveUpdatesEnabled);
 
   const query = useQuery({
     ...trpc.executions.getLastExecutionContext.queryOptions({
       workflowId,
     }),
     enabled: Boolean(workflowId),
+    ...querySettings,
   });
 
   useEffect(() => {
@@ -311,18 +316,37 @@ export const useWorkflowVariables = (
         : undefined;
 
       if (triggerEntry) {
-        const liveValue =
-          context && schema.contextKey in context
-            ? (context[schema.contextKey] as Record<string, unknown>)
-            : null;
+        // Nodes like Gmail use a user-defined variableName, not a fixed contextKey.
+        const nodeVariableName =
+          typeof triggerNode?.data?.variableName === "string" &&
+          (triggerNode.data.variableName as string).trim()
+            ? (triggerNode.data.variableName as string).trim()
+            : schema.contextKey;
 
-        const source = liveValue ?? schema.samplePayload;
-        const rootEntry = buildVariableTree(source, [schema.contextKey], {
+        const liveValue =
+          context &&
+          nodeVariableName in context &&
+          isRecord(context[nodeVariableName])
+            ? (context[nodeVariableName] as Record<string, unknown>)
+            : context &&
+                schema.contextKey in context &&
+                isRecord(context[schema.contextKey])
+              ? (context[schema.contextKey] as Record<string, unknown>)
+              : null;
+
+        // Always merge schema shape with live data so newly-added fields
+        // appear in the picker even when the last execution predates them.
+        const source: Record<string, unknown> = {
+          ...schema.samplePayload,
+          ...(liveValue ?? {}),
+        };
+
+        const rootEntry = buildVariableTree(source, [nodeVariableName], {
           isRoot: true,
         });
         triggerEntry.variables = rootEntry.children ?? [];
         triggerEntry.rootEntry = rootEntry;
-        triggerEntry.variableName = schema.contextKey;
+        triggerEntry.variableName = nodeVariableName;
         triggerEntry.nodeLabel = schema.label;
       }
     }

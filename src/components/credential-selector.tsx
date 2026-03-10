@@ -1,32 +1,28 @@
 "use client";
 
+import { PlusIcon, SearchIcon } from "lucide-react";
+import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Input } from "@/components/ui/input";
-import { SearchIcon, CheckIcon, PlusIcon } from "lucide-react";
-import Image from "next/image";
-import { CredentialConnectionDialog } from "@/features/credentials/components/credential-connection-dialog";
-import type { CredentialType } from "@/generated/prisma";
-import { useCredentialsByType } from "@/features/credentials/hooks/use-credentials";
-import { cn } from "@/lib/utils";
-import {
   Field,
   FieldContent,
-  FieldDescription,
   FieldGroup,
   FieldLabel,
   FieldSet,
   FieldTitle,
 } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 import {
-  RadioGroup,
-  RadioGroupItem,
-} from "@/components/ui/radio-group";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { CredentialConnectionDialog } from "@/features/credentials/components/credential-connection-dialog";
+import { useCredentialsByType } from "@/features/credentials/hooks/use-credentials";
+import type { CredentialType } from "@/generated/prisma";
+import { cn } from "@/lib/utils";
 
 interface Props {
   value?: string;
@@ -51,11 +47,15 @@ export const CredentialSelector = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  const { data: credentials, isLoading, refetch } = useCredentialsByType(credentialType);
+  const {
+    data: credentials,
+    isLoading,
+    refetch,
+  } = useCredentialsByType(credentialType);
 
   const selectedCredential = credentials?.find((c) => c.id === value);
   const filteredCredentials = credentials?.filter((c) =>
-    c.name.toLowerCase().includes(searchQuery.toLowerCase())
+    c.name.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const handleCredentialCreated = async (credentialId: string) => {
@@ -77,8 +77,8 @@ export const CredentialSelector = ({
             type="button"
             variant="outline"
             className={cn(
-              "w-full justify-between items-center h-auto py-3 px-3",
-              !selectedCredential && "text-muted-foreground"
+              "w-full justify-between items-center h-auto py-1.5 px-3",
+              !selectedCredential && "text-muted-foreground",
             )}
             disabled={disabled || isLoading}
           >
@@ -96,7 +96,7 @@ export const CredentialSelector = ({
                   </div> */}
                 </div>
                 <div className="shrink-0 ml-3">
-                  <CheckIcon className="w-4 h-4 text-primary" />
+                  {/* <CheckIcon className="w-4 h-4 text-primary" /> */}
                 </div>
               </>
             ) : (
@@ -136,16 +136,27 @@ export const CredentialSelector = ({
                       const credentialId = `credential-${credential.id}`;
                       return (
                         <FieldLabel key={credential.id} htmlFor={credentialId}>
-                          <Field orientation="horizontal" className="items-center">
+                          <Field
+                            orientation="horizontal"
+                            className="items-center"
+                          >
                             <div className="size-6 flex items-center justify-center shrink-0 self-center">
-                              <Image src={logo} alt={label} width={20} height={20} />
+                              <Image
+                                src={logo}
+                                alt={label}
+                                width={20}
+                                height={20}
+                              />
                             </div>
                             <FieldContent>
                               <FieldTitle>{credential.name}</FieldTitle>
                               {/* <FieldDescription>{credential.type}</FieldDescription> */}
                             </FieldContent>
                             <div className="self-center shrink-0">
-                              <RadioGroupItem value={credential.id} id={credentialId} />
+                              <RadioGroupItem
+                                value={credential.id}
+                                id={credentialId}
+                              />
                             </div>
                           </Field>
                         </FieldLabel>
@@ -184,4 +195,3 @@ export const CredentialSelector = ({
     </>
   );
 };
-

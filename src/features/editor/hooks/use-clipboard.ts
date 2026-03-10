@@ -1,24 +1,25 @@
 "use client";
 
-import { useCallback } from "react";
-import type { Node, Edge } from "@xyflow/react";
-import { toast } from "sonner";
+import type { Edge, Node } from "@xyflow/react";
 import { useAtomValue } from "jotai";
+import { useCallback } from "react";
+import { toast } from "sonner";
 import { editorAtom } from "../store/atoms";
+import { useWorkflowStore } from "../store/workflow-store";
 import {
   copyToClipboard,
   getFromClipboard,
   hasClipboardData,
 } from "../utils/clipboard";
-import { useWorkflowStore } from "../store/workflow-store";
 import {
-  getSelectedNodes,
-  getInternalEdges,
-  calculatePastePosition,
   applyPositionOffset,
+  calculatePastePosition,
   generateNodeIdMap,
+  getInternalEdges,
+  getSelectedNodes,
   mapEdgeIds,
 } from "../utils/clipboard-helpers";
+import { buildNodesAfterInsertion } from "../utils/node-selector-utils";
 
 // Constants
 const PASTE_OFFSET_RANGE = 100; // Random offset range in pixels for paste position
@@ -62,7 +63,7 @@ function addNodesAndEdgesWithDeselection(
     selected: false,
   }));
 
-  setNodes([...deselectedNodes, ...newNodes]);
+  setNodes(buildNodesAfterInsertion(deselectedNodes, newNodes));
   setEdges([...deselectedEdges, ...newEdges]);
 }
 

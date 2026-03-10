@@ -1,18 +1,20 @@
-import { NodeType } from "@/generated/prisma";
-import type { NodeExecutor } from "../types";
-import { manualTriggerExecutor } from "@/features/triggers/components/manual-trigger/executor";
-import { httpRequestExecutor } from "../components/http-request/executor";
+import { boldTriggerExecutor } from "@/features/triggers/components/bold-trigger/executor";
+import { gmailTriggerExecutor } from "@/features/triggers/components/gmail-trigger/executor";
 import { googleFormTriggerExecutor } from "@/features/triggers/components/google-form-trigger/executor";
+import { manualTriggerExecutor } from "@/features/triggers/components/manual-trigger/executor";
 import { stripeTriggerExecutor } from "@/features/triggers/components/stripe-trigger/executor";
 import { webhookTriggerExecutor } from "@/features/triggers/components/webhook-trigger/executor";
-import { boldTriggerExecutor } from "@/features/triggers/components/bold-trigger/executor";
-import { geminiExecutor } from "../components/gemini/executor";
+import { NodeType } from "@/generated/prisma";
 import { agentExecutor } from "../components/agent/executor";
-import { openAiExecutor } from "../components/openai/executor";
 import { anthropicExecutor } from "../components/anthropic/executor";
 import { discordExecutor } from "../components/discord/executor";
-import { slackExecutor } from "../components/slack/executor";
+import { geminiExecutor } from "../components/gemini/executor";
+import { gmailExecutor } from "../components/gmail/executor";
+import { httpRequestExecutor } from "../components/http-request/executor";
 import { ifElseExecutor } from "../components/if-else/executor";
+import { openAiExecutor } from "../components/openai/executor";
+import { slackExecutor } from "../components/slack/executor";
+import type { NodeExecutor } from "../types";
 
 export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.INITIAL]: manualTriggerExecutor,
@@ -29,6 +31,8 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.SLACK]: slackExecutor,
   [NodeType.AGENT]: agentExecutor,
   [NodeType.BOLD_TRIGGER]: boldTriggerExecutor,
+  [NodeType.GMAIL]: gmailExecutor,
+  [NodeType.GMAIL_TRIGGER]: gmailTriggerExecutor,
 };
 
 export const getExecutor = (type: NodeType): NodeExecutor => {

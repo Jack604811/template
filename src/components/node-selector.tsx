@@ -2,12 +2,7 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
-import {
-  Bot,
-  GitBranch,
-  GlobeIcon,
-  MousePointerIcon,
-} from "lucide-react";
+import { Bot, GitBranch, GlobeIcon, MousePointerIcon } from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -19,6 +14,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { buildNodesAfterSelection } from "@/features/editor/utils/node-selector-utils";
 import { NodeType } from "@/generated/prisma";
 import { Separator } from "./ui/separator";
 
@@ -31,12 +27,14 @@ const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.GEMINI]: "myGemini",
   [NodeType.SLACK]: "mySlack",
   [NodeType.DISCORD]: "myDiscord",
+  [NodeType.GMAIL]: "Gmail",
 };
 
 const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.MANUAL_TRIGGER]: "Manual",
   [NodeType.WEBHOOK_TRIGGER]: "Webhook",
   [NodeType.BOLD_TRIGGER]: "Bold",
+  [NodeType.GMAIL_TRIGGER]: "Gmail",
 };
 
 function getInitialDataForType(type: NodeType): Record<string, unknown> {
@@ -78,6 +76,12 @@ const triggerNodes: NodeTypeOption[] = [
     description: "Recibe eventos de pago desde Bold",
     icon: "/logos/Bold.svg",
   },
+  {
+    type: NodeType.GMAIL_TRIGGER,
+    label: "Gmail",
+    description: "Runs when a new email arrives in a connected Gmail account",
+    icon: "/logos/gmail.svg",
+  },
 ];
 
 const executionNodes: NodeTypeOption[] = [
@@ -99,79 +103,72 @@ const executionNodes: NodeTypeOption[] = [
     description: "LLM agent with MCP and native tools (AI Gateway)",
     icon: Bot,
   },
+  {
+    type: NodeType.GMAIL,
+    label: "Gmail",
+    description: "Send emails with a connected Gmail account",
+    icon: "/logos/gmail.svg",
+  },
 ];
-
 
 interface NodeSelectorProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
-};
+}
 
 export function NodeSelector({
   open,
   onOpenChange,
-  children
+  children,
 }: NodeSelectorProps) {
   const { setNodes, getNodes, screenToFlowPosition } = useReactFlow();
 
-  const handleNodeSelect = useCallback((selection: NodeTypeOption) => {
-    // Check if trying to add a manual trigger when one already exists
-    if (selection.type === NodeType.MANUAL_TRIGGER) {
-      const nodes = getNodes();
-      const hasManualTrigger = nodes.some(
-        (node) => node.type === NodeType.MANUAL_TRIGGER,
-      );
+  const handleNodeSelect = useCallback(
+    (selection: NodeTypeOption) => {
+      // Check if trying to add a manual trigger when one already exists
+      if (selection.type === NodeType.MANUAL_TRIGGER) {
+        const nodes = getNodes();
+        const hasManualTrigger = nodes.some(
+          (node) => node.type === NodeType.MANUAL_TRIGGER,
+        );
 
-      if (hasManualTrigger) {
-        toast.error("Only one manual trigger is allowed per workflow");
-        return;
+        if (hasManualTrigger) {
+          toast.error("Only one manual trigger is allowed per workflow");
+          return;
+        }
       }
-    }
 
-    setNodes((nodes) => {
-      const hasInitialTrigger = nodes.some(
-        (node) => node.type === NodeType.INITIAL,
-      );
+      setNodes((nodes) => {
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
 
-      const centerX = window.innerWidth / 2;
-      const centerY = window.innerHeight / 2;
+        const flowPosition = screenToFlowPosition({
+          x: centerX + (Math.random() - 0.5) * 200,
+          y: centerY + (Math.random() - 0.5) * 200,
+        });
 
-      const flowPosition = screenToFlowPosition({
-        x: centerX + (Math.random() - 0.5) * 200,
-        y: centerY + (Math.random() - 0.5) * 200,
+        const newNode = {
+          id: createId(),
+          data: getInitialDataForType(selection.type),
+          position: flowPosition,
+          type: selection.type,
+        };
+
+        return buildNodesAfterSelection(nodes, newNode);
       });
 
-      const newNode = {
-        id: createId(),
-        data: getInitialDataForType(selection.type),
-        position: flowPosition,
-        type: selection.type,
-      };
-
-      if (hasInitialTrigger) {
-        return [newNode];
-      }
-
-      return [...nodes, newNode];
-    });
-
-    onOpenChange(false);
-  }, [
-    setNodes,
-    getNodes,
-    onOpenChange,
-    screenToFlowPosition,
-  ]);
+      onOpenChange(false);
+    },
+    [setNodes, getNodes, onOpenChange, screenToFlowPosition],
+  );
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetTrigger asChild>{children}</SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>
-            What triggers this workflow?
-          </SheetTitle>
+          <SheetTitle>What triggers this workflow?</SheetTitle>
           <SheetDescription>
             A trigger is a step that starts your workflow.
           </SheetDescription>
@@ -209,7 +206,7 @@ export function NodeSelector({
                   </div>
                 </div>
               </button>
-            )
+            );
           })}
         </div>
         <Separator />
@@ -246,10 +243,10 @@ export function NodeSelector({
                   </div>
                 </div>
               </button>
-            )
+            );
           })}
         </div>
       </SheetContent>
     </Sheet>
   );
-};
+}

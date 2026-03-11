@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2Icon, RefreshCwIcon, SearchIcon } from "lucide-react";
+import { Loader2Icon, SearchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -36,11 +36,10 @@ interface VariablePickerPopoverProps {
   children: React.ReactNode;
   variables: NodeVariables[];
   isLoading: boolean;
-  isFetching: boolean;
+  isLive?: boolean;
   onSelect: (variablePath: string) => void;
   currentNodeId?: string;
   currentNodeVariableName?: string;
-  onRefresh?: () => void | Promise<void>;
 }
 
 type FlattenedVariable = {
@@ -320,11 +319,10 @@ export const VariablePickerPopover = memo(
     children,
     variables,
     isLoading,
-    isFetching,
+    isLive = false,
     onSelect,
     currentNodeId,
     currentNodeVariableName,
-    onRefresh,
   }: VariablePickerPopoverProps) => {
     const [searchTerm, setSearchTerm] = useState("");
     const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
@@ -562,25 +560,18 @@ export const VariablePickerPopover = memo(
                   className="h-7 flex-1 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
                   autoFocus
                 />
-                {onRefresh && (
-                  <button
-                    type="button"
-                    onClick={() => void onRefresh()}
-                    disabled={isFetching}
-                    className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                    title="Refresh variables"
-                    aria-label="Refresh variables"
-                  >
-                    {isFetching ? (
-                      <Loader2Icon className="size-4 animate-spin" />
-                    ) : (
-                      <RefreshCwIcon className="size-4" />
-                    )}
-                  </button>
-                )}
-                {isFetching && !onRefresh && (
+                {isLoading ? (
                   <Loader2Icon className="size-4 animate-spin text-muted-foreground" />
-                )}
+                ) : isLive ? (
+                  <span
+                    className="relative flex size-2 shrink-0"
+                    title="Live — updates as nodes complete"
+                    aria-hidden="true"
+                  >
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                  </span>
+                ) : null}
               </div>
             </div>
 

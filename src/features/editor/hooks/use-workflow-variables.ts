@@ -1,10 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useInngestSubscription } from "@inngest/realtime/hooks";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Edge, Node } from "@xyflow/react";
 import { useReactFlow } from "@xyflow/react";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { triggerSchemaRegistry } from "@/config/trigger-schema-registry";
 import type {
@@ -12,8 +13,9 @@ import type {
   WebhookTriggerNodeData,
 } from "@/features/triggers/components/webhook-trigger/actions";
 import { useTRPC } from "@/trpc/client";
+import { fetchExecutionContextRealtimeToken } from "../server/actions";
 import type { NodeVariables, VariableEntry } from "../types/variables";
-import { getWorkflowVariablesQuerySettings } from "../utils/workflow-variable-query-options";
+import { EXECUTION_CONTEXT_CHANNEL_NAME } from "@/inngest/channels/execution-context";
 
 type WorkflowPageParams = {
   workflowId: string;
@@ -225,29 +227,31 @@ const deriveNodeVariables = (
 
 export interface UseWorkflowVariablesResult {
   isLoading: boolean;
-  isFetching: boolean;
+  isLive: boolean;
   variables: NodeVariables[];
-  refetch: () => Promise<void>;
 }
 
 export const useWorkflowVariables = (
   currentNodeId: string,
-  options: { liveUpdatesEnabled?: boolean } = {},
 ): UseWorkflowVariablesResult => {
   const { getNodes, getEdges } = useReactFlow();
   const params = useParams<WorkflowPageParams>();
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
   const workflowId = params.workflowId;
-  const { liveUpdatesEnabled = false } = options;
-  const querySettings = getWorkflowVariablesQuerySettings(liveUpdatesEnabled);
 
   const query = useQuery({
     ...trpc.executions.getLastExecutionContext.queryOptions({
       workflowId,
     }),
     enabled: Boolean(workflowId),
-    ...querySettings,
+    refetchInterval: false,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    refetchOnMount: false,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   useEffect(() => {
@@ -255,6 +259,91 @@ export const useWorkflowVariables = (
       toast.error("Unable to load workflow variables");
     }
   }, [query.error]);
+
+  // Subscribe to realtime context updates pushed after each node completes.
+  // On each push, update the React Query cache directly so the picker
+  // reflects new variable values instantly without polling.
+  const refreshToken = useCallback(async () => {
+    return fetchExecutionContextRealtimeToken();
+  }, []);
+
+  const { data: realtimeData } = useInngestSubscription({
+    refreshToken,
+    enabled: Boolean(workflowId),
+  });
+
+  // Live context from realtime is the source of truth when present (no refetch).
+  // Prefer it over query.data so the picker always shows the latest run output.
+  const [liveContext, setLiveContext] = useState<Record<string, unknown> | null>(
+    null,
+  );
+  const [liveUntil, setLiveUntil] = useState(0);
+  const prevWorkflowIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!workflowId) return;
+    if (prevWorkflowIdRef.current !== null && prevWorkflowIdRef.current !== workflowId) {
+      setLiveContext(null);
+    }
+    prevWorkflowIdRef.current = workflowId;
+
+    if (!realtimeData?.length) return;
+
+    const latestUpdate = realtimeData
+      .filter(
+        (msg) =>
+          msg.kind === "data" &&
+          msg.channel === EXECUTION_CONTEXT_CHANNEL_NAME &&
+          msg.topic === "context-update" &&
+          msg.data.workflowId === workflowId,
+      )
+      .sort((a, b) => {
+        if (a.kind === "data" && b.kind === "data") {
+          return (
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+        }
+        return 0;
+      })[0];
+
+    if (latestUpdate?.kind === "data") {
+      const incomingContext = latestUpdate.data.context as Record<
+        string,
+        unknown
+      >;
+
+      setLiveContext(incomingContext);
+      setLiveUntil(Date.now() + 15_000);
+
+      queryClient.setQueryData(
+        trpc.executions.getLastExecutionContext.queryKey({ workflowId }),
+        (
+          prev:
+            | {
+                executionId?: string;
+                workflowId: string;
+                completedAt?: Date | null;
+                context: unknown;
+              }
+            | null
+            | undefined,
+        ) => ({
+          executionId: prev?.executionId ?? "",
+          workflowId,
+          completedAt: prev?.completedAt ?? null,
+          context: incomingContext,
+        }),
+      );
+    }
+  }, [realtimeData, workflowId, queryClient, trpc]);
+
+  useEffect(() => {
+    if (liveUntil <= 0) return;
+    const id = setTimeout(() => setLiveUntil(0), liveUntil - Date.now());
+    return () => clearTimeout(id);
+  }, [liveUntil]);
+
+  const isLive = Date.now() < liveUntil;
 
   const edges = getEdges();
   const nodes = getNodes();
@@ -265,7 +354,8 @@ export const useWorkflowVariables = (
   );
 
   const variables = useMemo(() => {
-    const context = query.data?.context as Record<string, unknown> | undefined;
+    const context = (liveContext ??
+      query.data?.context) as Record<string, unknown> | undefined;
 
     const derived = deriveNodeVariables(nodes, context, predecessors);
     const existingNames = new Set(
@@ -372,14 +462,11 @@ export const useWorkflowVariables = (
     }
 
     return derived;
-  }, [nodes, predecessors, query.data?.context]);
+  }, [nodes, predecessors, liveContext, query.data?.context]);
 
   return {
     isLoading: query.isLoading,
-    isFetching: query.isFetching,
+    isLive,
     variables,
-    refetch: async () => {
-      await query.refetch();
-    },
   };
 };

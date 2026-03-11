@@ -67,7 +67,7 @@ export const useWorkflowStore = create<WorkflowState>()(
         const normalizedNodes = ensureNodesWithStartNode(updatedNodes);
         set({
           nodes: normalizedNodes,
-          edges: updatedNodes.length === 0 ? [] : updatedEdges,
+          edges: normalizedNodes.length <= 1 ? [] : updatedEdges,
         });
       },
 

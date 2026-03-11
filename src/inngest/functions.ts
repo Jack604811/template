@@ -6,6 +6,7 @@ import { agentChannel } from "./channels/agent";
 import { anthropicChannel } from "./channels/anthropic";
 import { boldTriggerChannel } from "./channels/bold-trigger";
 import { discordChannel } from "./channels/discord";
+import { executionContextChannel } from "./channels/execution-context";
 import { geminiChannel } from "./channels/gemini";
 import { gmailChannel } from "./channels/gmail";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
@@ -51,6 +52,7 @@ export const executeWorkflow = inngest.createFunction(
       agentChannel(),
       boldTriggerChannel(),
       gmailChannel(),
+      executionContextChannel(),
     ],
   },
   async ({ event, step, publish }) => {
@@ -190,6 +192,13 @@ export const executeWorkflow = inngest.createFunction(
           step,
           publish,
         });
+
+        await publish(
+          executionContextChannel()["context-update"]({
+            workflowId,
+            context,
+          }),
+        );
       } catch (err) {
         executionError = err;
         break;

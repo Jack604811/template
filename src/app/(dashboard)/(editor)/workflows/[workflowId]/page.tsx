@@ -1,11 +1,14 @@
-import { 
-  Editor, 
-  EditorError, 
-  EditorLoading
+import {
+  Editor,
+  EditorError,
+  EditorLoading,
 } from "@/features/editor/components/editor";
 import { EditorHeader } from "@/features/editor/components/editor-header";
+import {
+  prefetchExecutions,
+  prefetchLastExecutionContext,
+} from "@/features/executions/server/prefetch";
 import { prefetchWorkflow } from "@/features/workflows/server/prefetch";
-import { prefetchExecutions } from "@/features/executions/server/prefetch";
 import { requireAuth } from "@/lib/auth-utils";
 import { HydrateClient } from "@/trpc/server";
 import { Suspense } from "react";
@@ -22,12 +25,15 @@ const Page = async ({ params }: PageProps) => {
   await requireAuth();
 
   const { workflowId } = await params;
-  prefetchWorkflow(workflowId);
-  prefetchExecutions({
-    page: PAGINATION.DEFAULT_PAGE,
-    pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
-    workflowId,
-  });
+  await Promise.all([
+    prefetchWorkflow(workflowId),
+    prefetchExecutions({
+      page: PAGINATION.DEFAULT_PAGE,
+      pageSize: PAGINATION.DEFAULT_PAGE_SIZE,
+      workflowId,
+    }),
+    prefetchLastExecutionContext(workflowId),
+  ]);
 
   return (
     <HydrateClient>

@@ -112,21 +112,16 @@ export const useUpdateWorkflow = () => {
 };
 
 /**
- * Hook to execute a workflow
+ * Hook to execute a workflow.
+ * Variable context is updated only via realtime (execution-context channel);
+ * no refetch or invalidation — the picker cache is updated by setQueryData on push.
  */
 export const useExecuteWorkflow = () => {
-  const queryClient = useQueryClient();
   const trpc = useTRPC();
-
   return useMutation(
     trpc.workflows.execute.mutationOptions({
-      onSuccess: (_data, variables) => {
+      onSuccess: () => {
         toast.success(`Workflow executed`);
-        queryClient.invalidateQueries(
-          trpc.executions.getLastExecutionContext.queryOptions({
-            workflowId: variables.id,
-          }),
-        );
       },
       onError: (error) => {
         toast.error(`Failed to execute workflow: ${error.message}`);

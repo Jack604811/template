@@ -66,10 +66,8 @@ export const VariableTextarea = forwardRef<
     const isUpdatingRef = useRef(false);
     const { getNode } = useReactFlow();
 
-    const { variables, isLoading, isFetching, refetch } = useWorkflowVariables(
-      nodeId,
-      { liveUpdatesEnabled: isFocused },
-    );
+    const { variables, isLoading, isLive } =
+      useWorkflowVariables(nodeId);
 
     // Get the current node's variableName from React Flow node data
     const currentNodeVariableName = useMemo(() => {
@@ -210,10 +208,9 @@ export const VariableTextarea = forwardRef<
     const handleFocusEvent = useCallback(
       (event: React.FocusEvent<HTMLDivElement>) => {
         setIsFocused(true);
-        void refetch();
         onFocus?.(event);
       },
-      [onFocus, refetch],
+      [onFocus],
     );
 
     const handleBlurEvent = useCallback(
@@ -284,11 +281,10 @@ export const VariableTextarea = forwardRef<
           onOpenChange={setIsFocused}
           variables={variables}
           isLoading={isLoading}
-          isFetching={isFetching}
+          isLive={isLive}
           onSelect={handleSelectVariable}
           currentNodeId={nodeId}
           currentNodeVariableName={currentNodeVariableName}
-          onRefresh={refetch}
         >
           <div className="relative">
             {/* Placeholder */}

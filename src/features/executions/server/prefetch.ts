@@ -16,3 +16,13 @@ export const prefetchExecutions = (params: Input) => {
 export const prefetchExecution = (id: string) => {
   return prefetch(trpc.executions.getOne.queryOptions({ id }));
 };
+
+/**
+ * Prefetch last execution context for a workflow (variable picker).
+ * Called on workflow editor load so the variable selector has data without client fetch.
+ */
+export const prefetchLastExecutionContext = (workflowId: string) => {
+  return prefetch(
+    trpc.executions.getLastExecutionContext.queryOptions({ workflowId }),
+  );
+};

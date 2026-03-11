@@ -21,6 +21,39 @@ Handlebars.registerHelper("json", (context) => {
   }
 });
 
+/**
+ * Wraps a value so that when Handlebars outputs it (e.g. {{bold}}), objects render
+ * as JSON instead of [object Object]. Nested access like {{bold.amount}} still works.
+ */
+function wrapForHandlebars(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (value instanceof Date || value instanceof RegExp) return value;
+  const target = value as Record<string, unknown>;
+  return new Proxy(target, {
+    get(t, prop: string | symbol) {
+      if (prop === "toString") return () => JSON.stringify(t);
+      const v = t[prop as string];
+      return wrapForHandlebars(v);
+    },
+  });
+}
+
+/**
+ * Wraps context so that {{variable}} when variable is an object renders as JSON
+ * instead of [object Object]. Nested access like {{variable.field}} still works.
+ */
+function contextForHandlebars(ctx: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(ctx)) {
+    if (key.startsWith("__")) {
+      result[key] = value;
+      continue;
+    }
+    result[key] = wrapForHandlebars(value);
+  }
+  return result;
+}
+
 type AgentData = {
   variableName?: string;
   instructions?: string;
@@ -61,7 +94,8 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
     const value = typeof template === "string" ? template.trim() : "";
     if (!value) return "";
     try {
-      const compiled = Handlebars.compile(value)(ctx);
+      const safeCtx = contextForHandlebars(ctx);
+      const compiled = Handlebars.compile(value)(safeCtx);
       if (compiled == null || String(compiled) === "undefined") return "";
       return typeof compiled === "string" ? compiled : String(compiled);
     } catch {

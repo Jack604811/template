@@ -3,7 +3,7 @@
 import { useReactFlow, type NodeProps } from "@xyflow/react";
 import { memo, useCallback } from "react";
 import { useNodeStatus } from "@/features/executions/hooks/use-node-status";
-import { GMAIL_CHANNEL_NAME } from "@/inngest/channels/gmail";
+import { GMAIL_TRIGGER_CHANNEL_NAME } from "@/inngest/channels/gmail-trigger";
 import { fetchGmailTriggerRealtimeToken } from "./actions";
 import { GmailTriggerNodeContent, type GmailTriggerFormValues } from "./node-content";
 import { BaseTriggerNode } from "../base-trigger-node";
@@ -13,7 +13,7 @@ export const GmailTriggerNode = memo((props: NodeProps) => {
 
   const nodeStatus = useNodeStatus({
     nodeId: props.id,
-    channel: GMAIL_CHANNEL_NAME,
+    channel: GMAIL_TRIGGER_CHANNEL_NAME,
     topic: "status",
     refreshToken: fetchGmailTriggerRealtimeToken,
   });

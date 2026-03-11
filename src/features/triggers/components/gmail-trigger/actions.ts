@@ -2,19 +2,19 @@
 
 import { getSubscriptionToken, type Realtime } from "@inngest/realtime";
 import { CredentialType } from "@/generated/prisma";
-import { gmailChannel } from "@/inngest/channels/gmail";
+import { gmailTriggerChannel } from "@/inngest/channels/gmail-trigger";
 import { inngest } from "@/inngest/client";
 import prisma from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/encryption";
 
 export type GmailTriggerToken = Realtime.Token<
-  typeof gmailChannel,
+  typeof gmailTriggerChannel,
   ["status"]
 >;
 
 export async function fetchGmailTriggerRealtimeToken(): Promise<GmailTriggerToken> {
   const token = await getSubscriptionToken(inngest, {
-    channel: gmailChannel(),
+    channel: gmailTriggerChannel(),
     topics: ["status"],
   });
 

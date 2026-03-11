@@ -1,6 +1,6 @@
 import { NonRetriableError } from "inngest";
 import type { NodeExecutor } from "@/features/executions/types";
-import { gmailChannel } from "@/inngest/channels/gmail";
+import { gmailTriggerChannel } from "@/inngest/channels/gmail-trigger";
 import prisma from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/encryption";
 
@@ -122,7 +122,7 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
   step,
   publish,
 }) => {
-  await publish(gmailChannel().status({ nodeId, status: "loading" }));
+  await publish(gmailTriggerChannel().status({ nodeId, status: "loading" }));
 
   try {
     const triggerData = data as GmailTriggerData;
@@ -130,13 +130,13 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
     // If context already has a "gmail" key (set by push handler via initialData), pass through.
     if (context && "gmail" in context) {
       const result = await step.run("gmail-trigger-passthrough", async () => context);
-      await publish(gmailChannel().status({ nodeId, status: "success" }));
+      await publish(gmailTriggerChannel().status({ nodeId, status: "success" }));
       return result;
     }
 
     // Manual run: fetch the most recent matching email.
     if (!triggerData.credentialId) {
-      await publish(gmailChannel().status({ nodeId, status: "error" }));
+      await publish(gmailTriggerChannel().status({ nodeId, status: "error" }));
       throw new NonRetriableError("Gmail trigger: No credential configured");
     }
 
@@ -147,7 +147,7 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
     );
 
     if (!credential) {
-      await publish(gmailChannel().status({ nodeId, status: "error" }));
+      await publish(gmailTriggerChannel().status({ nodeId, status: "error" }));
       throw new NonRetriableError("Gmail trigger: Credential not found");
     }
 
@@ -155,7 +155,7 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
     try {
       tokens = JSON.parse(decrypt(credential.value)) as GmailTokenValue;
     } catch {
-      await publish(gmailChannel().status({ nodeId, status: "error" }));
+      await publish(gmailTriggerChannel().status({ nodeId, status: "error" }));
       throw new NonRetriableError("Gmail trigger: Invalid credential value");
     }
 
@@ -239,10 +239,10 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
       );
     });
 
-    await publish(gmailChannel().status({ nodeId, status: "success" }));
+    await publish(gmailTriggerChannel().status({ nodeId, status: "success" }));
     return { ...context, gmail: email };
   } catch (error) {
-    await publish(gmailChannel().status({ nodeId, status: "error" }));
+    await publish(gmailTriggerChannel().status({ nodeId, status: "error" }));
     throw error;
   }
 };

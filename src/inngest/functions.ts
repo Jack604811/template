@@ -8,6 +8,7 @@ import { boldTriggerChannel } from "./channels/bold-trigger";
 import { discordChannel } from "./channels/discord";
 import { geminiChannel } from "./channels/gemini";
 import { gmailChannel } from "./channels/gmail";
+import { gmailTriggerChannel } from "./channels/gmail-trigger";
 import { googleFormTriggerChannel } from "./channels/google-form-trigger";
 import { httpRequestChannel } from "./channels/http-request";
 import { ifElseChannel } from "./channels/if-else";
@@ -51,6 +52,7 @@ export const executeWorkflow = inngest.createFunction(
       agentChannel(),
       boldTriggerChannel(),
       gmailChannel(),
+      gmailTriggerChannel(),
     ],
   },
   async ({ event, step, publish }) => {

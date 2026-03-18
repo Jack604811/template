@@ -3,7 +3,7 @@ import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { CredentialType } from "@/generated/prisma";
-import { encrypt } from "@/lib/encryption";
+import { decrypt, encrypt } from "@/lib/encryption";
 
 export const credentialsRouter = createTRPCRouter({
   create: organizationProcedure
@@ -42,7 +42,7 @@ export const credentialsRouter = createTRPCRouter({
         id: z.string(), 
         name: z.string().min(1, "Name is required"),
         type: z.enum(CredentialType),
-        value: z.string().min(1, "Value is required"),
+        value: z.string().optional(),
       }),
     )
     .mutation(({ ctx, input }) => {
@@ -53,7 +53,7 @@ export const credentialsRouter = createTRPCRouter({
         data: {
           name,
           type,
-          value: encrypt(value),
+          ...(value ? { value: encrypt(value) } : {}),
         }
       });
     }),
@@ -63,6 +63,21 @@ export const credentialsRouter = createTRPCRouter({
       return prisma.credential.findUniqueOrThrow({
         where: { id: input.id, organizationId: ctx.organizationId },
       });
+    }),
+  /** Returns credential with decrypted value for use in edit form only. */
+  getOneForEdit: organizationProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const credential = await prisma.credential.findUniqueOrThrow({
+        where: { id: input.id, organizationId: ctx.organizationId },
+      });
+      let value = "";
+      try {
+        value = decrypt(credential.value);
+      } catch {
+        // Leave empty if decryption fails (e.g. corrupted)
+      }
+      return { ...credential, value };
     }),
   getMany: organizationProcedure
     .input(
@@ -134,5 +149,258 @@ export const credentialsRouter = createTRPCRouter({
           updatedAt: "desc",
         },
       });
+    }),
+  /** Fetch approved WhatsApp message templates for a credential (requires WABA ID). */
+  getWhatsAppTemplates: organizationProcedure
+    .input(z.object({ credentialId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const credential = await prisma.credential.findUnique({
+        where: {
+          id: input.credentialId,
+          organizationId: ctx.organizationId,
+        },
+      });
+      if (!credential || credential.type !== CredentialType.WHATSAPP) {
+        throw new Error("WhatsApp credential not found");
+      }
+      let accessToken: string;
+      let wabaId: string;
+      try {
+        const raw = decrypt(credential.value).trim();
+        if (raw.startsWith("{")) {
+          const parsed = JSON.parse(raw) as { value?: string; phoneNumberId?: string; wabaId?: string };
+          accessToken = typeof parsed.value === "string" ? parsed.value.trim() : "";
+          wabaId = typeof parsed.wabaId === "string" ? parsed.wabaId.trim() : "";
+        } else {
+          accessToken = raw;
+          wabaId = "";
+        }
+      } catch {
+        throw new Error("Invalid credential value");
+      }
+      if (!accessToken) throw new Error("Access token is missing in credential");
+      if (!wabaId) {
+        throw new Error(
+          "WhatsApp Business Account ID is required to list templates. Add it in Credentials when editing this credential.",
+        );
+      }
+      const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(wabaId)}/message_templates?status=APPROVED&fields=name,language,id,status,category,components{type,text,format,example,cards{components{type,text,format,example,buttons{type,text,url}}}}`;
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Meta API: ${res.status} ${err.slice(0, 200)}`);
+      }
+      type ApiTemplateComponent = {
+        type: string;
+        text?: string;
+        format?: string;
+        example?: { body_text?: string[][]; header_text?: string[][]; header_handle?: string[] };
+        buttons?: Array<{ type: string; text: string; url?: string }>;
+        cards?: Array<{ components: ApiTemplateComponent[] }>;
+      };
+      type ApiTemplate = {
+        name: string;
+        language: string;
+        id: string;
+        status: string;
+        category: string;
+        components?: ApiTemplateComponent[];
+      };
+      const json = (await res.json()) as { data?: ApiTemplate[] };
+      const raw = json.data ?? [];
+      const templates = raw.map((t) => {
+        let headerParameterCount = 0;
+        let headerFormat: "TEXT" | "DOCUMENT" | "IMAGE" | "VIDEO" | "NONE" = "NONE";
+        let bodyParameterCount = 0;
+        let bodyParameterExamples: string[] = [];
+        let bodyParameterNames: string[] = [];
+        const headerComp = t.components?.find(
+          (c) => String(c.type).toUpperCase() === "HEADER",
+        );
+        if (headerComp) {
+          const fmt = String(headerComp.format ?? "").toUpperCase();
+          if (fmt === "DOCUMENT" || fmt === "IMAGE" || fmt === "VIDEO") {
+            headerFormat = fmt as "DOCUMENT" | "IMAGE" | "VIDEO";
+            headerParameterCount = 1;
+          } else {
+            const hasHeaderVar =
+              (headerComp.text && /\{\{[^}]+\}\}/.test(headerComp.text)) ||
+              (fmt === "TEXT" && headerComp.example?.header_text);
+            if (hasHeaderVar) {
+              headerFormat = "TEXT";
+              headerParameterCount = 1;
+            }
+          }
+        }
+        const bodyComp = t.components?.find(
+          (c) => String(c.type).toUpperCase() === "BODY",
+        );
+        if (bodyComp?.text) {
+          const anyPlaceholders = [...bodyComp.text.matchAll(/\{\{([^}]+)\}\}/g)];
+          const namesInOrder = anyPlaceholders.map((m) => m[1]);
+          const numericIndices = anyPlaceholders
+            .map((m) => Number.parseInt(m[1], 10))
+            .filter((n) => !Number.isNaN(n));
+          if (numericIndices.length > 0) {
+            bodyParameterCount = Math.max(...numericIndices);
+            bodyParameterNames = Array.from(
+              { length: bodyParameterCount },
+              (_, i) => namesInOrder[i] ?? String(i + 1),
+            );
+          } else {
+            bodyParameterCount = namesInOrder.length;
+            bodyParameterNames = namesInOrder;
+          }
+          const ex = bodyComp.example?.body_text?.[0];
+          if (Array.isArray(ex)) {
+            bodyParameterExamples = ex.slice(0, bodyParameterCount).map(String);
+          }
+        }
+
+        // Carousel detection
+        type CardMeta = {
+          headerFormat: "IMAGE" | "VIDEO";
+          bodyParamCount: number;
+          bodyParamNames: string[];
+          bodyParamExamples: string[];
+          buttons: Array<{ type: string; text: string; index: number; hasDynamicUrl: boolean }>;
+        };
+        let isCarousel = false;
+        let carouselCards: CardMeta[] = [];
+        const carouselComp = t.components?.find(
+          (c) => String(c.type).toUpperCase() === "CAROUSEL",
+        );
+        if (carouselComp?.cards) {
+          isCarousel = true;
+          const parseBodyParams = (text: string) => {
+            const placeholders = [...text.matchAll(/\{\{([^}]+)\}\}/g)];
+            const names = placeholders.map((m) => m[1]);
+            const numericIdx = placeholders.map((m) => Number.parseInt(m[1], 10)).filter((n) => !Number.isNaN(n));
+            if (numericIdx.length > 0) {
+              const count = Math.max(...numericIdx);
+              return { count, names: Array.from({ length: count }, (_, i) => names[i] ?? String(i + 1)) };
+            }
+            return { count: names.length, names };
+          };
+          carouselCards = carouselComp.cards.map((card) => {
+            const cardHeader = card.components.find((c) => String(c.type).toUpperCase() === "HEADER");
+            const cardBody = card.components.find((c) => String(c.type).toUpperCase() === "BODY");
+            const cardButtonsComp = card.components.find((c) => String(c.type).toUpperCase() === "BUTTONS");
+            const cardFmt = String(cardHeader?.format ?? "").toUpperCase();
+            const cardHeaderFormat: "IMAGE" | "VIDEO" = cardFmt === "VIDEO" ? "VIDEO" : "IMAGE";
+            let cardBodyParamCount = 0;
+            let cardBodyParamNames: string[] = [];
+            let cardBodyParamExamples: string[] = [];
+            if (cardBody?.text) {
+              const parsed = parseBodyParams(cardBody.text);
+              cardBodyParamCount = parsed.count;
+              cardBodyParamNames = parsed.names;
+              const cardEx = cardBody.example?.body_text?.[0];
+              if (Array.isArray(cardEx)) cardBodyParamExamples = cardEx.slice(0, cardBodyParamCount).map(String);
+            }
+            const buttons = (cardButtonsComp?.buttons ?? []).map((btn, idx) => ({
+              type: String(btn.type).toUpperCase(),
+              text: btn.text,
+              index: idx,
+              hasDynamicUrl: String(btn.type).toUpperCase() === "URL" && /\{\{1\}\}/.test(btn.url ?? ""),
+            }));
+            return { headerFormat: cardHeaderFormat, bodyParamCount: cardBodyParamCount, bodyParamNames: cardBodyParamNames, bodyParamExamples: cardBodyParamExamples, buttons };
+          });
+        }
+
+        return {
+          name: t.name,
+          language: t.language,
+          id: t.id,
+          status: t.status,
+          category: t.category,
+          headerFormat,
+          headerParameterCount,
+          bodyParameterCount,
+          bodyParameterExamples,
+          bodyParameterNames,
+          isCarousel,
+          carouselCards,
+        };
+      });
+      return { templates, wabaId };
+    }),
+  /** Create a WhatsApp message template via the Business Management API. */
+  createWhatsAppTemplate: organizationProcedure
+    .input(
+      z.object({
+        credentialId: z.string(),
+        name: z.string().min(1),
+        language: z.string().min(1),
+        category: z.enum(["MARKETING", "UTILITY", "AUTHENTICATION"]),
+        components: z.array(z.unknown()),
+        allow_category_change: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const credential = await prisma.credential.findUnique({
+        where: { id: input.credentialId, organizationId: ctx.organizationId },
+      });
+      if (!credential || credential.type !== CredentialType.WHATSAPP) {
+        throw new Error("WhatsApp credential not found");
+      }
+      let accessToken: string;
+      let wabaId: string;
+      try {
+        const raw = decrypt(credential.value).trim();
+        if (raw.startsWith("{")) {
+          const parsed = JSON.parse(raw) as { value?: string; wabaId?: string };
+          accessToken = typeof parsed.value === "string" ? parsed.value.trim() : "";
+          wabaId = typeof parsed.wabaId === "string" ? parsed.wabaId.trim() : "";
+        } else {
+          accessToken = raw;
+          wabaId = "";
+        }
+      } catch {
+        throw new Error("Invalid credential value");
+      }
+      if (!accessToken) throw new Error("Access token is missing in credential");
+      if (!wabaId) throw new Error("WhatsApp Business Account ID is required. Add it to the credential.");
+
+      const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(wabaId)}/message_templates`;
+      const body = {
+        name: input.name,
+        language: input.language,
+        category: input.category,
+        components: input.components,
+      };
+      console.log("[WhatsApp Template] Sending payload:", JSON.stringify(body, null, 2));
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("[WhatsApp Template] Meta API error:", err);
+        let msg = err;
+        try {
+          const j = JSON.parse(err) as {
+            error?: {
+              message?: string;
+              error_data?: { details?: string };
+              code?: number;
+              error_subcode?: number;
+              type?: string;
+              fbtrace_id?: string;
+            };
+          };
+          const detail = j?.error?.error_data?.details ?? "";
+          const code = j?.error?.code ? ` [code ${j.error.code}]` : "";
+          const sub = j?.error?.error_subcode ? `/${j.error.error_subcode}` : "";
+          msg = detail
+            ? `${j?.error?.message}${code}${sub} — ${detail}`
+            : `${j?.error?.message ?? err}${code}${sub}`;
+        } catch { /* ignore */ }
+        throw new Error(`Meta API error: ${msg.slice(0, 500)}`);
+      }
+      return (await res.json()) as { id: string; status: string };
     }),
 });

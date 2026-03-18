@@ -194,7 +194,6 @@ export const CredentialItem = ({ data }: { data: Credential }) => {
         existingCredential={{
           id: data.id,
           name: data.name,
-          value: data.value,
         }}
       />
     </>

@@ -2,7 +2,7 @@ import { useTRPC } from "@/trpc/client"
 import { useMutation, useQuery, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useCredentialsParams } from "./use-credentials-params";
-import { CredentialType } from "@/generated/prisma";
+import type { CredentialType } from "@/generated/prisma";
 
 /**
  * Hook to fetch all credentials using suspense
@@ -81,12 +81,38 @@ export const useUpdateCredential = () => {
         queryClient.invalidateQueries(
           trpc.credentials.getOne.queryOptions({ id: data.id }),
         );
+        queryClient.invalidateQueries(
+          trpc.credentials.getOneForEdit.queryOptions({ id: data.id }),
+        );
       },
       onError: (error) => {
         toast.error(`Failed to save credential: ${error.message}`);
       },
     }),
   );
+};
+
+/**
+ * Hook to fetch a single credential with decrypted value for editing.
+ * Only use when the edit dialog is open to avoid exposing decrypted secrets.
+ */
+export const useCredentialForEdit = (id: string | undefined, enabled: boolean) => {
+  const trpc = useTRPC();
+  return useQuery({
+    ...trpc.credentials.getOneForEdit.queryOptions({ id: id ?? "" }),
+    enabled: Boolean(id && enabled),
+  });
+};
+
+/**
+ * Hook to fetch approved WhatsApp templates for a credential (requires credential to have WABA ID).
+ */
+export const useWhatsAppTemplates = (credentialId: string | undefined, enabled: boolean) => {
+  const trpc = useTRPC();
+  return useQuery({
+    ...trpc.credentials.getWhatsAppTemplates.queryOptions({ credentialId: credentialId ?? "" }),
+    enabled: Boolean(credentialId && enabled),
+  });
 };
 
 /**

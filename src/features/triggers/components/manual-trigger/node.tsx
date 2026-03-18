@@ -12,7 +12,7 @@ import { fetchManualTriggerRealtimeToken } from "./actions";
 export const ManualTriggerNode = memo((props: NodeProps) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: MANUAL_TRIGGER_CHANNEL_NAME,
     topic: "status",

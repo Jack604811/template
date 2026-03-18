@@ -11,7 +11,7 @@ import { BaseTriggerNode } from "../base-trigger-node";
 export const BoldTriggerNode = memo((props: NodeProps) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: BOLD_TRIGGER_CHANNEL_NAME,
     topic: "status",

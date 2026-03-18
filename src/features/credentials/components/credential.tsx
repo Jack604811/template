@@ -108,7 +108,12 @@ export const credentialTypeOptions = [
     description: "Send messages and notifications via WhatsApp Business API",
     category: "communication" as const,
     authMethod: "api_key" as const,
-    placeholder: "Enter your WhatsApp Business API token",
+    placeholder: "Paste your Meta access token (EAA...)",
+    primaryLabel: "Access Token",
+    extraFields: [
+      { name: "phoneNumberId", label: "Phone Number ID", placeholder: "e.g. 579009288620612" },
+      { name: "wabaId", label: "WhatsApp Business Account ID", placeholder: "e.g. 550611414800536" },
+    ],
   },
   {
     value: CredentialType.INSTAGRAM,

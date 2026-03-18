@@ -49,7 +49,7 @@ export const AppDirectoryDialog = ({ open, onOpenChange }: Props) => {
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl p-0">
+        <DialogContent className="sm:max-w-lg p-0">
           <DialogHeader className="px-6 pt-6 pb-0">
             <DialogTitle>Connect an App</DialogTitle>
             <DialogDescription>

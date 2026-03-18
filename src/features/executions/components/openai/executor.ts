@@ -1,7 +1,7 @@
+import { createOpenAI } from "@ai-sdk/openai";
+import { generateText } from "ai";
 import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
-import { generateText } from "ai";
-import { createOpenAI } from "@ai-sdk/openai";
 import type { NodeExecutor } from "@/features/executions/types";
 import { openAiChannel } from "@/inngest/channels/openai";
 import prisma from "@/lib/db";
@@ -71,13 +71,8 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
     : "You are a helpful assistant.";
   const userPrompt = Handlebars.compile(data.userPrompt)(context);
 
-  const credential = await step.run("get-credential", () => {
-    return prisma.credential.findUnique({
-      where: {
-        id: data.credentialId,
-        organizationId,
-      },
-    });
+  const credential = await prisma.credential.findUnique({
+    where: { id: data.credentialId, organizationId },
   });
 
   if (!credential) {

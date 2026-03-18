@@ -11,7 +11,7 @@ import { WEBHOOK_TRIGGER_CHANNEL_NAME } from "@/inngest/channels/webhook-trigger
 export const WebhookTrigger = memo((props: NodeProps) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: WEBHOOK_TRIGGER_CHANNEL_NAME,
     topic: "status",

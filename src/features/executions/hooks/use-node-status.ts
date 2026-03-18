@@ -17,6 +17,7 @@ export function useNodeStatus({
   refreshToken,
 }: UseNodeStatusOptions) {
   const [status, setStatus] = useState<NodeStatus>("initial");
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
   const { data } = useInngestSubscription({
     refreshToken,
@@ -31,7 +32,7 @@ export function useNodeStatus({
     // Find the latest message for this node
     const latestMessage = data
       .filter(
-        (msg) => 
+        (msg) =>
           msg.kind === "data" &&
           msg.channel === channel &&
           msg.topic === topic &&
@@ -48,8 +49,13 @@ export function useNodeStatus({
 
     if (latestMessage?.kind === "data") {
       setStatus(latestMessage.data.status as NodeStatus);
+      setErrorMessage(
+        typeof latestMessage.data.errorMessage === "string"
+          ? latestMessage.data.errorMessage
+          : undefined,
+      );
     }
   }, [data, nodeId, channel, topic]);
 
-  return status;
+  return { status, errorMessage };
 };

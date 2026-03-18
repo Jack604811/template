@@ -6,6 +6,18 @@ import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { NodeType } from "@/generated/prisma";
 import { sendWorkflowExecution } from "@/inngest/utils";
+
+const VALID_NODE_TYPES = new Set<string>(Object.values(NodeType));
+
+function toNodeType(value: string | null | undefined): NodeType {
+  if (value == null || value === "") {
+    throw new Error("Node type is required");
+  }
+  if (!VALID_NODE_TYPES.has(value)) {
+    throw new Error(`Invalid node type: "${value}". Expected one of: ${[...VALID_NODE_TYPES].join(", ")}`);
+  }
+  return value as NodeType;
+}
 import { copyWorkflowStructure } from "../utils/workflow-copy";
 
 export const workflowsRouter = createTRPCRouter({
@@ -144,13 +156,13 @@ export const workflowsRouter = createTRPCRouter({
           where: { workflowId: id },
         });
 
-        // Create nodes
+        // Create nodes (validate type against Prisma NodeType enum)
         await tx.node.createMany({
           data: nodes.map((node) => ({
             id: node.id,
             workflowId: id,
             name: node.type || "unknown",
-            type: node.type as NodeType,
+            type: toNodeType(node.type ?? undefined),
             position: node.position,
             data: node.data || {},
           })),

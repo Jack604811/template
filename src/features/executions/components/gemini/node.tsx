@@ -21,7 +21,7 @@ type GeminiNodeType = Node<GeminiNodeData>;
 export const GeminiNode = memo((props: NodeProps<GeminiNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: GEMINI_CHANNEL_NAME,
     topic: "status",

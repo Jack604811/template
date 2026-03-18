@@ -185,7 +185,7 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
       messages: [{ role: "user" as const, content: userMessage }],
       ...(hasTools && {
         tools: toolsRecord as unknown as ToolSet,
-        stopWhen: stepCountIs(2),
+        stopWhen: stepCountIs(10),
       }),
       ...(useJsonOutput &&
         zodSchema && {

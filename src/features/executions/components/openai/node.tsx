@@ -21,7 +21,7 @@ type OpenAiNodeType = Node<OpenAiNodeData>;
 export const OpenAiNode = memo((props: NodeProps<OpenAiNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: OPENAI_CHANNEL_NAME,
     topic: "status",

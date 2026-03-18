@@ -28,6 +28,7 @@ const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.SLACK]: "mySlack",
   [NodeType.DISCORD]: "myDiscord",
   [NodeType.GMAIL]: "Gmail",
+  [NodeType.WHATSAPP]: "WhatsApp",
 };
 
 const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
@@ -35,6 +36,7 @@ const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.WEBHOOK_TRIGGER]: "Webhook",
   [NodeType.BOLD_TRIGGER]: "Bold",
   [NodeType.GMAIL_TRIGGER]: "Gmail",
+  [NodeType.WHATSAPP_TRIGGER]: "WhatsApp",
 };
 
 function getInitialDataForType(type: NodeType): Record<string, unknown> {
@@ -82,6 +84,12 @@ const triggerNodes: NodeTypeOption[] = [
     description: "Runs when a new email arrives in a connected Gmail account",
     icon: "/logos/gmail.svg",
   },
+  {
+    type: NodeType.WHATSAPP_TRIGGER,
+    label: "WhatsApp",
+    description: "Runs when a new WhatsApp message is received",
+    icon: "/logos/whatsapp.svg",
+  },
 ];
 
 const executionNodes: NodeTypeOption[] = [
@@ -108,6 +116,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "Gmail",
     description: "Send emails with a connected Gmail account",
     icon: "/logos/gmail.svg",
+  },
+  {
+    type: NodeType.WHATSAPP,
+    label: "WhatsApp",
+    description: "Send messages via WhatsApp Business API",
+    icon: "/logos/whatsapp.svg",
   },
 ];
 

@@ -8,7 +8,7 @@ const GMAIL_SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
 ].join(" ");
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await requireAuth();
   const organizationId = session.session.activeOrganizationId;
   if (!organizationId) {
@@ -23,9 +23,12 @@ export async function GET() {
     );
   }
 
+  const { searchParams } = new URL(request.url);
+  const credentialId = searchParams.get("credentialId");
+
   const redirectUri = `${baseUrl}/api/credentials/gmail/callback`;
   const state = Buffer.from(
-    JSON.stringify({ organizationId }),
+    JSON.stringify({ organizationId, ...(credentialId ? { credentialId } : {}) }),
     "utf-8",
   ).toString("base64url");
 

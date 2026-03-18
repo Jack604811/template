@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     );
   }
 
-  let decodedState: { organizationId: string };
+  let decodedState: { organizationId: string; credentialId?: string };
   try {
     decodedState = JSON.parse(
       Buffer.from(state, "base64url").toString("utf-8"),
@@ -100,14 +100,22 @@ export async function GET(request: Request) {
   const userEmail = await fetchGmailUserEmail(tokens.access_token);
   const credentialName = userEmail ?? "Gmail account";
 
-  await prisma.credential.create({
-    data: {
-      name: credentialName,
-      organizationId,
-      type: CredentialType.GMAIL,
-      value: encrypt(value),
-    },
-  });
+  if (decodedState.credentialId) {
+    // Re-authorize: update the existing credential's token
+    await prisma.credential.update({
+      where: { id: decodedState.credentialId, organizationId, type: CredentialType.GMAIL },
+      data: { value: encrypt(value) },
+    });
+  } else {
+    await prisma.credential.create({
+      data: {
+        name: credentialName,
+        organizationId,
+        type: CredentialType.GMAIL,
+        value: encrypt(value),
+      },
+    });
+  }
 
   return NextResponse.redirect(new URL("/credentials?gmail_connected=1", baseUrl));
 }

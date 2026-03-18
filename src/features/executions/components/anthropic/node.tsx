@@ -21,7 +21,7 @@ type AnthropicNodeType = Node<AnthropicNodeData>;
 export const AnthropicNode = memo((props: NodeProps<AnthropicNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: ANTHROPIC_CHANNEL_NAME,
     topic: "status",

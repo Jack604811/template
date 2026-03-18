@@ -12,7 +12,7 @@ export const GoogleFormTrigger = memo((props: NodeProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: GOOGLE_FORM_TRIGGER_CHANNEL_NAME,
     topic: "status",

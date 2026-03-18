@@ -1,7 +1,7 @@
+import { createAnthropic } from "@ai-sdk/anthropic";
+import { generateText } from "ai";
 import Handlebars from "handlebars";
 import { NonRetriableError } from "inngest";
-import { generateText } from "ai";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import type { NodeExecutor } from "@/features/executions/types";
 import { anthropicChannel } from "@/inngest/channels/anthropic";
 import prisma from "@/lib/db";
@@ -71,13 +71,8 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
     : "You are a helpful assistant.";
   const userPrompt = Handlebars.compile(data.userPrompt)(context);
 
-  const credential = await step.run("get-credential", () => {
-    return prisma.credential.findUnique({
-      where: {
-        id: data.credentialId,
-        organizationId,
-      },
-    });
+  const credential = await prisma.credential.findUnique({
+    where: { id: data.credentialId, organizationId },
   });
 
   if (!credential) {

@@ -16,7 +16,6 @@ import {
   BaseNodeHeaderTitleInput,
 } from "@/components/react-flow/base-node";
 import {
-  type NodeStatus,
   NodeStatusIndicator,
 } from "@/components/react-flow/node-status-indicator";
 import { WorkflowNode } from "@/components/workflow-node";
@@ -35,7 +34,7 @@ export const IfElseNode = memo((props: NodeProps<IfElseNodeType>) => {
   const { setNodes } = useReactFlow();
   const setEdges = useWorkflowStore((state) => state.setEdges);
 
-  const nodeStatus: NodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: IF_ELSE_CHANNEL_NAME,
     topic: "status",

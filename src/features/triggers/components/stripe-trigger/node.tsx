@@ -12,7 +12,7 @@ export const StripeTriggerNode = memo((props: NodeProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: STRIPE_TRIGGER_CHANNEL_NAME,
     topic: "status",

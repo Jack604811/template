@@ -21,7 +21,7 @@ type SlackNodeType = Node<SlackNodeData>;
 export const SlackNode = memo((props: NodeProps<SlackNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: SLACK_CHANNEL_NAME,
     topic: "status",

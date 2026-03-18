@@ -30,7 +30,7 @@ type GmailNodeType = Node<GmailNodeData>;
 export const GmailNode = memo((props: NodeProps<GmailNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: GMAIL_CHANNEL_NAME,
     topic: "status",

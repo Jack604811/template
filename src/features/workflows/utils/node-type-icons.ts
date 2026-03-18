@@ -27,6 +27,8 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   [NodeType.BOLD_TRIGGER]: "/logos/Bold.svg",
   [NodeType.GMAIL]: "/logos/gmail.svg",
   [NodeType.GMAIL_TRIGGER]: "/logos/gmail.svg",
+  [NodeType.WHATSAPP]: "/logos/whatsapp.svg",
+  [NodeType.WHATSAPP_TRIGGER]: "/logos/whatsapp.svg",
 };
 
 /**

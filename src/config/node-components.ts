@@ -5,6 +5,8 @@ import { AnthropicNode } from "@/features/executions/components/anthropic/node";
 import { DiscordNode } from "@/features/executions/components/discord/node";
 import { GeminiNode } from "@/features/executions/components/gemini/node";
 import { GmailNode } from "@/features/executions/components/gmail/node";
+import { WhatsAppNode } from "@/features/executions/components/whatsapp/node";
+import { WhatsAppTriggerNode } from "@/features/triggers/components/whatsapp-trigger/node";
 import { HttpRequestNode } from "@/features/executions/components/http-request/node";
 import { IfElseNode } from "@/features/executions/components/if-else/node";
 import { OpenAiNode } from "@/features/executions/components/openai/node";
@@ -34,6 +36,8 @@ export const nodeComponents = {
   [NodeType.BOLD_TRIGGER]: BoldTriggerNode,
   [NodeType.GMAIL]: GmailNode,
   [NodeType.GMAIL_TRIGGER]: GmailTriggerNode,
+  [NodeType.WHATSAPP]: WhatsAppNode,
+  [NodeType.WHATSAPP_TRIGGER]: WhatsAppTriggerNode,
 } as const satisfies NodeTypes;
 
 export type RegisteredNodeType = keyof typeof nodeComponents;

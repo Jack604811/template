@@ -22,7 +22,7 @@ type HttpRequestNodeType = Node<HttpRequestNodeData>;
 export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: HTTP_REQUEST_CHANNEL_NAME,
     topic: "status",

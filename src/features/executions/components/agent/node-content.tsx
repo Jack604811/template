@@ -50,6 +50,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import ReactMarkdown from "react-markdown";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
 import type { AgentFormValues } from "./dialog";
@@ -469,10 +470,10 @@ export function AgentNodeContent({
           )}
 
           {streamText && (
-            <div className="max-h-24 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5">
-              <p className="whitespace-pre-wrap font-mono text-xs text-muted-foreground">
-                {streamText}
-              </p>
+            <div className="nowheel max-h-48 overflow-y-auto rounded-md bg-muted/50 px-2 py-1.5 scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="prose prose-xs max-w-none text-xs text-muted-foreground [&_p]:my-0.5 [&_ul]:my-0.5 [&_ol]:my-0.5 [&_li]:my-0 [&_strong]:font-semibold [&_h1]:text-xs [&_h2]:text-xs [&_h3]:text-xs [&_code]:font-mono [&_code]:text-[11px]">
+                <ReactMarkdown>{streamText}</ReactMarkdown>
+              </div>
             </div>
           )}
         </div>

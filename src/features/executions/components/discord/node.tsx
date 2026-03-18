@@ -21,7 +21,7 @@ type DiscordNodeType = Node<DiscordNodeData>;
 export const DiscordNode = memo((props: NodeProps<DiscordNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const nodeStatus = useNodeStatus({
+  const { status: nodeStatus } = useNodeStatus({
     nodeId: props.id,
     channel: DISCORD_CHANNEL_NAME,
     topic: "status",

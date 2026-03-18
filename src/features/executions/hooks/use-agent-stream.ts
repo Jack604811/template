@@ -1,8 +1,8 @@
+import type { NodeStatus } from "@/components/react-flow/node-status-indicator";
+import { AGENT_CHANNEL_NAME } from "@/inngest/channels/agent";
 import type { Realtime } from "@inngest/realtime";
 import { useInngestSubscription } from "@inngest/realtime/hooks";
 import { useEffect, useRef, useState } from "react";
-import { AGENT_CHANNEL_NAME } from "@/inngest/channels/agent";
-import type { NodeStatus } from "@/components/react-flow/node-status-indicator";
 
 export type AgentToolCall = {
   toolCallId: string;
@@ -34,7 +34,12 @@ export function useAgentStream({ nodeId, refreshToken }: UseAgentStreamOptions):
   });
 
   useEffect(() => {
-    if (!data?.length) return;
+    // When subscription resets (reconnect / new session), reset pointer so we
+    // reprocess all messages from the beginning and pick up the loading event.
+    if (!data?.length) {
+      lastLengthRef.current = 0;
+      return;
+    }
 
     const newMessages = data.slice(lastLengthRef.current);
     lastLengthRef.current = data.length;
@@ -70,8 +75,6 @@ export function useAgentStream({ nodeId, refreshToken }: UseAgentStreamOptions):
 
       if (tcs?.length || trs?.length) {
         setToolCalls((prev) => {
-          // Build the new base list from tcs if present, otherwise carry prev.
-          // Preserve done:true for any toolCallId already marked complete in prev.
           const prevDoneIds = new Set(prev.filter((tc) => tc.done).map((tc) => tc.toolCallId));
           const base: AgentToolCall[] = tcs?.length
             ? tcs.map((tc) => ({ ...tc, done: prevDoneIds.has(tc.toolCallId) }))
@@ -80,13 +83,10 @@ export function useAgentStream({ nodeId, refreshToken }: UseAgentStreamOptions):
           if (!trs?.length) return base;
 
           const doneIds = new Set(trs.map((tr) => tr.toolCallId));
-
-          // Mark matching base entries as done
           const merged = base.map((tc) =>
             doneIds.has(tc.toolCallId) ? { ...tc, done: true } : tc,
           );
 
-          // Append any trs whose toolCallId isn't in base (arrived before tcs)
           const existingIds = new Set(base.map((tc) => tc.toolCallId));
           for (const tr of trs) {
             if (!existingIds.has(tr.toolCallId)) {

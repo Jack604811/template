@@ -275,7 +275,7 @@ export const VariableTextarea = forwardRef<
     const minHeight = `${rows * 1.5}rem`;
 
     return (
-      <div className="relative" data-variable-input-root>
+      <div className="relative min-w-0 w-full" data-variable-input-root>
         <VariablePickerPopover
           open={isFocused}
           onOpenChange={setIsFocused}
@@ -286,7 +286,7 @@ export const VariableTextarea = forwardRef<
           currentNodeId={nodeId}
           currentNodeVariableName={currentNodeVariableName}
         >
-          <div className="relative">
+          <div className="relative min-w-0 w-full">
             {/* Placeholder */}
             {isEmpty && placeholder && (
               <div

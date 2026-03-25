@@ -1,4 +1,4 @@
-import { Bot, GitBranch, GlobeIcon, type LucideIcon } from "lucide-react";
+import { Bot, CodeXml, GitBranch, GlobeIcon, type LucideIcon } from "lucide-react";
 import { NodeType } from "@/generated/prisma";
 
 export type NodeIcon = string | LucideIcon;
@@ -29,6 +29,7 @@ export const nodeTypeToIcon: Record<NodeType, NodeIcon | null> = {
   [NodeType.GMAIL_TRIGGER]: "/logos/gmail.svg",
   [NodeType.WHATSAPP]: "/logos/whatsapp.svg",
   [NodeType.WHATSAPP_TRIGGER]: "/logos/whatsapp.svg",
+  [NodeType.JAVASCRIPT]: CodeXml,
 };
 
 /**

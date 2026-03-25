@@ -1,21 +1,22 @@
 import { boldTriggerExecutor } from "@/features/triggers/components/bold-trigger/executor";
 import { gmailTriggerExecutor } from "@/features/triggers/components/gmail-trigger/executor";
-import { whatsappTriggerExecutor } from "@/features/triggers/components/whatsapp-trigger/executor";
 import { googleFormTriggerExecutor } from "@/features/triggers/components/google-form-trigger/executor";
 import { manualTriggerExecutor } from "@/features/triggers/components/manual-trigger/executor";
 import { stripeTriggerExecutor } from "@/features/triggers/components/stripe-trigger/executor";
 import { webhookTriggerExecutor } from "@/features/triggers/components/webhook-trigger/executor";
+import { whatsappTriggerExecutor } from "@/features/triggers/components/whatsapp-trigger/executor";
 import { NodeType } from "@/generated/prisma";
 import { agentExecutor } from "../components/agent/executor";
 import { anthropicExecutor } from "../components/anthropic/executor";
 import { discordExecutor } from "../components/discord/executor";
 import { geminiExecutor } from "../components/gemini/executor";
 import { gmailExecutor } from "../components/gmail/executor";
-import { whatsappExecutor } from "../components/whatsapp/executor";
 import { httpRequestExecutor } from "../components/http-request/executor";
 import { ifElseExecutor } from "../components/if-else/executor";
+import { javascriptExecutor } from "../components/javascript/executor";
 import { openAiExecutor } from "../components/openai/executor";
 import { slackExecutor } from "../components/slack/executor";
+import { whatsappExecutor } from "../components/whatsapp/executor";
 import type { NodeExecutor } from "../types";
 
 export const executorRegistry: Record<NodeType, NodeExecutor> = {
@@ -37,6 +38,7 @@ export const executorRegistry: Record<NodeType, NodeExecutor> = {
   [NodeType.GMAIL_TRIGGER]: gmailTriggerExecutor,
   [NodeType.WHATSAPP]: whatsappExecutor,
   [NodeType.WHATSAPP_TRIGGER]: whatsappTriggerExecutor,
+  [NodeType.JAVASCRIPT]: javascriptExecutor,
 };
 
 export const getExecutor = (type: NodeType): NodeExecutor => {

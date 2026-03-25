@@ -2,7 +2,7 @@
 
 import { createId } from "@paralleldrive/cuid2";
 import { useReactFlow } from "@xyflow/react";
-import { Bot, GitBranch, GlobeIcon, MousePointerIcon } from "lucide-react";
+import { Bot, CodeXml, GitBranch, GlobeIcon, MousePointerIcon } from "lucide-react";
 import Image from "next/image";
 import { useCallback } from "react";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
   [NodeType.DISCORD]: "myDiscord",
   [NodeType.GMAIL]: "Gmail",
   [NodeType.WHATSAPP]: "WhatsApp",
+  [NodeType.JAVASCRIPT]: "jsResult",
 };
 
 const DEFAULT_TRIGGER_NAME: Partial<Record<NodeType, string>> = {
@@ -122,6 +123,12 @@ const executionNodes: NodeTypeOption[] = [
     label: "WhatsApp",
     description: "Send messages via WhatsApp Business API",
     icon: "/logos/whatsapp.svg",
+  },
+  {
+    type: NodeType.JAVASCRIPT,
+    label: "JavaScript",
+    description: "Run custom JavaScript code with access to previous node outputs",
+    icon: CodeXml,
   },
 ];
 

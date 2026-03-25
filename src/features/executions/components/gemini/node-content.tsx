@@ -43,18 +43,6 @@ export function GeminiNodeContent({
     },
   });
 
-  useEffect(() => {
-    form.reset({
-      credentialId: defaultValues.credentialId || "",
-      systemPrompt: defaultValues.systemPrompt || "",
-      userPrompt: defaultValues.userPrompt || "",
-    });
-  }, [
-    defaultValues.credentialId,
-    defaultValues.systemPrompt,
-    defaultValues.userPrompt,
-    form,
-  ]);
 
   useEffect(() => {
     const subscription = form.watch((value) => {

@@ -1,6 +1,7 @@
 import { NonRetriableError } from "inngest";
 import { getExecutor } from "@/features/executions/lib/executor-registry";
 import { ExecutionStatus, NodeType } from "@/generated/prisma";
+import { saveSession, type ChatMessage } from "@/lib/chat-session";
 import prisma from "@/lib/db";
 import { agentChannel } from "./channels/agent";
 import { anthropicChannel } from "./channels/anthropic";
@@ -252,6 +253,33 @@ export const executeWorkflow = inngest.createFunction(
         },
       });
     });
+
+    // Persist chat session if this was a WhatsApp chat flow
+    const chatFrom = typeof context.__chatFrom === "string" ? context.__chatFrom : null;
+    if (chatFrom) {
+      await step.run("save-chat-session", async () => {
+        const userText =
+          typeof (context.whatsapp as { text?: string } | undefined)?.text === "string"
+            ? (context.whatsapp as { text: string }).text
+            : "";
+        let agentText = "";
+        for (const [key, val] of Object.entries(context)) {
+          if (!key.startsWith("__") && key !== "whatsapp" && typeof (val as { text?: string })?.text === "string") {
+            agentText = (val as { text: string }).text;
+            break;
+          }
+        }
+        const history = Array.isArray(context.__chatHistory)
+          ? (context.__chatHistory as ChatMessage[])
+          : [];
+        const updated: ChatMessage[] = [...history];
+        if (userText) updated.push({ role: "user", content: userText });
+        if (agentText) updated.push({ role: "assistant", content: agentText });
+        if (updated.length > history.length) {
+          await saveSession(chatFrom, updated);
+        }
+      });
+    }
 
     return {
       workflowId,

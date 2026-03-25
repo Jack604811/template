@@ -53,7 +53,6 @@ import { useForm } from "react-hook-form";
 import ReactMarkdown from "react-markdown";
 import { zodResolver } from "@hookform/resolvers/zod";
 import z from "zod";
-import type { AgentFormValues } from "./dialog";
 import type { AgentToolCall } from "../../hooks/use-agent-stream";
 import { CheckCircle2, Loader2, Wrench } from "lucide-react";
 
@@ -64,6 +63,10 @@ const formSchema = z.object({
   outputFormat: z.enum(["text", "json"]),
   responseSchema: z.any().optional(),
 });
+
+export type AgentFormValues = z.infer<typeof formSchema> & {
+  tools?: AgentToolItem[];
+};
 
 const defaultResponseSchema: ResponseSchemaObject = {
   type: "object",
@@ -118,21 +121,6 @@ export function AgentNodeContent({
   const watchOutputFormat = form.watch("outputFormat");
   const watchResponseSchema = form.watch("responseSchema");
 
-  useEffect(() => {
-    const schema =
-      typeof defaultValues.responseSchema === "object" &&
-      defaultValues.responseSchema !== null
-        ? defaultValues.responseSchema
-        : defaultResponseSchema;
-    form.reset({
-      instructions: defaultValues.instructions ?? "",
-      userPrompt: defaultValues.userPrompt ?? "",
-      model: defaultValues.model ?? AGENT_MODELS[0]?.value ?? "",
-      outputFormat: defaultValues.outputFormat ?? "text",
-      responseSchema: schema,
-    });
-    setTools(defaultValues.tools ?? []);
-  }, [defaultValues, form]);
 
   const syncToData = useCallback(
     (value: Partial<z.infer<typeof formSchema>>, toolList: AgentToolItem[]) => {
@@ -222,7 +210,7 @@ export function AgentNodeContent({
                   <VariableTextarea
                     nodeId={nodeId}
                     placeholder="Summarize the following content: {{json webhook.body}}"
-                    className="nodrag min-w-0 min-h-[100px] text-sm cursor-text"
+                    className="nodrag nowheel min-w-0 min-h-[100px] max-h-[200px] overflow-y-auto text-sm cursor-text"
                     rows={6}
                     {...field}
                   />

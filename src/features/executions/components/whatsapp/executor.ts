@@ -10,6 +10,29 @@ Handlebars.registerHelper("json", (context: unknown) => {
   return new Handlebars.SafeString(jsonString);
 });
 
+async function throwIfApiError(res: Response): Promise<void> {
+  if (res.ok) return;
+  const errText = await res.text();
+  let apiMessage = errText;
+  try {
+    const errJson = JSON.parse(errText) as {
+      error?: { code?: number; message?: string; error_data?: { details?: string } };
+    };
+    const msg = errJson?.error?.message ?? "";
+    const details = errJson?.error?.error_data?.details ?? "";
+    apiMessage = details ? `${msg} (${details})` : msg || errText;
+    if (res.status === 400 && errJson?.error?.code === 10)
+      throw new NonRetriableError(`WhatsApp API error: ${apiMessage}`);
+    if (res.status === 401)
+      throw new NonRetriableError(
+        `WhatsApp API error: ${apiMessage}. Check your access token and Phone Number ID.`,
+      );
+  } catch (e) {
+    if (e instanceof NonRetriableError) throw e;
+  }
+  throw new NonRetriableError(`WhatsApp API error: ${res.status} ${apiMessage.slice(0, 500)}`);
+}
+
 type WhatsAppCredentialValue = {
   value: string;
   phoneNumberId: string;
@@ -59,13 +82,6 @@ export const whatsappExecutor: NodeExecutor<WhatsAppData> = async ({
   step,
   publish,
 }) => {
-  await publish(
-    whatsappChannel().status({
-      nodeId,
-      status: "loading",
-    }),
-  );
-
   if (!data.variableName) {
     await publish(whatsappChannel().status({ nodeId, status: "error" }));
     throw new NonRetriableError("WhatsApp node: Variable name is missing");
@@ -104,11 +120,12 @@ export const whatsappExecutor: NodeExecutor<WhatsAppData> = async ({
     }
   }
 
-  const credential = await step.run("get-credential", () =>
-    prisma.credential.findUnique({
+  const credential = await step.run("get-credential", async () => {
+    await publish(whatsappChannel().status({ nodeId, status: "loading" }));
+    return prisma.credential.findUnique({
       where: { id: data.credentialId, organizationId },
-    }),
-  );
+    });
+  });
 
   if (!credential) {
     await publish(whatsappChannel().status({ nodeId, status: "error" }));
@@ -330,17 +347,8 @@ export const whatsappExecutor: NodeExecutor<WhatsAppData> = async ({
           body: JSON.stringify(msgPayload),
         });
         if (!res.ok) {
-          const errText = await res.text();
-          let apiMessage = errText;
-          try {
-            const errJson = JSON.parse(errText) as { error?: { code?: number; message?: string; error_data?: { details?: string } } };
-            const msg = errJson?.error?.message ?? "";
-            const details = errJson?.error?.error_data?.details ?? "";
-            apiMessage = details ? `${msg} (${details})` : msg || errText;
-            if (res.status === 400 && errJson?.error?.code === 10) throw new NonRetriableError(`WhatsApp API error: ${apiMessage}`);
-            if (res.status === 401) throw new NonRetriableError(`WhatsApp API error: ${apiMessage}. Check your access token and Phone Number ID.`);
-          } catch (e) { if (e instanceof NonRetriableError) throw e; }
-          throw new NonRetriableError(`WhatsApp API error: ${res.status} ${apiMessage.slice(0, 500)}`);
+          try { await publish(whatsappChannel().status({ nodeId, status: "error" })); } catch {}
+          await throwIfApiError(res);
         }
         const json = (await res.json()) as { messages?: Array<{ id: string }>; contacts?: Array<{ wa_id: string }> };
         return { messageId: json.messages?.[0]?.id, to: json.contacts?.[0]?.wa_id ?? sanitizedTo };
@@ -412,70 +420,30 @@ export const whatsappExecutor: NodeExecutor<WhatsAppData> = async ({
     };
   }
 
-  try {
-    const result = await step.run(stepName, async () => {
-      const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(resolvedPhoneNumberId)}/messages`;
+  if (!payload) throw new NonRetriableError("WhatsApp node: No message payload built");
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload!),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        let apiMessage = errText;
-        try {
-          const errJson = JSON.parse(errText) as {
-            error?: {
-              code?: number;
-              message?: string;
-              error_data?: { details?: string };
-            };
-          };
-          const msg = errJson?.error?.message ?? "";
-          const details = errJson?.error?.error_data?.details ?? "";
-          apiMessage = details ? `${msg} (${details})` : msg || errText;
-          if (res.status === 400 && errJson?.error?.code === 10) {
-            throw new NonRetriableError(
-              `WhatsApp API error: ${apiMessage}. Use a System User token with whatsapp_business_management and whatsapp_business_messaging. See: https://developers.facebook.com/docs/whatsapp/cloud-api/get-started#access-tokens`,
-            );
-          }
-          if (res.status === 401) {
-            throw new NonRetriableError(
-              `WhatsApp API error: ${apiMessage}. Check that the credential has a valid Meta access token and Phone Number ID.`,
-            );
-          }
-        } catch (e) {
-          if (e instanceof NonRetriableError) throw e;
-        }
-        throw new NonRetriableError(
-          `WhatsApp API error: ${res.status} ${apiMessage.slice(0, 500)}`,
-        );
-      }
-
-      const json = (await res.json()) as {
-        messages?: Array<{ id: string }>;
-        contacts?: Array<{ wa_id: string; input: string }>;
-      };
-
-      return {
-        messageId: json.messages?.[0]?.id,
-        to: json.contacts?.[0]?.wa_id ?? sanitizedTo,
-      };
+  const builtPayload = payload;
+  const result = await step.run(stepName, async () => {
+    const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(resolvedPhoneNumberId)}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(builtPayload),
     });
-
-    await publish(whatsappChannel().status({ nodeId, status: "success" }));
-
-    return {
-      ...context,
-      [data.variableName]: result,
+    if (!res.ok) {
+      try { await publish(whatsappChannel().status({ nodeId, status: "error" })); } catch {}
+      await throwIfApiError(res);
+    }
+    const json = (await res.json()) as {
+      messages?: Array<{ id: string }>;
+      contacts?: Array<{ wa_id: string; input: string }>;
     };
-  } catch (error) {
-    await publish(whatsappChannel().status({ nodeId, status: "error" }));
-    throw error;
-  }
+    try { await publish(whatsappChannel().status({ nodeId, status: "success" })); } catch {}
+    return { messageId: json.messages?.[0]?.id, to: json.contacts?.[0]?.wa_id ?? sanitizedTo };
+  });
+
+  return {
+    ...context,
+    [data.variableName]: result,
+  };
 };

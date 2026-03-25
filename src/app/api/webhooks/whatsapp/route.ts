@@ -1,9 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { type NextRequest, NextResponse } from "next/server";
 import { CredentialType, NodeType } from "@/generated/prisma";
-import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
+import { qstash } from "@/lib/upstash";
 
 type MetaWebhookPayload = {
   object?: string;
@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
   }
+
+  console.log("WhatsApp webhook: POST received");
 
   let body: MetaWebhookPayload;
   try {
@@ -198,12 +200,16 @@ async function triggerMatchingWorkflows(
     return data.credentialId && matchingCredentialIds.includes(data.credentialId);
   });
 
+  const baseUrl = process.env.QSTASH_BASE_URL;
+  console.log(`WhatsApp trigger: ${matchingNodes.length} matching workflow(s), baseUrl=${baseUrl}`);
   for (const node of matchingNodes) {
-    await sendWorkflowExecution({
-      workflowId: node.workflowId,
-      initialData: { whatsapp },
-    }).catch((err) => {
-      console.error("WhatsApp trigger: failed to send workflow execution", err);
-    });
+    const url = `${baseUrl}/api/chat/run`;
+    console.log(`WhatsApp trigger: enqueuing workflowId=${node.workflowId} → ${url}`);
+    await qstash
+      .publishJSON({ url, body: { workflowId: node.workflowId, whatsapp } })
+      .then(() => console.log(`WhatsApp trigger: enqueued workflowId=${node.workflowId}`))
+      .catch((err) => {
+        console.error("WhatsApp trigger: failed to enqueue chat run", err);
+      });
   }
 }

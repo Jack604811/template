@@ -4,10 +4,9 @@ import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
 import { Bot } from "lucide-react";
 import { memo, useCallback, useEffect } from "react";
 import { BaseExecutionNode } from "../base-execution-node";
-import type { AgentFormValues } from "./dialog";
-import { AgentNodeContent } from "./node-content";
 import { useAgentStream } from "../../hooks/use-agent-stream";
 import { fetchAgentRealtimeToken } from "./actions";
+import { AgentNodeContent, type AgentFormValues } from "./node-content";
 
 type AgentNodeData = AgentFormValues & { variableName?: string };
 

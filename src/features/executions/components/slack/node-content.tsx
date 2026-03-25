@@ -40,12 +40,6 @@ export function SlackNodeContent({
     },
   });
 
-  useEffect(() => {
-    form.reset({
-      content: defaultValues.content || "",
-      webhookUrl: defaultValues.webhookUrl || "",
-    });
-  }, [defaultValues.content, defaultValues.webhookUrl, form]);
 
   useEffect(() => {
     const subscription = form.watch((value) => {

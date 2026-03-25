@@ -45,18 +45,6 @@ export function DiscordNodeContent({
     },
   });
 
-  useEffect(() => {
-    form.reset({
-      username: defaultValues.username || "",
-      content: defaultValues.content || "",
-      webhookUrl: defaultValues.webhookUrl || "",
-    });
-  }, [
-    defaultValues.username,
-    defaultValues.content,
-    defaultValues.webhookUrl,
-    form,
-  ]);
 
   useEffect(() => {
     const subscription = form.watch((value) => {

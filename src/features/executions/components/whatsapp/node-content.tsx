@@ -302,41 +302,6 @@ export function WhatsAppNodeContent({
   );
   const templates = templatesData?.templates ?? [];
 
-  useEffect(() => {
-    form.reset({
-      credentialId: defaultValues.credentialId || "",
-      to: defaultValues.to || "",
-      body: defaultValues.body || "",
-      messages: resolveMessages(defaultValues),
-      templateName: defaultValues.templateName || "",
-      templateLanguage: defaultValues.templateLanguage || "",
-      templateHeaderCount: defaultValues.templateHeaderCount ?? 0,
-      templateHeaderFormat: defaultValues.templateHeaderFormat ?? "NONE",
-      templateParams: defaultValues.templateParams ?? [],
-      templateParamNames: defaultValues.templateParamNames ?? [],
-      isCarousel: defaultValues.isCarousel ?? false,
-      outerBodyParams: defaultValues.outerBodyParams ?? [],
-      carouselCards: defaultValues.carouselCards ?? [],
-    });
-    setAction(resolveAction(defaultValues.action));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    defaultValues.credentialId,
-    defaultValues.to,
-    defaultValues.body,
-    defaultValues.action,
-    defaultValues.messages,
-    defaultValues.templateName,
-    defaultValues.templateLanguage,
-    defaultValues.templateHeaderCount,
-    defaultValues.templateHeaderFormat,
-    defaultValues.templateParams,
-    defaultValues.templateParamNames,
-    defaultValues.isCarousel,
-    defaultValues.outerBodyParams,
-    defaultValues.carouselCards,
-    form,
-  ]);
 
   const syncData = useCallback(
     (value: z.infer<typeof formSchema>) => {

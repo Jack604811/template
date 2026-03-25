@@ -103,39 +103,6 @@ export function GmailNodeContent({
     0,
   );
 
-  useEffect(() => {
-    form.reset({
-      credentialId: defaultValues.credentialId || "",
-      to: defaultValues.to || "",
-      subject: defaultValues.subject || "",
-      body: defaultValues.body || "",
-      attachmentsManual: defaultValues.attachmentsManual ?? [],
-      attachmentsVariable: defaultValues.attachmentsVariable || "",
-      from: defaultValues.from || "",
-      hasAttachment: defaultValues.hasAttachment ?? false,
-      attachmentType: defaultValues.attachmentType || "",
-      subjectContains: defaultValues.subjectContains || "",
-    });
-    setShowAttachments(
-      defaultValues.showAttachmentOptions ?? hasAttachments
-    );
-    setAction(defaultValues.action ?? "send");
-  }, [
-    defaultValues.credentialId,
-    defaultValues.to,
-    defaultValues.subject,
-    defaultValues.body,
-    defaultValues.attachmentsManual,
-    defaultValues.attachmentsVariable,
-    defaultValues.showAttachmentOptions,
-    defaultValues.action,
-    defaultValues.from,
-    defaultValues.hasAttachment,
-    defaultValues.attachmentType,
-    defaultValues.subjectContains,
-    hasAttachments,
-    form,
-  ]);
 
   const syncGetEmailData = useCallback(
     (value: z.infer<typeof formSchema>) => {

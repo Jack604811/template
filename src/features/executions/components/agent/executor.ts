@@ -71,10 +71,8 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
   nodeId,
   organizationId,
   context,
-  step: _step,
   publish,
 }) => {
-  // Single "loading" publish — uses step ID `publish:agent-execution`
   await publish(
     agentChannel().update({ nodeId, status: "loading" }),
   );
@@ -173,16 +171,19 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
 
     const zodSchema = useJsonOutput ? convertJsonSchemaToZod(responseSchema) : undefined;
 
-    // Inngest's publish() uses the channel name as the step ID:
-    //   step.run(`publish:agent-execution`, ...)
-    // Calling publish() more than once per channel per function run causes
-    // "duplicate step ID" errors and infinite replay loops.
-    // Solution: run generateText fully, collect all tool activity, then
-    // publish ONCE with status=success + all data bundled together.
+    type CoreMessage = { role: "user" | "assistant"; content: string };
+    const chatHistory = Array.isArray(context.__chatHistory)
+      ? (context.__chatHistory as CoreMessage[])
+      : [];
+    const messages: CoreMessage[] =
+      chatHistory.length > 0
+        ? [...chatHistory, { role: "user" as const, content: userMessage }]
+        : [{ role: "user" as const, content: userMessage }];
+
     const response = await generateText({
       model: aiGateway(model),
       system: system || undefined,
-      messages: [{ role: "user" as const, content: userMessage }],
+      messages,
       ...(hasTools && {
         tools: toolsRecord as unknown as ToolSet,
         stopWhen: stepCountIs(10),
@@ -209,7 +210,6 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
       }
     }
 
-    // Single publish call — avoids duplicate step ID errors
     await publish(
       agentChannel().update({
         nodeId,
@@ -227,9 +227,6 @@ export const agentExecutor: NodeExecutor<AgentData> = async ({
 
     return { ...context, [variableName]: { text: response.text } };
   } catch (error) {
-    // Do NOT publish error status — that would be a third publish on the same
-    // channel (after "loading"), causing another duplicate step ID error.
-    // The Inngest onFailure handler in functions.ts will mark the execution failed.
     throw error;
   } finally {
     for (const client of mcpClients) {

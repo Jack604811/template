@@ -19,7 +19,7 @@ import { NodeType } from "@/generated/prisma";
 import { Separator } from "./ui/separator";
 
 const DEFAULT_VARIABLE_NAME: Partial<Record<NodeType, string>> = {
-  [NodeType.HTTP_REQUEST]: "myApiCall",
+  [NodeType.HTTP_REQUEST]: "HTTP Request",
   [NodeType.IF_ELSE]: "condition",
   [NodeType.AGENT]: "Agent",
   [NodeType.OPENAI]: "myOpenAi",

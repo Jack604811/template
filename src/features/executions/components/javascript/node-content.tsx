@@ -54,7 +54,7 @@ export function JavascriptNodeContent({
                   value={field.value}
                   onChange={field.onChange}
                   placeholder={"// Write JavaScript here\n// Use {{variable}} for dynamic values\n// Return a value: return context.myNode.data;"}
-                  className="nodrag nopan min-h-[180px] max-h-[418px] font-mono text-xs bg-[#0d0d0d] text-[#cdd6f4] border-border"
+                  className="nodrag nopan min-h-[180px] max-h-[418px] overflow-y-auto overflow-x-auto whitespace-pre font-mono text-xs bg-[#0d0d0d] text-[#cdd6f4] border-border"
                 />
               </FormControl>
             </FormItem>

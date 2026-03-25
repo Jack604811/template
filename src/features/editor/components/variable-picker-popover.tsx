@@ -558,6 +558,7 @@ export const VariablePickerPopover = memo(
                   }}
                   placeholder="Search variables..."
                   className="h-7 flex-1 border-0 bg-transparent p-0 text-sm focus-visible:ring-0 shadow-none"
+                  autoFocus
                 />
                 {isLoading ? (
                   <Loader2Icon className="size-4 animate-spin text-muted-foreground" />

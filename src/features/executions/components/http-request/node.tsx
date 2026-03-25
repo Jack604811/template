@@ -1,20 +1,35 @@
 "use client";
 
-import { useReactFlow, type Node, type NodeProps } from "@xyflow/react";
+import { type Node, type NodeProps, useReactFlow } from "@xyflow/react";
 import { GlobeIcon } from "lucide-react";
 import { memo, useCallback } from "react";
-import { BaseExecutionNode } from "../base-execution-node";
-import type { HttpRequestFormValues } from "./dialog";
-import { HttpRequestNodeContent } from "./node-content";
-import { useNodeStatus } from "../../hooks/use-node-status";
 import { HTTP_REQUEST_CHANNEL_NAME } from "@/inngest/channels/http-request";
+import { useNodeStatus } from "../../hooks/use-node-status";
+import { BaseExecutionNode } from "../base-execution-node";
 import { fetchHttpRequestRealtimeToken } from "./actions";
+import {
+  type HttpRequestFormValues,
+  HttpRequestNodeContent,
+} from "./node-content";
 
 type HttpRequestNodeData = {
   variableName?: string;
-  endpoint?: string;
-  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  url?: string;
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" | "HEAD" | "OPTIONS";
+  authType?: "none" | "bearer" | "basic" | "apiKey";
+  bearerToken?: string;
+  basicUsername?: string;
+  basicPassword?: string;
+  apiKeyName?: string;
+  apiKeyValue?: string;
+  apiKeyPlacement?: "header" | "query";
+  headers?: { key: string; value: string }[];
+  queryParams?: { key: string; value: string }[];
+  bodyType?: "json" | "form" | "raw";
   body?: string;
+  timeout?: number;
+  followRedirects?: boolean;
+  responseType?: "auto" | "json" | "text";
 };
 
 type HttpRequestNodeType = Node<HttpRequestNodeData>;
@@ -38,11 +53,11 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
         nodes.map((node) =>
           node.id === props.id
             ? { ...node, data: { ...node.data, ...values } }
-            : node
-        )
+            : node,
+        ),
       );
     },
-    [props.id, setNodes]
+    [props.id, setNodes],
   );
 
   const handleVariableNameChange = useCallback(
@@ -51,11 +66,11 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
         nodes.map((node) =>
           node.id === props.id
             ? { ...node, data: { ...node.data, variableName: value } }
-            : node
-        )
+            : node,
+        ),
       );
     },
-    [props.id, setNodes]
+    [props.id, setNodes],
   );
 
   return (

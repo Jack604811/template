@@ -543,7 +543,15 @@ export const VariablePickerPopover = memo(
           /* biome-ignore lint/a11y/noStaticElementInteractions: div needs onMouseDown to prevent focus loss, onWheel to prevent canvas pan */
           <div
             className="nowheel absolute right-full top-0 mr-8 z-50 w-[520px] rounded-md border bg-popover text-popover-foreground shadow-md p-0"
-            onMouseDown={(e) => e.preventDefault()}
+            onMouseDown={(e) => {
+              if (
+                searchInputRef.current &&
+                searchInputRef.current.contains(e.target as Node)
+              ) {
+                return;
+              }
+              e.preventDefault();
+            }}
             onWheel={(e) => e.stopPropagation()}
           >
             <div className="border-b border-border/60 px-3 py-2">

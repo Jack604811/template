@@ -1,11 +1,18 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { Maximize2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { CodeEditor } from "@/components/ui/code-editor";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
-import { VariableTextarea } from "@/components/ui/variable-textarea";
 import type { JavascriptNodeData } from "./executor";
 
 const formSchema = z.object({
@@ -25,6 +32,8 @@ export function JavascriptNodeContent({
   defaultValues,
   onDataChange,
 }: JavascriptNodeContentProps) {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
   const form = useForm<JavascriptFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -47,16 +56,41 @@ export function JavascriptNodeContent({
           name="code"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs text-muted-foreground">Code</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel className="text-xs text-muted-foreground">Code</FormLabel>
+                <button
+                  type="button"
+                  onClick={() => setDialogOpen(true)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <Maximize2 className="size-3.5" />
+                </button>
+              </div>
               <FormControl>
-                <VariableTextarea
+                <CodeEditor
                   nodeId={nodeId}
                   value={field.value}
                   onChange={field.onChange}
-                  placeholder={"// Write JavaScript here\n// Use {{variable}} for dynamic values\n// Return a value: return context.myNode.data;"}
-                  className="nodrag nopan min-h-[180px] max-h-[418px] overflow-y-auto overflow-x-auto whitespace-pre font-mono text-xs bg-[#0d0d0d] text-[#cdd6f4] border-border"
+                  placeholder="// Write JavaScript here&#10;// Use variables from the picker&#10;// Return a value: return result;"
                 />
               </FormControl>
+
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="w-[40vw] sm:max-w-[90vw] max-h-[90vh] flex flex-col gap-0 p-0">
+                  <DialogHeader className="px-4 py-3 border-b shrink-0">
+                    <DialogTitle className="text-sm font-medium">JavaScript Editor</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex-1 overflow-hidden p-4">
+                    <CodeEditor
+                      nodeId={nodeId}
+                      value={field.value}
+                      onChange={field.onChange}
+                      placeholder="// Write JavaScript here&#10;// Use variables from the picker&#10;// Return a value: return result;"
+                      maxHeight="calc(90vh - 120px)"
+                    />
+                  </div>
+                </DialogContent>
+              </Dialog>
             </FormItem>
           )}
         />

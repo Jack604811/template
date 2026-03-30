@@ -35,7 +35,7 @@ export const parseValueToTokens = (value: string): ParsedToken[] => {
     // Add variable token
     const template = match[1].trim();
     const jsonMatch = /^json\s+(.+)$/i.exec(template);
-    const display = jsonMatch ? jsonMatch[1] : template;
+    const display = (jsonMatch ? jsonMatch[1] : template).replace(/\[([^\]]+)\]/g, "$1");
 
     tokens.push({
       type: "variable",

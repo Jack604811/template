@@ -26,7 +26,7 @@ export const JavascriptNode = memo((props: NodeProps<JavascriptNodeType>) => {
   const { setNodes } = useReactFlow();
   const setEdges = useWorkflowStore((state) => state.setEdges);
 
-  const { status: nodeStatus } = useNodeStatus({
+  const { status: nodeStatus, errorMessage } = useNodeStatus({
     nodeId: props.id,
     channel: JAVASCRIPT_CHANNEL_NAME,
     topic: "status",
@@ -92,6 +92,11 @@ export const JavascriptNode = memo((props: NodeProps<JavascriptNodeType>) => {
               defaultValues={nodeData}
               onDataChange={handleDataChange}
             />
+            {nodeStatus === "error" && errorMessage && (
+              <div className="mt-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+                {errorMessage}
+              </div>
+            )}
             <BaseHandle id="source-1" type="source" position={Position.Right} />
           </BaseNodeContent>
         </BaseNode>

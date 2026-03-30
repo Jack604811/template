@@ -215,23 +215,21 @@ export const VariableTextarea = forwardRef<
 
     const handleBlurEvent = useCallback(
       (event: React.FocusEvent<HTMLDivElement>) => {
-        // Delay blur to allow popover interactions (search input, list items, etc.)
+        const element = contentEditableRef.current;
+        const root = element?.closest<HTMLDivElement>("[data-variable-input-root]");
+
+        // relatedTarget is the element receiving focus — check immediately without a timeout
+        const relatedTarget = event.relatedTarget;
+        if (root && relatedTarget instanceof Element && root.contains(relatedTarget)) {
+          return;
+        }
+
+        // Fall back to a timeout for cases where relatedTarget is null (e.g. autoFocus)
         setTimeout(() => {
-          const element = contentEditableRef.current;
-          if (!element) {
-            return;
-          }
-
-          // Treat clicks inside the variable picker popover as "inside" the control
-          const root = element.closest<HTMLDivElement>(
-            "[data-variable-input-root]",
-          );
           const active = document.activeElement;
-
           if (root && active && root.contains(active)) {
             return;
           }
-
           setIsFocused(false);
           onBlur?.(event);
         }, 100);

@@ -6,5 +6,6 @@ export const javascriptChannel = channel(JAVASCRIPT_CHANNEL_NAME).addTopic(
   topic("status").type<{
     nodeId: string;
     status: "loading" | "success" | "error";
+    errorMessage?: string;
   }>(),
 );

@@ -8,6 +8,8 @@ Handlebars.registerHelper("json", (context) => {
   return new Handlebars.SafeString(JSON.stringify(context, null, 2));
 });
 
+Handlebars.registerHelper("helperMissing", () => "");
+
 type KvPair = { key: string; value: string };
 
 type HttpRequestData = {

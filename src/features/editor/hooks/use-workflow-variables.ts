@@ -97,6 +97,9 @@ const collectPredecessorNodeIds = (
   return visited;
 };
 
+const escapeSegment = (s: string): string =>
+  /\s/.test(s) ? `[${s}]` : s;
+
 const buildVariableTree = (
   value: unknown,
   path: string[],
@@ -104,8 +107,8 @@ const buildVariableTree = (
 ): VariableEntry => {
   const preview = formatPreview(value);
   const template = options.isRoot
-    ? `{{json ${path[0] ?? ""}}}`
-    : `{{${path.join(".")}}}`;
+    ? `{{json ${escapeSegment(path[0] ?? "")}}}`
+    : `{{${path.map(escapeSegment).join(".")}}}`;
 
   if (Array.isArray(value)) {
     const children = value.map((item, index) => {

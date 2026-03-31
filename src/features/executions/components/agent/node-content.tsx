@@ -38,7 +38,7 @@ import {
 } from "@/features/executions/components/agent/constants";
 import type { ResponseSchemaObject } from "@/features/executions/components/agent/agent-json-schema";
 import { AgentJsonSchema } from "@/features/executions/components/agent/agent-json-schema";
-import { McpDialog } from "@/features/mcp/components/mcp-dialog";
+import { McpCatalogDialog } from "@/features/mcp/components/mcp-catalog-dialog";
 import { cn } from "@/lib/utils";
 import {
   CheckIcon,
@@ -99,7 +99,7 @@ export function AgentNodeContent({
   const [tools, setTools] = useState<AgentToolItem[]>(
     defaultValues.tools ?? [],
   );
-  const [mcpDialogOpen, setMcpDialogOpen] = useState(false);
+  const [mcpCatalogOpen, setMcpCatalogOpen] = useState(false);
   const [modelOpen, setModelOpen] = useState(false);
   const [formatOpen, setFormatOpen] = useState(false);
 
@@ -152,7 +152,7 @@ export function AgentNodeContent({
 
   const handleAddTool = (toolId: string) => {
     if (toolId === "mcpServer") {
-      setMcpDialogOpen(true);
+      setMcpCatalogOpen(true);
       return;
     }
     const exists = tools.some(
@@ -180,7 +180,6 @@ export function AgentNodeContent({
         tools: data.selectedTools,
       },
     ]);
-    setMcpDialogOpen(false);
   };
 
   const removeTool = (index: number) => {
@@ -193,9 +192,9 @@ export function AgentNodeContent({
 
   return (
     <>
-      <McpDialog
-        open={mcpDialogOpen}
-        onOpenChange={setMcpDialogOpen}
+      <McpCatalogDialog
+        open={mcpCatalogOpen}
+        onOpenChange={setMcpCatalogOpen}
         onAdd={handleAddMcp}
       />
       <Form {...form}>
@@ -248,7 +247,7 @@ export function AgentNodeContent({
                     {t.name}
                   </DropdownMenuItem>
                 ))}
-                <DropdownMenuItem onClick={() => setMcpDialogOpen(true)}>
+                <DropdownMenuItem onClick={() => setMcpCatalogOpen(true)}>
                   <Server className="mr-2 size-4" />
                   MCP Server
                 </DropdownMenuItem>

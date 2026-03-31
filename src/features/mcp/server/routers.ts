@@ -139,4 +139,15 @@ export const mcpRouter = createTRPCRouter({
         await mcpClient.close();
       }
     }),
+
+  deleteServer: organizationProcedure
+    .input(z.object({ serverId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.mcpServer.deleteMany({
+        where: {
+          id: input.serverId,
+          organizationId: ctx.organizationId,
+        },
+      });
+    }),
 });

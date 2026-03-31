@@ -5,17 +5,28 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useTRPC } from "@/trpc/client";
-import { useMutation } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { AgentMcpToolOption } from "@/features/executions/components/agent/constants";
-import { KeyRoundIcon, Server } from "lucide-react";
-import { useState } from "react";
+import { useTRPC } from "@/trpc/client";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { KeyRoundIcon, SearchIcon, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+
+
+interface ExistingServer {
+  serverId: string;
+  label: string;
+  url: string;
+}
 
 interface McpDialogProps {
   open: boolean;
@@ -25,20 +36,45 @@ interface McpDialogProps {
     serverId: string;
     selectedTools: { name: string }[];
   }) => void;
+  onDelete?: () => void;
+  existingServer?: ExistingServer;
+  prefill?: { label?: string; url?: string };
 }
 
 export const McpDialog = ({
   open,
   onOpenChange,
   onAdd,
+  onDelete,
+  existingServer,
+  prefill,
 }: McpDialogProps) => {
   const trpc = useTRPC();
-  const [step, setStep] = useState<"connect" | "select">("connect");
-  const [url, setUrl] = useState("");
-  const [label, setLabel] = useState("");
+  const [step, setStep] = useState<"connect" | "select">(
+    existingServer ? "select" : "connect",
+  );
+  const [url, setUrl] = useState(prefill?.url ?? "");
+  const [label, setLabel] = useState(prefill?.label ?? "");
   const [apiKey, setApiKey] = useState("");
   const [tools, setTools] = useState<AgentMcpToolOption[]>([]);
   const [selectedTools, setSelectedTools] = useState<Set<string>>(new Set());
+  const [toolSearch, setToolSearch] = useState("");
+
+  const existingToolsQuery = useQuery({
+    ...trpc.mcp.getToolsByServerId.queryOptions({
+      serverId: existingServer?.serverId ?? "",
+    }),
+    enabled: existingServer != null,
+  });
+
+  useEffect(() => {
+    if (existingToolsQuery.data) {
+      setTools(existingToolsQuery.data.tools);
+      setSelectedTools(
+        new Set(existingToolsQuery.data.tools.map((t) => t.name)),
+      );
+    }
+  }, [existingToolsQuery.data]);
 
   const connectMutation = useMutation(
     trpc.mcp.connect.mutationOptions({
@@ -55,7 +91,18 @@ export const McpDialog = ({
     }),
   );
 
-  const loading = connectMutation.isPending || addServerMutation.isPending;
+  const deleteServerMutation = useMutation(
+    trpc.mcp.deleteServer.mutationOptions({
+      onError: (err) => {
+        toast.error(err.message ?? "Failed to delete MCP server");
+      },
+    }),
+  );
+
+  const loading =
+    connectMutation.isPending ||
+    addServerMutation.isPending ||
+    (existingServer != null && existingToolsQuery.isPending);
 
   const handleConnect = async () => {
     if (!url.trim() || !label.trim()) {
@@ -63,10 +110,7 @@ export const McpDialog = ({
       return;
     }
     connectMutation.mutate(
-      {
-        url: url.trim(),
-        apiKey: apiKey.trim() || undefined,
-      },
+      { url: url.trim(), apiKey: apiKey.trim() || undefined },
       {
         onSuccess: (result) => {
           setTools(result.tools);
@@ -78,14 +122,21 @@ export const McpDialog = ({
   };
 
   const handleAddMcp = () => {
+    if (existingServer) {
+      const selected = tools.filter((t) => selectedTools.has(t.name));
+      onAdd({
+        label: existingServer.label,
+        serverId: existingServer.serverId,
+        selectedTools: selected.map((t) => ({ name: t.name })),
+      });
+      onOpenChange(false);
+      return;
+    }
+
     if (!url.trim() || !label.trim()) return;
     const selected = tools.filter((t) => selectedTools.has(t.name));
     addServerMutation.mutate(
-      {
-        url: url.trim(),
-        label: label.trim(),
-        apiKey: apiKey.trim() || undefined,
-      },
+      { url: url.trim(), label: label.trim(), apiKey: apiKey.trim() || undefined },
       {
         onSuccess: ({ serverId }) => {
           onAdd({
@@ -106,6 +157,20 @@ export const McpDialog = ({
     );
   };
 
+  const handleDelete = () => {
+    if (!existingServer) return;
+    deleteServerMutation.mutate(
+      { serverId: existingServer.serverId },
+      {
+        onSuccess: () => {
+          toast.success("MCP server deleted");
+          onOpenChange(false);
+          onDelete?.();
+        },
+      },
+    );
+  };
+
   const toggleTool = (name: string) => {
     setSelectedTools((prev) => {
       const next = new Set(prev);
@@ -115,47 +180,58 @@ export const McpDialog = ({
     });
   };
 
+  const allSelected = tools.length > 0 && selectedTools.size === tools.length;
+  const someSelected = selectedTools.size > 0 && !allSelected;
+
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setSelectedTools(new Set());
+    } else {
+      setSelectedTools(new Set(tools.map((t) => t.name)));
+    }
+  };
+
+  const displayLabel = existingServer?.label ?? label;
+  const displayUrl = existingServer?.url ?? url;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="flex flex-col gap-0 overflow-hidden p-0 sm:max-w-lg max-h-[800px]">
         {step === "connect" ? (
           <>
-            <DialogHeader>
-              <div className="flex flex-col items-center gap-2">
-                <Server className="size-8 text-muted-foreground" />
-                <DialogTitle>Connect to MCP Server</DialogTitle>
-              </div>
+            <DialogHeader className="border-b px-6 py-5">
+              <DialogTitle>Connect MCP Server</DialogTitle>
+              <DialogDescription>
+                Enter the server URL and an optional API key to connect.
+              </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div>
+
+            <div className="space-y-4 px-6 py-5">
+              <div className="space-y-1.5">
+                <Label htmlFor="mcp-label">Name</Label>
+                <Input
+                  id="mcp-label"
+                  placeholder="My MCP Server"
+                  value={label}
+                  onChange={(e) => setLabel(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
                 <Label htmlFor="mcp-url">URL</Label>
                 <Input
                   id="mcp-url"
                   placeholder="https://example.com/mcp"
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="mt-1"
                 />
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   Only use MCP servers you trust.
                 </p>
               </div>
-              <div>
-                <Label htmlFor="mcp-label">Label</Label>
-                <Input
-                  id="mcp-label"
-                  placeholder="My MCP Server"
-                  value={label}
-                  onChange={(e) => setLabel(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="mcp-api-key">
-                  API key / token (optional)
-                </Label>
-                <div className="mt-1 flex items-center gap-2 rounded-md border border-input px-3 shadow-xs">
-                  <KeyRoundIcon className="size-4 text-muted-foreground" />
+              <div className="space-y-1.5">
+                <Label htmlFor="mcp-api-key">API key / token (optional)</Label>
+                <div className="flex items-center gap-2 rounded-md border border-input px-3 shadow-xs">
+                  <KeyRoundIcon className="size-4 shrink-0 text-muted-foreground" />
                   <Input
                     id="mcp-api-key"
                     type="password"
@@ -166,36 +242,85 @@ export const McpDialog = ({
                   />
                 </div>
               </div>
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={handleConnect}
-                  disabled={!url.trim() || !label.trim() || loading}
-                >
-                  {loading ? "Connecting…" : "Connect"}
-                </Button>
-              </div>
+            </div>
+
+            <div className="flex justify-end border-t px-6 py-4">
+              <Button
+                onClick={handleConnect}
+                disabled={!url.trim() || !label.trim() || loading}
+              >
+                {connectMutation.isPending ? "Connecting…" : "Connect"}
+              </Button>
             </div>
           </>
         ) : (
           <>
-            <DialogHeader>
-              <div className="flex items-center gap-2">
-                <Server className="size-6 text-muted-foreground" />
-                <div>
-                  <DialogTitle>{label}</DialogTitle>
-                  <p className="text-xs text-muted-foreground">{url}</p>
-                </div>
+            <div className="flex items-center gap-4 px-6 py-8">
+              <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-muted/40">
+                <Image src="/logos/MCP.svg" alt="MCP" width={28} height={28} />
               </div>
-            </DialogHeader>
-            <div className="space-y-3 pt-2">
-              <fieldset className="space-y-2">
-                <legend className="text-sm font-medium">Tools</legend>
-                <div className="max-h-60 w-full space-y-2 overflow-y-auto rounded-md border p-2">
-                  {tools.map((tool) => (
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{displayLabel}</p>
+                <p className="truncate text-sm text-muted-foreground">
+                  {displayUrl}
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 pb-3">
+              {!existingToolsQuery.isPending && tools.length > 0 && (
+                <div className="relative">
+                  <SearchIcon className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder="Search tools..."
+                    value={toolSearch}
+                    onChange={(e) => setToolSearch(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between px-6 pb-2">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Tools
+              </span>
+              {!existingToolsQuery.isPending && tools.length > 0 && (
+                <label
+                  htmlFor="mcp-select-all"
+                  className="flex cursor-pointer items-center gap-2 select-none text-xs text-muted-foreground"
+                >
+                  <Checkbox
+                    id="mcp-select-all"
+                    checked={allSelected}
+                    data-state={someSelected ? "indeterminate" : undefined}
+                    onCheckedChange={handleSelectAll}
+                  />
+                  Select all
+                </label>
+              )}
+            </div>
+
+            {existingServer && existingToolsQuery.isPending ? (
+              <div className="space-y-2 px-6 pb-4">
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+                <Skeleton className="h-10 w-full rounded-lg" />
+              </div>
+            ) : (
+              <div className="max-h-76 overflow-y-auto px-6 pb-2">
+                <div className="space-y-0.5">
+                  {tools.filter((t) =>
+                    t.name.toLowerCase().includes(toolSearch.toLowerCase())
+                  ).map((tool) => (
                     <label
                       key={tool.name}
                       htmlFor={`mcp-tool-${tool.name}`}
-                      className="flex cursor-pointer items-center gap-3 rounded border border-transparent p-2 hover:bg-muted/50"
+                      className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/60"
                     >
                       <Checkbox
                         id={`mcp-tool-${tool.name}`}
@@ -213,19 +338,33 @@ export const McpDialog = ({
                     </label>
                   ))}
                 </div>
-              </fieldset>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => onOpenChange(false)}
-                >
+              </div>
+            )}
+
+            <div className="flex items-center justify-between px-6 py-10">
+              <div>
+                {existingServer && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={handleDelete}
+                    disabled={deleteServerMutation.isPending}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => onOpenChange(false)}>
                   Cancel
                 </Button>
                 <Button
                   onClick={handleAddMcp}
                   disabled={loading || selectedTools.size === 0}
                 >
-                  {loading
+                  {addServerMutation.isPending
                     ? "Saving…"
                     : `Add (${selectedTools.size} selected)`}
                 </Button>

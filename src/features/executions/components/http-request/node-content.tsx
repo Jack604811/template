@@ -560,7 +560,7 @@ export function HttpRequestNodeContent({
                             ? "key=value&other={{variable}}"
                             : '{\n  "key": "{{variable}}"\n}'
                         }
-                        className="nodrag min-h-[80px] font-mono text-xs"
+                        className="nodrag nowheel min-h-[100px] overflow-x-auto whitespace-pre font-mono text-xs cursor-text"
                         value={field.value}
                         onChange={field.onChange}
                         onBlur={field.onBlur}

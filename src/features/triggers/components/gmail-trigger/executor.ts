@@ -129,9 +129,8 @@ export const gmailTriggerExecutor: NodeExecutor = async ({
 
     // If context already has a "gmail" key (set by push handler via initialData), pass through.
     if (context && "gmail" in context) {
-      const result = await step.run("gmail-trigger-passthrough", async () => context);
       await publish(gmailTriggerChannel().status({ nodeId, status: "success" }));
-      return result;
+      return context;
     }
 
     // Manual run: fetch the most recent matching email.

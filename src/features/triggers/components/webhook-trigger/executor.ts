@@ -27,34 +27,17 @@ function buildWebhookPayloadFromSchema(schema: {
  */
 export const webhookTriggerExecutor: NodeExecutor<
   WebhookTriggerNodeData
-> = async ({ data, nodeId, context, step, publish }) => {
-  await publish(
-    webhookTriggerChannel().status({
-      nodeId,
-      status: "loading",
-    }),
-  );
+> = async ({ data, nodeId, context, publish }) => {
+  await publish(webhookTriggerChannel().status({ nodeId, status: "loading" }));
 
-  const result = await step.run("webhook-trigger", async () => {
-    if (context && "webhook" in context && context.webhook != null) {
-      return context;
-    }
-    if (data?.webhookSchema) {
-      return {
-        ...context,
-        webhook: buildWebhookPayloadFromSchema(data.webhookSchema),
-      };
-    }
-    return context;
-  });
+  let result = context;
+  if (context && "webhook" in context && context.webhook != null) {
+    result = context;
+  } else if (data?.webhookSchema) {
+    result = { ...context, webhook: buildWebhookPayloadFromSchema(data.webhookSchema) };
+  }
 
-  await publish(
-    webhookTriggerChannel().status({
-      nodeId,
-      status: "success",
-    }),
-  );
-
+  await publish(webhookTriggerChannel().status({ nodeId, status: "success" }));
   return result;
 };
 

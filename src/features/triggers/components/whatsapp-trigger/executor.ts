@@ -10,7 +10,6 @@ export const whatsappTriggerExecutor: NodeExecutor = async ({
   data,
   nodeId,
   context,
-  step,
   publish,
 }) => {
   await publish(whatsappTriggerChannel().status({ nodeId, status: "loading" }));
@@ -20,9 +19,8 @@ export const whatsappTriggerExecutor: NodeExecutor = async ({
 
     // If context already has a "whatsapp" key (set by webhook handler via initialData), pass through.
     if (context && "whatsapp" in context) {
-      const result = await step.run("whatsapp-trigger-passthrough", async () => context);
       await publish(whatsappTriggerChannel().status({ nodeId, status: "success" }));
-      return result;
+      return context;
     }
 
     // Manual run: return placeholder data so variable picker works in the editor.
@@ -31,7 +29,7 @@ export const whatsappTriggerExecutor: NodeExecutor = async ({
       throw new NonRetriableError("WhatsApp trigger: No credential configured");
     }
 
-    const placeholder = await step.run("whatsapp-trigger-manual", async () => ({
+    const placeholder = {
       ...context,
       whatsapp: {
         messageId: "wamid.placeholder",
@@ -43,7 +41,7 @@ export const whatsappTriggerExecutor: NodeExecutor = async ({
         type: "text",
         text: "Hello (manual test run)",
       },
-    }));
+    };
 
     await publish(whatsappTriggerChannel().status({ nodeId, status: "success" }));
     return placeholder;

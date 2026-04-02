@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
+import { useWorkflowStore } from "@/features/editor/store/workflow-store";
 import { useExecuteWorkflow } from "@/features/workflows/hooks/use-workflows";
-import { useAtomValue } from "jotai";
 import { PlayIcon } from "lucide-react";
-import { editorAtom } from "../store/atoms";
+import { useShallow } from "zustand/react/shallow";
 
 export const ExecuteWorkflowButton = ({
   workflowId,
@@ -12,16 +12,17 @@ export const ExecuteWorkflowButton = ({
   nodeId?: string;
 }) => {
   const executeWorkflow = useExecuteWorkflow();
-  const editor = useAtomValue(editorAtom);
+  const { nodes, edges } = useWorkflowStore(
+    useShallow((s) => ({ nodes: s.nodes, edges: s.edges })),
+  );
 
   const handleExecute = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent triggering node click/drag if used inside a node
-    const nodes = editor?.getNodes();
-    const edges = editor?.getEdges();
+    e.stopPropagation();
     executeWorkflow.mutate({
       id: workflowId,
       triggerNodeId: nodeId,
-      ...(nodes && edges ? { nodes, edges } : {}),
+      nodes,
+      edges,
     });
   };
 

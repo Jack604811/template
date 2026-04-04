@@ -52,7 +52,17 @@ function resolveTemplates(
     const value = resolvePath(ctx, rawPath);
     if (isJson) return JSON.stringify(value, null, 2) ?? "null";
     if (value === null || value === undefined) return "null";
-    if (typeof value === "string") return JSON.stringify(value);
+    if (typeof value === "string") {
+      const trimmed = value.trimStart();
+      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
+        try {
+          return JSON.stringify(JSON.parse(value));
+        } catch {
+          // not valid JSON, treat as plain string
+        }
+      }
+      return JSON.stringify(value);
+    }
     if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   });
@@ -176,6 +186,9 @@ export const javascriptExecutor: NodeExecutor<JavascriptNodeData> = async ({
         const notDefined = /(\w+) is not defined/.exec(msg);
         if (notDefined) {
           hint = ` — Try context.${notDefined[1]} to access workflow variables`;
+        }
+        if (msg.includes("is not iterable")) {
+          hint = " — A template variable resolved to a non-array value. Verify the referenced node ran successfully and the path points to an array.";
         }
 
         throw new NonRetriableError(

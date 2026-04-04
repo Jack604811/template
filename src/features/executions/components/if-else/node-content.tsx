@@ -11,7 +11,6 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -189,13 +188,16 @@ export function IfElseNodeContent({
                   control={form.control}
                   name={`conditions.${index}.value`}
                   render={({ field: f }) => (
-                    <FormItem>
+                    <FormItem className="min-w-0">
                       <FormLabel>Value</FormLabel>
                       <FormControl>
-                        <Input
-                          className="nodrag bg-muted/50 cursor-text"
+                        <VariableInput
+                          nodeId={nodeId}
+                          value={f.value}
+                          onChange={f.onChange}
+                          onBlur={f.onBlur}
                           placeholder="Add a value"
-                          {...f}
+                          className="nodrag min-h-8 text-xs cursor-text"
                         />
                       </FormControl>
                       <FormMessage />

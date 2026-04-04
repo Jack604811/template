@@ -80,7 +80,7 @@ export function JavascriptNodeContent({
                   <DialogHeader className="px-4 py-3 border-b shrink-0">
                     <DialogTitle className="text-sm font-medium">JavaScript Editor</DialogTitle>
                   </DialogHeader>
-                  <div className="flex-1 overflow-hidden p-4">
+                  <div className="flex-1 p-4">
                     <CodeEditor
                       nodeId={nodeId}
                       value={field.value}

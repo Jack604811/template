@@ -51,8 +51,10 @@ function resolveTemplates(
   return code.replace(TEMPLATE_RE, (_, isJson: string | undefined, rawPath: string) => {
     const value = resolvePath(ctx, rawPath);
     if (isJson) return JSON.stringify(value, null, 2) ?? "null";
-    if (value !== null && typeof value === "object") return JSON.stringify(value);
-    return String(value ?? "");
+    if (value === null || value === undefined) return "null";
+    if (typeof value === "string") return JSON.stringify(value);
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
   });
 }
 

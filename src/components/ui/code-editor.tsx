@@ -4,12 +4,16 @@ import {
   closeBrackets,
   closeBracketsKeymap,
 } from "@codemirror/autocomplete";
-import { javascript } from "@codemirror/lang-javascript";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { javascript, javascriptLanguage } from "@codemirror/lang-javascript";
 import {
   bracketMatching,
   indentOnInput,
   indentUnit,
+  syntaxHighlighting,
 } from "@codemirror/language";
+import { type Diagnostic, lintGutter, linter } from "@codemirror/lint";
+import { type Extension, RangeSetBuilder } from "@codemirror/state";
 import { oneDarkHighlightStyle } from "@codemirror/theme-one-dark";
 import {
   Decoration,
@@ -23,15 +27,13 @@ import {
   lineNumbers,
   placeholder as placeholderExt,
 } from "@codemirror/view";
-import { type Extension, RangeSetBuilder } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { syntaxHighlighting } from "@codemirror/language";
 import { useReactFlow } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { VariablePickerPopover } from "@/features/editor/components/variable-picker-popover";
 import { useWorkflowVariables } from "@/features/editor/hooks/use-workflow-variables";
 
 const VARIABLE_RE = /\{\{\s*([^}]+?)\s*\}\}/g;
+const TEMPLATE_RE = /\{\{[^}]*\}\}/g;
 
 class VariablePillWidget extends WidgetType {
   constructor(
@@ -61,8 +63,11 @@ function buildDecorations(view: EditorView): DecorationSet {
   for (const { from, to } of view.visibleRanges) {
     const text = view.state.doc.sliceString(from, to);
     VARIABLE_RE.lastIndex = 0;
-    let match: RegExpExecArray | null;
-    while ((match = VARIABLE_RE.exec(text)) !== null) {
+    for (
+      let match = VARIABLE_RE.exec(text);
+      match !== null;
+      match = VARIABLE_RE.exec(text)
+    ) {
       const start = from + match.index;
       const end = start + match[0].length;
       const label = match[1].trim();
@@ -149,9 +154,72 @@ const nodebaseTheme = EditorView.theme(
       verticalAlign: "baseline",
       lineHeight: "1.4",
     },
+    ".cm-lintRange-error": {
+      backgroundImage: "none",
+      borderBottom: "2px solid #f38ba8",
+      paddingBottom: "1px",
+    },
+    ".cm-lint-marker-error": {
+      color: "#f38ba8",
+      content: "'●'",
+    },
+    ".cm-diagnostic-error": {
+      borderLeft: "3px solid #f38ba8",
+      color: "#cdd6f4",
+      paddingLeft: "6px",
+    },
+    ".cm-gutter-lint": {
+      width: "16px",
+    },
+    ".cm-gutter-lint .cm-gutterElement": {
+      padding: "0 2px",
+    },
   },
   { dark: true },
 );
+
+// Replace {{...}} templates with same-length valid JS so Lezer positions
+// in the sanitized string map 1:1 to positions in the original code.
+function sanitizeTemplates(code: string): string {
+  return code.replace(TEMPLATE_RE, (m) => {
+    const len = m.length;
+    // "(null)" is 6 chars — pad the middle with spaces for longer templates.
+    if (len >= 6) return `(null${" ".repeat(len - 6)})`;
+    // For shorter (edge case): fall back to zero-padded number literal.
+    return `0${" ".repeat(len - 1)}`;
+  });
+}
+
+const jsSyntaxLinter = linter((view) => {
+  const code = view.state.doc.toString();
+  const sanitized = sanitizeTemplates(code);
+
+  // Get a human-readable error message from the browser's JS engine.
+  let errorMessage = "Syntax error";
+  try {
+    new Function(sanitized);
+  } catch (e) {
+    if (e instanceof SyntaxError) {
+      errorMessage = e.message;
+    }
+  }
+
+  // Parse the sanitized code with Lezer for accurate positions.
+  // Because sanitizeTemplates preserves string length, positions are identical
+  // to the original — no offset arithmetic needed.
+  const diagnostics: Diagnostic[] = [];
+  javascriptLanguage.parser.parse(sanitized).cursor().iterate((node) => {
+    if (node.type.isError) {
+      diagnostics.push({
+        from: node.from,
+        to: Math.max(node.from + 1, node.to),
+        severity: "error",
+        message: errorMessage,
+      });
+    }
+  });
+  return diagnostics;
+});
 
 function reactFlowIsolation(): Extension {
   return EditorView.domEventHandlers({
@@ -219,6 +287,8 @@ export function CodeEditor({
         : []),
       syntaxHighlighting(oneDarkHighlightStyle),
       variableDecorationPlugin,
+      lintGutter(),
+      jsSyntaxLinter,
       reactFlowIsolation(),
       EditorView.updateListener.of((update) => {
         if (update.docChanged && isInternalRef.current) {

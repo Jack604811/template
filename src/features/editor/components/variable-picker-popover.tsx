@@ -2,6 +2,7 @@
 
 import { Loader2Icon, SearchIcon } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -329,6 +330,18 @@ export const VariablePickerPopover = memo(
     const [selectedNodeIndex, setSelectedNodeIndex] = useState(0);
     const [selectedVariableIndex, setSelectedVariableIndex] = useState(0);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const pickerRef = useRef<HTMLDivElement>(null);
+    const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+
+    useEffect(() => {
+      if (!open || !wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      setPickerPos({
+        top: rect.top,
+        left: Math.max(8, rect.left - 520 - 32),
+      });
+    }, [open]);
 
     // Filter nodes: exclude current node, show all directly connected nodes
     // This ensures the current node is never included, even in search results
@@ -423,7 +436,9 @@ export const VariablePickerPopover = memo(
         if (isPointerTargetInsideVariableInputRoot(event.target)) {
           return;
         }
-
+        if (pickerRef.current?.contains(event.target as Node)) {
+          return;
+        }
         onOpenChange(false);
       };
 
@@ -536,24 +551,23 @@ export const VariablePickerPopover = memo(
       [collection, onSelect],
     );
 
-    return (
-      <>
-        {children}
-        {open && (
-          /* biome-ignore lint/a11y/noStaticElementInteractions: div needs onMouseDown to prevent focus loss, onWheel to prevent canvas pan */
-          <div
-            className="nowheel absolute right-full top-0 mr-8 z-50 w-[520px] rounded-md border bg-popover text-popover-foreground shadow-md p-0"
-            onMouseDown={(e) => {
-              if (
-                searchInputRef.current &&
-                searchInputRef.current.contains(e.target as Node)
-              ) {
-                return;
-              }
-              e.preventDefault();
-            }}
-            onWheel={(e) => e.stopPropagation()}
-          >
+    const pickerContent = open && pickerPos && (
+      /* biome-ignore lint/a11y/noStaticElementInteractions: div needs onMouseDown to prevent focus loss, onWheel to prevent canvas pan */
+      <div
+        ref={pickerRef}
+        style={{ position: "fixed", top: pickerPos.top, left: pickerPos.left, width: 520, zIndex: 200 }}
+        className="rounded-md border bg-popover text-popover-foreground shadow-md p-0"
+        onMouseDown={(e) => {
+          if (
+            searchInputRef.current &&
+            searchInputRef.current.contains(e.target as Node)
+          ) {
+            return;
+          }
+          e.preventDefault();
+        }}
+        onWheel={(e) => e.stopPropagation()}
+      >
             <div className="border-b border-border/60 px-3 py-2">
               <div className="flex items-center gap-2 rounded-md border bg-background px-3 py-1.5">
                 <SearchIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -619,7 +633,14 @@ export const VariablePickerPopover = memo(
               </div>
             </div>
           </div>
-        )}
+    );
+
+    return (
+      <>
+        <div ref={wrapperRef}>{children}</div>
+        {pickerContent && typeof document !== "undefined"
+          ? createPortal(pickerContent, document.body)
+          : null}
       </>
     );
   },

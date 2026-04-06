@@ -37,33 +37,21 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
   );
 
   if (!data.variableName) {
-    await publish(
-      anthropicChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("Anthropic node: Variable name is missing");
+    const errorMessage = "Anthropic node: Variable name is missing";
+    await publish(anthropicChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   if (!data.credentialId) {
-    await publish(
-      anthropicChannel().status({
-        nodeId,
-        status: "error",
-      }),
-    );
-    throw new NonRetriableError("Anthropic node: Credential is required");
+    const errorMessage = "Anthropic node: Credential is required";
+    await publish(anthropicChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   if (!data.userPrompt) {
-    await publish(
-      anthropicChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("Anthropic node: User prompt is missing");
+    const errorMessage = "Anthropic node: User prompt is missing";
+    await publish(anthropicChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   const systemPrompt = data.systemPrompt
@@ -76,13 +64,9 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
   });
 
   if (!credential) {
-    await publish(
-      anthropicChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("Anthropic node: Credential not found");
+    const errorMessage = "Anthropic node: Credential not found";
+    await publish(anthropicChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   const anthropic = createAnthropic({
@@ -105,11 +89,11 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       },
     );
 
-    const text = 
-      steps[0].content[0].type === "text" 
+    const text =
+      steps[0].content[0].type === "text"
         ? steps[0].content[0].text
         : "";
-    
+
     await publish(
       anthropicChannel().status({
         nodeId,
@@ -124,12 +108,8 @@ export const anthropicExecutor: NodeExecutor<AnthropicData> = async ({
       },
     }
   } catch (error) {
-     await publish(
-      anthropicChannel().status({
-        nodeId,
-        status: "error",
-      }),
-    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await publish(anthropicChannel().status({ nodeId, status: "error", errorMessage }));
     throw error;
   }
 };

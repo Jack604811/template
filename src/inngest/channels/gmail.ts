@@ -6,5 +6,6 @@ export const gmailChannel = channel(GMAIL_CHANNEL_NAME).addTopic(
   topic("status").type<{
     nodeId: string;
     status: "loading" | "success" | "error";
+    errorMessage?: string;
   }>(),
 );

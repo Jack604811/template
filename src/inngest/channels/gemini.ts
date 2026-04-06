@@ -7,5 +7,6 @@ export const geminiChannel = channel(GEMINI_CHANNEL_NAME)
     topic("status").type<{
       nodeId: string;
       status: "loading" | "success" | "error";
+      errorMessage?: string;
     }>(),
   );

@@ -37,7 +37,7 @@ type HttpRequestNodeType = Node<HttpRequestNodeData>;
 export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
   const { setNodes } = useReactFlow();
 
-  const { status: nodeStatus } = useNodeStatus({
+  const { status: nodeStatus, errorMessage } = useNodeStatus({
     nodeId: props.id,
     channel: HTTP_REQUEST_CHANNEL_NAME,
     topic: "status",
@@ -81,6 +81,7 @@ export const HttpRequestNode = memo((props: NodeProps<HttpRequestNodeType>) => {
       variableName={variableName}
       onVariableNameChange={handleVariableNameChange}
       status={nodeStatus}
+      errorMessage={errorMessage}
     >
       <HttpRequestNodeContent
         nodeId={props.id}

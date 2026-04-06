@@ -194,7 +194,8 @@ export const httpRequestExecutor: NodeExecutor<HttpRequestData> = async ({
     await publish(httpRequestChannel().status({ nodeId, status: "success" }));
     return result;
   } catch (error) {
-    await publish(httpRequestChannel().status({ nodeId, status: "error" }));
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await publish(httpRequestChannel().status({ nodeId, status: "error", errorMessage }));
     throw error;
   }
 };

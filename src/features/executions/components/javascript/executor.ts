@@ -44,28 +44,21 @@ function resolvePath(
   return current;
 }
 
-function resolveTemplates(
+function extractTemplateVars(
   code: string,
   ctx: Record<string, unknown>,
-): string {
-  return code.replace(TEMPLATE_RE, (_, isJson: string | undefined, rawPath: string) => {
+): { code: string; vars: Record<string, unknown> } {
+  const vars: Record<string, unknown> = {};
+  let idx = 0;
+
+  const resolved = code.replace(TEMPLATE_RE, (_, isJson: string | undefined, rawPath: string) => {
     const value = resolvePath(ctx, rawPath);
-    if (isJson) return JSON.stringify(value, null, 2) ?? "null";
-    if (value === null || value === undefined) return "null";
-    if (typeof value === "string") {
-      const trimmed = value.trimStart();
-      if (trimmed.startsWith("[") || trimmed.startsWith("{")) {
-        try {
-          return JSON.stringify(JSON.parse(value));
-        } catch {
-          // not valid JSON, treat as plain string
-        }
-      }
-      return JSON.stringify(value);
-    }
-    if (typeof value === "object") return JSON.stringify(value);
-    return String(value);
+    const name = `__v${idx++}`;
+    vars[name] = isJson ? (JSON.stringify(value, null, 2) ?? "null") : (value ?? null);
+    return name;
   });
+
+  return { code: resolved, vars };
 }
 
 export const javascriptExecutor: NodeExecutor<JavascriptNodeData> = async ({
@@ -86,12 +79,15 @@ export const javascriptExecutor: NodeExecutor<JavascriptNodeData> = async ({
         throw new NonRetriableError("JavaScript node: No code provided");
       }
 
-      const resolvedCode = resolveTemplates(code, context as Record<string, unknown>);
+      const ctx = context as Record<string, unknown>;
+      const { code: resolvedCode, vars } = extractTemplateVars(code, ctx);
       const wrappedCode = `(async function(context) { ${resolvedCode} })`;
 
       let output: unknown;
       try {
         const sandbox = {
+          ...ctx,
+          ...vars,
           fetch,
           console,
           setTimeout,

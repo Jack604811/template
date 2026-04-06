@@ -24,6 +24,7 @@ interface BaseExecutionNodeProps extends NodeProps {
   onVariableNameChange: (value: string) => void;
   children?: ReactNode;
   status?: NodeStatus;
+  errorMessage?: string;
   onSettings?: () => void;
   onDoubleClick?: () => void;
 }
@@ -36,6 +37,7 @@ export const BaseExecutionNode = memo(
     onVariableNameChange,
     children,
     status = "initial",
+    errorMessage,
     onSettings,
     onDoubleClick,
   }: BaseExecutionNodeProps) => {
@@ -77,6 +79,11 @@ export const BaseExecutionNode = memo(
             </BaseNodeHeader>
             <BaseNodeContent>
               {children}
+              {status === "error" && errorMessage && (
+                <div className="mt-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+                  {errorMessage}
+                </div>
+              )}
               <BaseHandle
                 id="target-1"
                 type="target"

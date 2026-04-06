@@ -37,33 +37,21 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
   );
 
   if (!data.variableName) {
-    await publish(
-      openAiChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("OpenAi node: Variable name is missing");
+    const errorMessage = "OpenAi node: Variable name is missing";
+    await publish(openAiChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   if (!data.credentialId) {
-    await publish(
-      openAiChannel().status({
-        nodeId,
-        status: "error",
-      }),
-    );
-    throw new NonRetriableError("OpenAi node: Credential is required");
+    const errorMessage = "OpenAi node: Credential is required";
+    await publish(openAiChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   if (!data.userPrompt) {
-    await publish(
-      openAiChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("OpenAi node: User prompt is missing");
+    const errorMessage = "OpenAi node: User prompt is missing";
+    await publish(openAiChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   const systemPrompt = data.systemPrompt
@@ -76,13 +64,9 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
   });
 
   if (!credential) {
-    await publish(
-      openAiChannel().status({
-        nodeId,
-        status: "error",
-      })
-    );
-    throw new NonRetriableError("OpenAI node: Credential not found");
+    const errorMessage = "OpenAI node: Credential not found";
+    await publish(openAiChannel().status({ nodeId, status: "error", errorMessage }));
+    throw new NonRetriableError(errorMessage);
   }
 
   const openai = createOpenAI({
@@ -105,11 +89,11 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
       },
     );
 
-    const text = 
-      steps[0].content[0].type === "text" 
+    const text =
+      steps[0].content[0].type === "text"
         ? steps[0].content[0].text
         : "";
-    
+
     await publish(
       openAiChannel().status({
         nodeId,
@@ -124,12 +108,8 @@ export const openAiExecutor: NodeExecutor<OpenAiData> = async ({
       },
     }
   } catch (error) {
-     await publish(
-      openAiChannel().status({
-        nodeId,
-        status: "error",
-      }),
-    );
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    await publish(openAiChannel().status({ nodeId, status: "error", errorMessage }));
     throw error;
   }
 };

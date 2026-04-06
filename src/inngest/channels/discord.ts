@@ -7,5 +7,6 @@ export const discordChannel = channel(DISCORD_CHANNEL_NAME)
     topic("status").type<{
       nodeId: string;
       status: "loading" | "success" | "error";
+      errorMessage?: string;
     }>(),
   );

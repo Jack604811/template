@@ -21,6 +21,7 @@ export const agentChannel = channel(AGENT_CHANNEL_NAME).addTopic(
     nodeId: string;
     status: "loading" | "success" | "error";
     text?: string;
+    errorMessage?: string;
     toolCalls?: AgentToolCallEvent[];
     toolResults?: AgentToolResultEvent[];
   }>(),

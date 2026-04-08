@@ -44,6 +44,13 @@ function resolvePath(
   return current;
 }
 
+function normalizeTemplateValue(value: unknown): unknown {
+  if (value == null) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === "object" && Symbol.iterator in (value as object)) return value;
+  return value;
+}
+
 function extractTemplateVars(
   code: string,
   ctx: Record<string, unknown>,
@@ -54,7 +61,7 @@ function extractTemplateVars(
   const resolved = code.replace(TEMPLATE_RE, (_, isJson: string | undefined, rawPath: string) => {
     const value = resolvePath(ctx, rawPath);
     const name = `__v${idx++}`;
-    vars[name] = isJson ? (JSON.stringify(value, null, 2) ?? "null") : (value ?? null);
+    vars[name] = isJson ? (JSON.stringify(value, null, 2) ?? "null") : normalizeTemplateValue(value);
     return name;
   });
 
@@ -184,7 +191,7 @@ export const javascriptExecutor: NodeExecutor<JavascriptNodeData> = async ({
           hint = ` — Try context.${notDefined[1]} to access workflow variables`;
         }
         if (msg.includes("is not iterable")) {
-          hint = " — A template variable resolved to a non-array value. Verify the referenced node ran successfully and the path points to an array.";
+          hint = " — A value used in a loop is not iterable. If iterating a template variable, ensure the referenced node produced an array or use Array.isArray(x) ? x : [x] to guard it.";
         }
 
         throw new NonRetriableError(

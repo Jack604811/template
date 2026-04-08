@@ -3,6 +3,7 @@ import { PAGINATION } from "@/config/constants";
 import { ExecutionStatus } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
+import { sendWorkflowExecution } from "@/inngest/utils";
 
 function hasContext(output: unknown): output is Record<string, unknown> {
   return (
@@ -91,6 +92,18 @@ export const executionsRouter = createTRPCRouter({
         hasNextPage,
         hasPreviousPage,
       };
+    }),
+  retry: organizationProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const execution = await prisma.execution.findUniqueOrThrow({
+        where: {
+          id: input.id,
+          workflow: { organizationId: ctx.organizationId },
+        },
+        select: { workflowId: true },
+      });
+      await sendWorkflowExecution({ workflowId: execution.workflowId });
     }),
   getLastExecutionContext: organizationProcedure
     .input(

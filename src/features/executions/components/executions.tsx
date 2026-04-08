@@ -1,12 +1,12 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { 
+import {
   EmptyView,
-  EntityContainer, 
-  EntityItem, 
-  EntityList, 
-  EntityPagination, 
+  EntityContainer,
+  EntityItem,
+  EntityList,
+  EntityPagination,
   ErrorView,
   LoadingView
 } from "@/components/entity-components";
@@ -15,7 +15,11 @@ import { useExecutionsParams } from "../hooks/use-executions-params";
 import { ExecutionsListHeader } from "./executions-list-header";
 import type { Execution } from "@/generated/prisma";
 import { ExecutionStatus } from "@/generated/prisma";
-import { CheckCircle2Icon, ClockIcon, Loader2Icon, XCircleIcon } from "lucide-react";
+import { CheckCircle2Icon, ClockIcon, Loader2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useTRPC } from "@/trpc/client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 export const ExecutionsList = ({ 
   workflowId, 
@@ -110,7 +114,7 @@ const formatStatus = (status: ExecutionStatus) => {
 export const ExecutionItem = ({
   data,
   disableNavigation = false,
-}: { 
+}: {
   data: Execution & {
     workflow: {
       id: string;
@@ -119,17 +123,26 @@ export const ExecutionItem = ({
   };
   disableNavigation?: boolean;
 }) => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+  const retry = useMutation(
+    trpc.executions.retry.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.executions.getMany.queryOptions({}));
+      },
+    }),
+  );
+
   const duration = data.completedAt
     ? Math.round(
-      (new Date(data.completedAt).getTime() - new Date(data.startedAt).getTime()) / 1000,
-    )
+        (new Date(data.completedAt).getTime() - new Date(data.startedAt).getTime()) / 1000,
+      )
     : null;
 
   const subtitle = (
     <>
-      {data.workflow.name} &bull; Started{" "}
-      {formatDistanceToNow(data.startedAt, { addSuffix: true })}
-      {duration !== null && <> &bull; Took {duration}s </>}
+      Started {formatDistanceToNow(data.startedAt, { addSuffix: true })}
+      {duration !== null && <> &bull; Took {duration}s</>}
     </>
   );
 
@@ -143,7 +156,26 @@ export const ExecutionItem = ({
           {getStatusIcon(data.status)}
         </div>
       }
+      actions={
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="icon"
+              variant="ghost"
+              disabled={retry.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                retry.mutate({ id: data.id });
+              }}
+            >
+              <RotateCcwIcon className="size-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Retry</TooltipContent>
+        </Tooltip>
+      }
       className={disableNavigation ? "cursor-default hover:shadow-none" : undefined}
     />
-  )
+  );
 };

@@ -1,9 +1,9 @@
 import z from "zod";
 import { PAGINATION } from "@/config/constants";
 import { ExecutionStatus } from "@/generated/prisma";
+import { sendWorkflowExecution } from "@/inngest/utils";
 import prisma from "@/lib/db";
 import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
-import { sendWorkflowExecution } from "@/inngest/utils";
 
 function hasContext(output: unknown): output is Record<string, unknown> {
   return (
@@ -92,6 +92,22 @@ export const executionsRouter = createTRPCRouter({
         hasNextPage,
         hasPreviousPage,
       };
+    }),
+  cancel: organizationProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.execution.updateMany({
+        where: {
+          id: input.id,
+          status: ExecutionStatus.RUNNING,
+          workflow: { organizationId: ctx.organizationId },
+        },
+        data: {
+          status: ExecutionStatus.CANCELLED,
+          error: "Cancelled by user",
+          completedAt: new Date(),
+        },
+      });
     }),
   retry: organizationProcedure
     .input(z.object({ id: z.string() }))

@@ -80,7 +80,7 @@ export const BaseExecutionNode = memo(
             <BaseNodeContent>
               {children}
               {status === "error" && errorMessage && (
-                <div className="mt-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+                <div className="mt-2 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive break-words overflow-hidden">
                   {errorMessage}
                 </div>
               )}

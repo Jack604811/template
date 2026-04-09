@@ -457,6 +457,7 @@ enum ExecutionStatus {
   RUNNING
   SUCCESS
   FAILED
+  CANCELLED
 }
 
 enum BookingStatus {

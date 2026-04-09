@@ -15,7 +15,7 @@ import { useExecutionsParams } from "../hooks/use-executions-params";
 import { ExecutionsListHeader } from "./executions-list-header";
 import type { Execution } from "@/generated/prisma";
 import { ExecutionStatus } from "@/generated/prisma";
-import { CheckCircle2Icon, ClockIcon, Loader2Icon, RotateCcwIcon, XCircleIcon } from "lucide-react";
+import { BanIcon, CheckCircle2Icon, ClockIcon, Loader2Icon, RotateCcwIcon, SquareIcon, XCircleIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useTRPC } from "@/trpc/client";
@@ -102,6 +102,8 @@ const getStatusIcon = (status: ExecutionStatus) => {
       return <XCircleIcon className="size-5 text-red-600" />;
     case ExecutionStatus.RUNNING:
       return <Loader2Icon className="size-5 text-blue-600 animate-spin" />;
+    case ExecutionStatus.CANCELLED:
+      return <BanIcon className="size-5 text-muted-foreground" />;
     default:
       return <ClockIcon className="size-5 text-muted-foreground" />;
   }
@@ -125,13 +127,11 @@ export const ExecutionItem = ({
 }) => {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const retry = useMutation(
-    trpc.executions.retry.mutationOptions({
-      onSuccess: () => {
-        queryClient.invalidateQueries(trpc.executions.getMany.queryOptions({}));
-      },
-    }),
-  );
+  const invalidate = () => queryClient.invalidateQueries(trpc.executions.getMany.queryOptions({}));
+  const retry = useMutation(trpc.executions.retry.mutationOptions({ onSuccess: invalidate }));
+  const cancel = useMutation(trpc.executions.cancel.mutationOptions({ onSuccess: invalidate }));
+
+  const isRunning = data.status === ExecutionStatus.RUNNING;
 
   const duration = data.completedAt
     ? Math.round(
@@ -142,7 +142,7 @@ export const ExecutionItem = ({
   const subtitle = (
     <>
       Started {formatDistanceToNow(data.startedAt, { addSuffix: true })}
-      {duration !== null && <> &bull; Took {duration}s</>}
+      {duration !== null && <> &bull; Took {duration >= 60 ? `${Math.round(duration / 60)}m` : `${duration}s`}</>}
     </>
   );
 
@@ -162,17 +162,25 @@ export const ExecutionItem = ({
             <Button
               size="icon"
               variant="ghost"
-              disabled={retry.isPending}
+              disabled={isRunning ? cancel.isPending : retry.isPending}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                retry.mutate({ id: data.id });
+                if (isRunning) {
+                  cancel.mutate({ id: data.id });
+                } else {
+                  retry.mutate({ id: data.id });
+                }
               }}
             >
-              <RotateCcwIcon className="size-4" />
+              {isRunning ? (
+                <SquareIcon className="size-4" />
+              ) : (
+                <RotateCcwIcon className="size-4" />
+              )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Retry</TooltipContent>
+          <TooltipContent>{isRunning ? "Stop" : "Retry"}</TooltipContent>
         </Tooltip>
       }
       className={disableNavigation ? "cursor-default hover:shadow-none" : undefined}

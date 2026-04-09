@@ -101,9 +101,13 @@ export const executionsRouter = createTRPCRouter({
           id: input.id,
           workflow: { organizationId: ctx.organizationId },
         },
-        select: { workflowId: true },
+        select: { workflowId: true, output: true },
       });
-      await sendWorkflowExecution({ workflowId: execution.workflowId });
+      const initialData =
+        execution.output && typeof execution.output === "object" && !Array.isArray(execution.output)
+          ? (execution.output as Record<string, unknown>)
+          : {};
+      await sendWorkflowExecution({ workflowId: execution.workflowId, initialData });
     }),
   getLastExecutionContext: organizationProcedure
     .input(

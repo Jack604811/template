@@ -10,10 +10,6 @@ export const prefetchBookings = (params: Input) => {
   return prefetch(trpc.bookings.getMany.queryOptions(params));
 };
 
-/**
- * Prefetch a single booking
- */
 export const prefetchBooking = (id: string) => {
   return prefetch(trpc.bookings.getOne.queryOptions({ id }));
 };
-

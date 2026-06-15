@@ -1,48 +1,59 @@
-import { useTRPC } from "@/trpc/client";
-import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import {
+  useMutation,
+  useQueryClient,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
 import { format } from "date-fns";
 import { startTransition } from "react";
-import { useBookingsParams } from "./use-bookings-params";
+import { toast } from "sonner";
+import { useTRPC } from "@/trpc/client";
 import { dedupeSuccessToast } from "../utils/toast-dedupe";
+import { useBookingsParams } from "./use-bookings-params";
 
-/**
- * Hook to fetch all bookings using suspense
- */
 export const useSuspenseBookings = () => {
   const trpc = useTRPC();
   const [params] = useBookingsParams();
-
-  return useSuspenseQuery(trpc.bookings.getMany.queryOptions(params));
+  return useSuspenseQuery(
+    trpc.bookings.getMany.queryOptions({
+      ...params,
+      startDate: params.startDate ?? undefined,
+      endDate: params.endDate ?? undefined,
+    }),
+  );
 };
 
-/**
- * Hook to create a new booking
- */
-export const useCreateBooking = () => {
-  const queryClient = useQueryClient();
+export const useSuspenseBooking = (id: string) => {
   const trpc = useTRPC();
+  return useSuspenseQuery(trpc.bookings.getOne.queryOptions({ id }));
+};
+
+export const useCreateBooking = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
   return useMutation(
     trpc.bookings.create.mutationOptions({
-      // No onMutate - optimistic updates use React Query cache in components (see docs/OPTIMISTIC_UPDATES.md)
+      // No onMutate — optimistic updates handled in components via queryClient.setQueryData
       onError: (error) => {
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
         toast.error("Failed to create booking", {
-          description: errorMessage,
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred",
         });
-        // Component reverts by invalidating on catch if it updated cache
       },
       onSuccess: (data) => {
-        const customerName = (data as { customer?: { name: string } | null }).customer?.name || "Booking";
-        const startDate = new Date(data.startTime);
-        dedupeSuccessToast(`booking-created-${(data as { id: string }).id}`, () => {
-          toast.success(`${customerName} created`, {
-            description: format(startDate, "MMM d, yyyy"),
-          });
-        });
-        // Use startTransition to make query invalidation non-blocking
-        // This prevents blocking the optimistic update render
+        const name =
+          (data as { customer?: { name: string } | null }).customer?.name ??
+          "Booking";
+        dedupeSuccessToast(
+          `booking-created-${(data as { id: string }).id}`,
+          () => {
+            toast.success(`${name} created`, {
+              description: format(new Date(data.startTime), "MMM d, yyyy"),
+            });
+          },
+        );
         startTransition(() => {
           queryClient.invalidateQueries(trpc.bookings.getMany.queryOptions({}));
         });
@@ -51,9 +62,41 @@ export const useCreateBooking = () => {
   );
 };
 
-/**
- * Hook to remove a booking
- */
+export const useUpdateBooking = () => {
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    trpc.bookings.update.mutationOptions({
+      // No onMutate — optimistic updates handled in components via queryClient.setQueryData
+      onError: (error) => {
+        toast.error("Failed to update booking", {
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred",
+        });
+      },
+      onSuccess: (data) => {
+        const name =
+          (data as { customer?: { name: string } | null }).customer?.name ??
+          "Booking";
+        dedupeSuccessToast(
+          `booking-updated-${(data as { id: string }).id}`,
+          () => {
+            toast.success(`${name} updated`, {
+              description: format(new Date(data.startTime), "MMM d, yyyy"),
+            });
+          },
+        );
+        startTransition(() => {
+          queryClient.invalidateQueries(trpc.bookings.getMany.queryOptions({}));
+        });
+      },
+    }),
+  );
+};
+
 export const useRemoveBooking = () => {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -61,62 +104,19 @@ export const useRemoveBooking = () => {
   return useMutation(
     trpc.bookings.remove.mutationOptions({
       onSuccess: () => {
-        toast.success(`Booking removed`);
-        // Use startTransition to make query invalidation non-blocking
+        toast.success("Booking removed");
         startTransition(() => {
           queryClient.invalidateQueries(trpc.bookings.getMany.queryOptions({}));
         });
       },
       onError: (error) => {
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
         toast.error("Failed to remove booking", {
-          description: errorMessage,
+          description:
+            error instanceof Error
+              ? error.message
+              : "An unexpected error occurred",
         });
       },
     }),
   );
 };
-
-/**
- * Hook to fetch a single booking using suspense
- */
-export const useSuspenseBooking = (id: string) => {
-  const trpc = useTRPC();
-  return useSuspenseQuery(trpc.bookings.getOne.queryOptions({ id }));
-};
-
-/**
- * Hook to update a booking
- */
-export const useUpdateBooking = () => {
-  const queryClient = useQueryClient();
-  const trpc = useTRPC();
-
-  return useMutation(
-    trpc.bookings.update.mutationOptions({
-      // No onMutate - optimistic updates are done in the component via queryClient.setQueryData (see docs/OPTIMISTIC_UPDATES.md)
-      onError: (error) => {
-        const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
-        toast.error("Failed to update booking", {
-          description: errorMessage,
-        });
-        // Component reverts optimistic update by invalidating on catch
-      },
-      onSuccess: (data) => {
-        const customerName = (data as { customer?: { name: string } | null }).customer?.name || "Booking";
-        const startDate = new Date(data.startTime);
-        dedupeSuccessToast(`booking-updated-${(data as { id: string }).id}`, () => {
-          toast.success(`${customerName} updated`, {
-            description: format(startDate, "MMM d, yyyy"),
-          });
-        });
-        // Use startTransition to make query invalidation non-blocking
-        // This prevents blocking the optimistic update render
-        startTransition(() => {
-          queryClient.invalidateQueries(trpc.bookings.getMany.queryOptions({}));
-        });
-      },
-    }),
-  );
-};
-

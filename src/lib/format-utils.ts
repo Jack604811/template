@@ -65,6 +65,10 @@ export function formatCurrency(amount: number, currency: string = "USD"): string
  * @param timezone - IANA timezone string (e.g., "America/New_York")
  * @returns Date object (same moment, but can be formatted for the timezone)
  */
+export function capitalize(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
 export function formatDate(date: Date, timezone?: string): Date {
   // JavaScript Date objects are always UTC internally
   // The timezone is only relevant when formatting for display

@@ -38,8 +38,8 @@ export const BookablesTable = memo(() => {
 
   const handleNewItem = useCallback(() => {
     const url = selectedCollectionId 
-      ? `/catalog/new?collectionId=${selectedCollectionId}`
-      : "/catalog/new";
+      ? `/services/new?collectionId=${selectedCollectionId}`
+      : "/services/new";
     router.push(url);
   }, [router, selectedCollectionId]);
 
@@ -51,7 +51,7 @@ export const BookablesTable = memo(() => {
   }, [newItemContext, handleNewItem]);
 
   const handleItemClick = useCallback((bookableId: string) => {
-    router.push(`/catalog/${bookableId}`);
+    router.push(`/services/${bookableId}`);
   }, [router]);
 
   const handleDuplicate = useCallback(async (bookableId: string) => {

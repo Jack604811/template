@@ -41,7 +41,7 @@ export const BookableDetailsPage = ({
 }: BookableDetailsPageProps) => {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { handleCancel } = useDetailPageNavigation("/catalog");
+  const { handleCancel } = useDetailPageNavigation("/services");
   const { data: bookable } = useSuspenseBookable(bookableId);
   const collectionsQuery = useSuspenseCollections();
   const collections = collectionsQuery.data ?? [];
@@ -207,7 +207,7 @@ export const BookableDetailsPage = ({
             onSave={() => form.handleSubmit(handleSubmit)()}
             onCancel={handleCancel}
             isSaving={updateBookable.isPending}
-            baseRoute="/catalog"
+            baseRoute="/services"
           />
           <main className="flex-1 overflow-auto">
             <div className="container mx-auto px-4 lg:px-8 py-6">

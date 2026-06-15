@@ -1,27 +1,18 @@
 import {
   AlertTriangleIcon,
   Loader2Icon,
+  type LucideIcon,
   MoreVerticalIcon,
   PackageOpenIcon,
   PlusIcon,
   SearchIcon,
   TrashIcon,
-  type LucideIcon,
 } from "lucide-react";
-import { Button } from "./ui/button";
-import Link from "next/link";
-import { Input } from "./ui/input";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "./ui/empty";
-import { cn } from "@/lib/utils";
-import { Card, CardContent, CardDescription, CardTitle } from "./ui/card";
 import Image from "next/image";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardTitle } from "./ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +21,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "./ui/empty";
+import { Input } from "./ui/input";
 
 type EntityHeaderProps = {
   title: string;
@@ -119,10 +119,10 @@ export const EntitySearch = ({
   placeholder = "Search",
 }: EntitySearchProps) => {
   return (
-    <div className="relative ml-auto">
-      <SearchIcon className="size-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+    <div className="relative w-full sm:max-w-sm">
+      <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       <Input
-        className="max-w-[400px] bg-none shadow-none border-none focus-visible:ring-0 pl-8"
+        className="pl-9 bg-muted/40 border-transparent focus-visible:border-border"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -407,9 +407,7 @@ export const EntityItem = ({
                   className="[--radius:1rem]"
                 >
                   {menuItems && (
-                    <DropdownMenuGroup>
-                      {renderMenuItems()}
-                    </DropdownMenuGroup>
+                    <DropdownMenuGroup>{renderMenuItems()}</DropdownMenuGroup>
                   )}
                   {menuGroups && renderMenuGroups()}
                   {!menuItems && !menuGroups && onRemove && (
@@ -462,12 +460,17 @@ export function EntityGrid<T>({
   }
 
   return (
-    <div className={cn(
-      "grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6",
-      className
-    )}>
+    <div
+      className={cn(
+        "grid grid-cols-[repeat(auto-fill,minmax(340px,1fr))] gap-6",
+        className,
+      )}
+    >
       {items.map((item, index) => (
-        <div key={getKey ? getKey(item, index) : index} className="flex justify-center">
+        <div
+          key={getKey ? getKey(item, index) : index}
+          className="flex justify-center"
+        >
           {renderItem(item, index)}
         </div>
       ))}
@@ -531,7 +534,7 @@ export const EntityGridItem = ({
             )}
           </div>
         )}
-        
+
         {/* Title and description below */}
         <div className="flex flex-col gap-3 flex-1">
           <CardTitle className="text-xl font-bold tracking-tight text-foreground/90 group-hover:text-primary transition-colors duration-300">

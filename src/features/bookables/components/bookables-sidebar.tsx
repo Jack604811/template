@@ -303,7 +303,7 @@ export const BookablesSidebar = memo(({ className }: BookablesSidebarProps) => {
     <div className={cn("flex flex-col h-full border-r bg-background", className)}>
       <nav className="flex-1 p-4 py-4 overflow-y-auto">
         <div className="flex items-center justify-between mb-3 px-2">
-          <span className="text-sm font-medium text-foreground">Collections</span>
+          <span className="text-sm font-medium text-foreground">Categories</span>
           <button
             type="button"
             onClick={handleCreateCollection}

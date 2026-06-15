@@ -24,16 +24,14 @@ const Page = async ({ params }: Props) => {
   }
 
   return (
-    <div className="p-4 md:px-10 md:py-6 h-full">
-      <div className="mx-auto max-w-screen-xl w-full flex flex-col gap-y-8 h-full">
-        <HydrateClient>
-          <ErrorBoundary fallback={<BookingsError />}>
-            <Suspense fallback={<BookingsLoading />}>
-              <BookingDetailsPage bookingId={id} />
-            </Suspense>
-          </ErrorBoundary>
-        </HydrateClient>
-      </div>
+    <div className="h-full">
+      <HydrateClient>
+        <ErrorBoundary fallback={<BookingsError />}>
+          <Suspense fallback={<BookingsLoading />}>
+            <BookingDetailsPage bookingId={id} />
+          </Suspense>
+        </ErrorBoundary>
+      </HydrateClient>
     </div>
   );
 };

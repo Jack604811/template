@@ -22,7 +22,7 @@ export const BookablesListHeader = ({ onNew, disabled, isCreating }: BookablesLi
       <div className="flex flex-row items-center justify-between gap-x-4 w-full">
         <Breadcrumb>
           <BreadcrumbList>
-            <BreadcrumbItem>Catalog</BreadcrumbItem>
+            <BreadcrumbItem>Services</BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
         {onNew && (

@@ -29,7 +29,7 @@ export const NewBookablePage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const collectionId = searchParams.get("collectionId");
-  const { handleBreadcrumbClick, handleCancel } = useDetailPageNavigation("/catalog");
+  const { handleBreadcrumbClick, handleCancel } = useDetailPageNavigation("/services");
   const createBookable = useCreateBookable();
   const currentOrg = useCurrentOrganizationWithSettings();
   const currency = currentOrg?.currency || "USD";
@@ -94,7 +94,7 @@ export const NewBookablePage = () => {
         collectionId: collectionId || null,
         ...formValuesToBookableInput(values),
       });
-      router.push(`/catalog/${newBookable.id}`);
+      router.push(`/services/${newBookable.id}`);
     } catch {
       // Error is handled by the mutation hook (toast notification)
     }
@@ -111,7 +111,7 @@ export const NewBookablePage = () => {
                 <BreadcrumbLink asChild>
                   <Link 
                     prefetch 
-                    href="/catalog"
+                    href="/services"
                     onClick={(e) => {
                       e.preventDefault();
                       handleBreadcrumbClick();

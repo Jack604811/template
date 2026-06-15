@@ -13,18 +13,62 @@ import {
 } from "@/features/custom-fields/utils";
 
 export const bookingsRouter = createTRPCRouter({
+  getStats: organizationProcedure
+    .input(z.object({
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const start = startOfDay(input.startDate ?? new Date());
+      const end = endOfDay(input.endDate ?? new Date());
+
+      const dateFilter = { startTime: { gte: start, lte: end } };
+
+      const [bookingCount, revenueAgg, collectedAgg] = await Promise.all([
+        prisma.booking.count({
+          where: { organizationId: ctx.organizationId, status: { not: "canceled" }, ...dateFilter },
+        }),
+        prisma.booking.aggregate({
+          where: { organizationId: ctx.organizationId, status: { not: "canceled" }, ...dateFilter },
+          _sum: { total: true },
+        }),
+        prisma.payment.aggregate({
+          where: {
+            booking: { organizationId: ctx.organizationId, ...dateFilter },
+            status: "completed",
+          },
+          _sum: { amount: true },
+        }),
+      ]);
+
+      const totalRevenue = revenueAgg._sum.total ?? 0;
+      const collected = collectedAgg._sum.amount ?? 0;
+
+      return {
+        bookingCount,
+        totalRevenue,
+        collected,
+        pending: Math.max(0, totalRevenue - collected),
+      };
+    }),
+
   getMany: organizationProcedure
     .input(
       z.object({
         page: z.number().default(PAGINATION.DEFAULT_PAGE),
         pageSize: z.number().default(PAGINATION.DEFAULT_PAGE_SIZE),
         search: z.string().default(""),
+        startDate: z.date().optional(),
+        endDate: z.date().optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const skip = (input.page - 1) * input.pageSize;
       const where = {
         organizationId: ctx.organizationId,
+        ...(input.startDate && input.endDate
+          ? { startTime: { gte: startOfDay(input.startDate), lte: endOfDay(input.endDate) } }
+          : {}),
         ...(input.search
           ? {
               OR: [
@@ -44,7 +88,7 @@ export const bookingsRouter = createTRPCRouter({
         where,
         skip,
         take: input.pageSize,
-        orderBy: { createdAt: "desc" },
+        orderBy: { startTime: "desc" },
         include: {
           customer: {
             include: {
@@ -59,6 +103,7 @@ export const bookingsRouter = createTRPCRouter({
             },
           },
           bookable: true,
+          payments: true,
           customFieldValues: {
             include: { field: true },
           },

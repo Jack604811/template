@@ -81,6 +81,7 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   fieldId?: string;
   defaultValues?: Partial<CustomFieldFormValues>;
+  hideDisplayLocation?: boolean;
   onCreate?: (values: { name: string; type: CustomFieldType; required: boolean; enabled: boolean; options?: string[]; defaultValue?: string; placeholder?: string; displayLocation: CustomFieldDisplayLocation }) => Promise<void>;
   onUpdate?: (fieldId: string, values: { name: string; type: CustomFieldType; required: boolean; options?: string[]; defaultValue?: string; placeholder?: string; displayLocation: CustomFieldDisplayLocation }) => Promise<void>;
 }
@@ -90,6 +91,7 @@ export const CustomFieldDialog = memo(({
   onOpenChange,
   fieldId,
   defaultValues = {},
+  hideDisplayLocation = false,
   onCreate,
   onUpdate,
 }: Props) => {
@@ -303,58 +305,60 @@ export const CustomFieldDialog = memo(({
                   )}
                 />
 
-                <Controller
-                  control={form.control}
-                  name="displayLocation"
-                  render={({ field, fieldState }: { field: ControllerRenderProps<CustomFieldFormValues, "displayLocation">; fieldState: { error?: { message?: string } } }) => (
-                    <Field>
-                      <FieldLabel htmlFor="display-location">
-                        Display Location
-                      </FieldLabel>
-                      <FieldDescription>
-                        Choose where this field appears in the booking details page
-                      </FieldDescription>
-                      <RadioGroup
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        disabled={
-                          !useOptimistic && (createCustomField.isPending || updateCustomField.isPending)
-                        }
-                        className="flex flex-row gap-4"
-                      >
-                        <FieldLabel htmlFor="display-location-booking">
-                          <Field orientation="horizontal">
-                            <FieldContent>
-                              <FieldTitle>Booking Details</FieldTitle>
-                              <FieldDescription>
-                                Display in the booking information
-                              </FieldDescription>
-                            </FieldContent>
-                            <RadioGroupItem
-                              value={CustomFieldDisplayLocation.BOOKING}
-                              id="display-location-booking"
-                            />
-                          </Field>
+                {!hideDisplayLocation && (
+                  <Controller
+                    control={form.control}
+                    name="displayLocation"
+                    render={({ field, fieldState }: { field: ControllerRenderProps<CustomFieldFormValues, "displayLocation">; fieldState: { error?: { message?: string } } }) => (
+                      <Field>
+                        <FieldLabel htmlFor="display-location">
+                          Display Location
                         </FieldLabel>
-                        <FieldLabel htmlFor="display-location-customer">
-                          <Field orientation="horizontal">
-                            <FieldContent>
-                              <FieldTitle>Customer Details</FieldTitle>
-                              <FieldDescription>
-                                Display in the client information
-                              </FieldDescription>
-                            </FieldContent>
-                            <RadioGroupItem
-                              value={CustomFieldDisplayLocation.CUSTOMER}
-                              id="display-location-customer"
-                            />
-                          </Field>
-                        </FieldLabel>
-                      </RadioGroup>
-                      <FieldError errors={fieldState.error ? [fieldState.error] : []} />
-                    </Field>
-                  )}
-                />
+                        <FieldDescription>
+                          Choose where this field appears in the booking details page
+                        </FieldDescription>
+                        <RadioGroup
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={
+                            !useOptimistic && (createCustomField.isPending || updateCustomField.isPending)
+                          }
+                          className="flex flex-row gap-4"
+                        >
+                          <FieldLabel htmlFor="display-location-booking">
+                            <Field orientation="horizontal">
+                              <FieldContent>
+                                <FieldTitle>Booking Details</FieldTitle>
+                                <FieldDescription>
+                                  Display in the booking information
+                                </FieldDescription>
+                              </FieldContent>
+                              <RadioGroupItem
+                                value={CustomFieldDisplayLocation.BOOKING}
+                                id="display-location-booking"
+                              />
+                            </Field>
+                          </FieldLabel>
+                          <FieldLabel htmlFor="display-location-customer">
+                            <Field orientation="horizontal">
+                              <FieldContent>
+                                <FieldTitle>Customer Details</FieldTitle>
+                                <FieldDescription>
+                                  Display in the client information
+                                </FieldDescription>
+                              </FieldContent>
+                              <RadioGroupItem
+                                value={CustomFieldDisplayLocation.CUSTOMER}
+                                id="display-location-customer"
+                              />
+                            </Field>
+                          </FieldLabel>
+                        </RadioGroup>
+                        <FieldError errors={fieldState.error ? [fieldState.error] : []} />
+                      </Field>
+                    )}
+                  />
+                )}
 
                 <Controller
                   control={form.control}

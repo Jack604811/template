@@ -1,4 +1,4 @@
-import { parseAsInteger, parseAsString } from "nuqs/server";
+import { parseAsInteger, parseAsIsoDate, parseAsString } from "nuqs/server";
 import { PAGINATION } from "@/config/constants";
 
 export const bookingsParams = {
@@ -11,5 +11,6 @@ export const bookingsParams = {
   search: parseAsString
     .withDefault("")
     .withOptions({ clearOnDefault: true }),
+  startDate: parseAsIsoDate,
+  endDate: parseAsIsoDate,
 };
-

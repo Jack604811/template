@@ -21,6 +21,13 @@ import { useNavigationHistory } from "./use-navigation-history";
  * />
  * ```
  */
+const returnUrlKey = (base: string) => `return-url:${base}`;
+
+export function saveReturnUrl(baseRoute: string) {
+  if (typeof window === "undefined") return;
+  sessionStorage.setItem(returnUrlKey(baseRoute), window.location.pathname + window.location.search);
+}
+
 export function useDetailPageNavigation(baseRoute: string) {
   const router = useRouter();
   const pathname = usePathname();
@@ -28,12 +35,16 @@ export function useDetailPageNavigation(baseRoute: string) {
 
   const handleBreadcrumbClick = useCallback(() => {
     resetRouteHistory(baseRoute);
-    router.push(baseRoute);
+    const saved = typeof window !== "undefined" ? sessionStorage.getItem(returnUrlKey(baseRoute)) : null;
+    sessionStorage.removeItem(returnUrlKey(baseRoute));
+    router.push(saved ?? baseRoute);
   }, [baseRoute, resetRouteHistory, router]);
 
   const handleCancel = useCallback(() => {
     resetRouteHistory(baseRoute);
-    router.push(baseRoute);
+    const saved = typeof window !== "undefined" ? sessionStorage.getItem(returnUrlKey(baseRoute)) : null;
+    sessionStorage.removeItem(returnUrlKey(baseRoute));
+    router.push(saved ?? baseRoute);
   }, [baseRoute, resetRouteHistory, router]);
 
   return {

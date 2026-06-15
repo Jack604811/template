@@ -20,7 +20,7 @@ interface BookableHeaderProps {
   baseRoute?: string;
 }
 
-export const BookableHeader = ({ title, onSave, onCancel, isSaving = false, baseRoute = "/catalog" }: BookableHeaderProps) => {
+export const BookableHeader = ({ title, onSave, onCancel, isSaving = false, baseRoute = "/services" }: BookableHeaderProps) => {
   const { handleBreadcrumbClick } = useDetailPageNavigation(baseRoute);
 
   return (

@@ -24,7 +24,11 @@ const Page = async ({ searchParams }: Props) => {
   // Prefetch bookings - errors are handled gracefully by React Query
   // If prefetch fails, component will fetch on client side
   try {
-    await prefetchBookings(params);
+    await prefetchBookings({
+      ...params,
+      startDate: params.startDate ?? undefined,
+      endDate: params.endDate ?? undefined,
+    });
   } catch {
     // Silently handle prefetch errors - prevents "Unauthorized" errors from breaking SSR
     // Component will fetch data on client side via useSuspenseBookings

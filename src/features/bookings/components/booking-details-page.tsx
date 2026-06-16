@@ -56,7 +56,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Toggle } from "@/components/ui/toggle";
+import { Pills } from "@/components/ui/pills";
 import { getTaxCountryFromOrgCountry } from "@/features/bookables/lib/form-utils";
 import { BOOKING_STATUSES } from "@/features/bookings/components/booking-calendar/status-config";
 import { BookingDateBadge } from "@/features/bookings/components/booking-date-badge";
@@ -1537,21 +1537,12 @@ export const BookingDetailsPage = ({ bookingId }: BookingDetailsPageProps) => {
           ))}
         </div>
 
-        {/* Tabs */}
-        <div className="flex gap-2 overflow-x-auto scrollbar-none px-4 py-3 border-b border-border/40">
-          {TABS.map((t) => (
-            <Toggle
-              key={t.id}
-              pressed={tab === t.id}
-              onPressedChange={() => setTab(t.id)}
-              variant="outline"
-              size="sm"
-              className="rounded-full shrink-0 data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:border-foreground"
-            >
-              {t.label}
-            </Toggle>
-          ))}
-        </div>
+        <Pills
+          items={TABS}
+          value={tab}
+          onValueChange={(v) => setTab(v as Tab)}
+          className="overflow-x-auto scrollbar-none px-4 py-3 border-b border-border/40"
+        />
 
         {/* Tab content */}
         {tab === "resumen" && (

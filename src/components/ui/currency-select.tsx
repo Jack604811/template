@@ -1,25 +1,23 @@
 "use client";
 
-import React, { memo, useMemo } from "react";
+import { currencies as AllCurrencies } from "country-data-list";
+import { CheckIcon, ChevronDown } from "lucide-react";
+import React, { memo, useCallback, useMemo, useState } from "react";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-// data
-import { currencies as AllCurrencies } from "country-data-list";
-
-// shadcn
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-// radix-ui
-import type { SelectProps } from "@radix-ui/react-select";
-
-// types
 export interface Currency {
   code: string;
   decimals: number;
@@ -28,7 +26,6 @@ export interface Currency {
   symbol?: string;
 }
 
-// Country type from country-dropdown
 export interface Country {
   alpha2: string;
   alpha3: string;
@@ -41,7 +38,8 @@ export interface Country {
   status: string;
 }
 
-interface CurrencySelectProps extends Omit<SelectProps, "onValueChange"> {
+interface CurrencySelectProps {
+  value?: string;
   onValueChange?: (value: string) => void;
   onCurrencySelect?: (currency: Currency) => void;
   name: string;
@@ -50,6 +48,10 @@ interface CurrencySelectProps extends Omit<SelectProps, "onValueChange"> {
   valid?: boolean;
   disabled?: boolean;
 }
+
+const excludedCodes = new Set([
+  "COU", "XUA", "XBA", "XBB", "XBC", "XBD", "XTS", "XXX",
+]);
 
 const CurrencySelectComponent = React.forwardRef<
   HTMLButtonElement,
@@ -60,125 +62,110 @@ const CurrencySelectComponent = React.forwardRef<
       value,
       onValueChange,
       onCurrencySelect,
-      name,
       placeholder = "Select currency",
       country,
-      valid = true,
-      ...props
+      disabled = false,
     },
     ref
   ) => {
+    const [open, setOpen] = useState(false);
+
     const uniqueCurrencies = useMemo<Currency[]>(() => {
       const currencyMap = new Map<string, Currency>();
+      const availableCodes = new Set([...(country?.currencies ?? []), "USD"]);
 
-      // Get country currencies + USD
-      const countryCurrencyCodes = country?.currencies || [];
-      const availableCodes = [...new Set([...countryCurrencyCodes, "USD"])];
-
-      // List of investment units and non-currency units to exclude
-      const excludedUnits = [
-        "COU", // Unidad de Valor Real
-        "XUA", // ADB Unit of Account
-        "XBA", // Bond Markets Unit European Composite Unit (EURCO)
-        "XBB", // Bond Markets Unit European Monetary Unit (E.M.U.-6)
-        "XBC", // Bond Markets Unit European Unit of Account 9 (E.U.A.-9)
-        "XBD", // Bond Markets Unit European Unit of Account 17 (E.U.A.-17)
-        "XTS", // Codes specifically reserved for testing purposes
-        "XXX", // The codes assigned for transactions where no currency is involved
-      ];
-
-      AllCurrencies.all.forEach((currency: Currency) => {
+      for (const currency of AllCurrencies.all as Currency[]) {
         if (
-          currency.code &&
-          currency.name &&
-          currency.symbol &&
-          availableCodes.includes(currency.code) &&
-          !excludedUnits.includes(currency.code)
-        ) {
-          // Filter out investment units by checking name patterns
-          const nameLower = currency.name.toLowerCase();
-          const isInvestmentUnit =
-            nameLower.includes("unit of account") ||
-            nameLower.includes("unidad de valor") ||
-            nameLower.includes("bond markets unit") ||
-            nameLower.includes("testing") ||
-            nameLower.includes("reserved");
+          !currency.code ||
+          !currency.name ||
+          !currency.symbol ||
+          !availableCodes.has(currency.code) ||
+          excludedCodes.has(currency.code)
+        )
+          continue;
 
-          if (!isInvestmentUnit) {
-            // Special handling for Euro
-            if (currency.code === "EUR") {
-              currencyMap.set(currency.code, {
-                code: currency.code,
-                name: "Euro",
-                symbol: currency.symbol,
-                decimals: currency.decimals,
-                number: currency.number,
-              });
-            } else {
-              currencyMap.set(currency.code, {
-                code: currency.code,
-                name: currency.name,
-                symbol: currency.symbol,
-                decimals: currency.decimals,
-                number: currency.number,
-              });
-            }
-          }
-        }
-      });
+        const nameLower = currency.name.toLowerCase();
+        if (
+          nameLower.includes("unit of account") ||
+          nameLower.includes("unidad de valor") ||
+          nameLower.includes("bond markets unit") ||
+          nameLower.includes("testing") ||
+          nameLower.includes("reserved")
+        )
+          continue;
 
-      // Convert the map to an array and sort by currency name
+        currencyMap.set(currency.code, {
+          code: currency.code,
+          name: currency.code === "EUR" ? "Euro" : currency.name,
+          symbol: currency.symbol,
+          decimals: currency.decimals,
+          number: currency.number,
+        });
+      }
+
       return Array.from(currencyMap.values()).sort((a, b) =>
         a.name.localeCompare(b.name)
       );
     }, [country]);
 
-    const handleValueChange = (newValue: string) => {
-      const fullCurrencyData = uniqueCurrencies.find(
-        (curr) => curr.code === newValue
-      );
-      if (fullCurrencyData) {
-        if (onValueChange) {
-          onValueChange(newValue);
-        }
-        if (onCurrencySelect) {
-          onCurrencySelect(fullCurrencyData);
-        }
-      }
-    };
+    const handleSelect = useCallback(
+      (currency: Currency) => {
+        onValueChange?.(currency.code);
+        onCurrencySelect?.(currency);
+        setOpen(false);
+      },
+      [onValueChange, onCurrencySelect]
+    );
+
+    const triggerClasses = cn(
+      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1"
+    );
 
     return (
-      <Select
-        value={value}
-        onValueChange={handleValueChange}
-        disabled={props.disabled}
-        {...props}
-        name={name}
-        data-valid={valid}
-      >
-        <SelectTrigger
-          className={cn("w-full")}
-          data-valid={valid}
-          ref={ref}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger ref={ref} className={triggerClasses} disabled={disabled}>
+          {value ? (
+            <span>{value}</span>
+          ) : (
+            <span className="text-muted-foreground">{placeholder}</span>
+          )}
+          <ChevronDown size={16} />
+        </PopoverTrigger>
+        <PopoverContent
+          collisionPadding={10}
+          side="bottom"
+          align="start"
+          alignOffset={48}
+          className="min-w-[--radix-popper-anchor-width] p-0"
         >
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            {uniqueCurrencies.map((currency) => (
-              <SelectItem key={currency?.code} value={currency?.code || ""}>
-                <div className="flex items-center w-full gap-2">
-                  <span className="text-sm text-muted-foreground w-8 text-left">
-                    {currency?.code}
-                  </span>
-                  <span className="hidden">{currency?.symbol}</span>
-                  <span>{currency?.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
+          <Command className="w-full max-h-[200px] sm:max-h-[270px]">
+            <CommandList>
+              <div className="sticky top-0 z-10 bg-popover">
+                <CommandInput placeholder="Search currency..." />
+              </div>
+              <CommandEmpty>No currency found.</CommandEmpty>
+              <CommandGroup>
+                {uniqueCurrencies.map((currency) => (
+                  <CommandItem
+                    key={currency.code}
+                    value={`${currency.code} ${currency.name}`}
+                    onSelect={() => handleSelect(currency)}
+                    className="flex items-center gap-2"
+                  >
+                    <span className="w-8 shrink-0 text-sm text-muted-foreground">
+                      {currency.code}
+                    </span>
+                    <span className="flex-1">{currency.name}</span>
+                    {currency.code === value && (
+                      <CheckIcon className="size-3.5 text-primary" />
+                    )}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
     );
   }
 );
@@ -186,4 +173,3 @@ const CurrencySelectComponent = React.forwardRef<
 CurrencySelectComponent.displayName = "CurrencySelect";
 
 export const CurrencySelect = memo(CurrencySelectComponent);
-

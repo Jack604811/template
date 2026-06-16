@@ -18,6 +18,7 @@ export const useSuspenseBookings = () => {
       ...params,
       startDate: params.startDate ?? undefined,
       endDate: params.endDate ?? undefined,
+      collectionId: params.collectionId ?? "",
     }),
   );
 };

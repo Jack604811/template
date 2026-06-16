@@ -70,6 +70,14 @@
 
 :root {
   --radius: 0.65rem;
+  --avatar-1: oklch(0.65 0.19 293);
+  --avatar-2: oklch(0.62 0.16 162);
+  --avatar-3: oklch(0.72 0.14 200);
+  --avatar-4: oklch(0.60 0.16 145);
+  --avatar-5: oklch(0.60 0.18 250);
+  --avatar-6: oklch(0.62 0.20 0);
+  --avatar-7: oklch(0.72 0.16 60);
+  --avatar-8: oklch(0.62 0.20 310);
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
   --card: oklch(1 0 0);

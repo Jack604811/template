@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { countries } from "country-data-list";
 import {
   BanknoteIcon,
+  ChevronsUpDownIcon,
   Building2Icon,
   CalendarIcon,
   ChevronLeftIcon,
@@ -36,8 +37,6 @@ import {
   CountryDropdown,
 } from "@/components/ui/country-dropdown";
 import { CurrencySelect } from "@/components/ui/currency-select";
-import { DateTimeFormatSelect } from "@/components/ui/date-time-format-select";
-import { WeekStartSelect } from "@/components/ui/week-start-select";
 import {
   Drawer,
   DrawerClose,
@@ -162,20 +161,100 @@ function DesktopField({
   return (
     <div
       className={cn(
-        "flex items-start gap-4 py-3.5",
+        "flex items-center gap-4 py-3.5",
         !last && "border-b border-border/40",
       )}
     >
-      <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted/30">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted/30">
         {icon}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="mb-2 text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
           {label}
         </p>
         {children}
       </div>
     </div>
+  );
+}
+
+function DesktopPickerRow({
+  icon,
+  label,
+  valueDisplay,
+  last = false,
+  disabled = false,
+  children,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  valueDisplay: string;
+  last?: boolean;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "relative flex items-center gap-4 py-3.5",
+        !last && "border-b border-border/40",
+        disabled ? "opacity-50" : "cursor-pointer",
+      )}
+    >
+      <div className="pointer-events-none flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted/30">
+        {icon}
+      </div>
+      <div className="pointer-events-none min-w-0 flex-1">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="truncate text-[15px] leading-snug text-foreground">
+          {valueDisplay || "—"}
+        </p>
+      </div>
+      <PencilIcon className="pointer-events-none size-3 shrink-0 text-muted-foreground/30" />
+      <div className="absolute inset-0 [&>button]:absolute [&>button]:inset-0 [&>button]:h-full [&>button]:w-full [&>button]:cursor-pointer [&>button]:opacity-0 [&>button]:disabled:cursor-default">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DesktopToggleRow({
+  icon,
+  label,
+  valueDisplay,
+  last = false,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  valueDisplay: string;
+  last?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center gap-4 py-3.5 text-left transition-colors hover:bg-muted/30",
+        !last && "border-b border-border/40",
+      )}
+    >
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted/30">
+        {icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="mb-1.5 text-[11px] font-semibold uppercase leading-none tracking-wider text-muted-foreground">
+          {label}
+        </p>
+        <p className="truncate text-[15px] leading-snug text-foreground">
+          {valueDisplay}
+        </p>
+      </div>
+      <ChevronsUpDownIcon className="size-3.5 shrink-0 text-muted-foreground/40" />
+    </button>
   );
 }
 
@@ -349,6 +428,13 @@ const PanelGeneral = memo(() => {
   const iconCls = "size-[15px] text-primary/70";
 
   if (!isMobile) {
+    const countryName = selectedCountry?.name ?? watchedCountry ?? "—";
+    const weekStartLabel = WEEK_START_OPTIONS.find((o) => o.value === watchedWeekStart)?.label ?? "—";
+    const dateFormatLabel = DATE_FORMAT_OPTIONS.find((o) => o.value === watchedDateTimeFormat)?.label ?? "—";
+    const tzLabel = watchedTimezone
+      ? watchedTimezone.replace(/_/g, " ").replace(/\//g, " · ")
+      : "—";
+
     return (
       <div className="flex flex-col gap-6">
         <div>
@@ -358,10 +444,15 @@ const PanelGeneral = memo(() => {
               value={watchedName}
               onChange={(e) => form.setValue("name", e.target.value)}
               disabled={!canEdit}
-              className="w-full bg-transparent text-[15px] text-foreground outline-none disabled:opacity-50"
+              className="w-full bg-transparent border-none outline-none text-[15px] text-foreground leading-snug p-0 m-0 font-[inherit] appearance-none disabled:opacity-50"
             />
           </DesktopField>
-          <DesktopField icon={<GlobeIcon className={iconCls} />} label="País">
+          <DesktopPickerRow
+            icon={<GlobeIcon className={iconCls} />}
+            label="País"
+            valueDisplay={countryName}
+            disabled={!canEdit}
+          >
             <CountryDropdown
               defaultValue={watchedCountry}
               onChange={(c) => {
@@ -370,8 +461,14 @@ const PanelGeneral = memo(() => {
               }}
               disabled={!canEdit}
             />
-          </DesktopField>
-          <DesktopField icon={<BanknoteIcon className={iconCls} />} label="Moneda" last>
+          </DesktopPickerRow>
+          <DesktopPickerRow
+            icon={<BanknoteIcon className={iconCls} />}
+            label="Moneda"
+            valueDisplay={watchedCurrency ?? "—"}
+            last
+            disabled={!canEdit}
+          >
             <CurrencySelect
               value={watchedCurrency}
               onValueChange={(v) => form.setValue("currency", v)}
@@ -380,11 +477,16 @@ const PanelGeneral = memo(() => {
               placeholder="Seleccionar moneda"
               disabled={!canEdit}
             />
-          </DesktopField>
+          </DesktopPickerRow>
         </div>
         <div>
           <SectionLabel className="mb-2">Calendario</SectionLabel>
-          <DesktopField icon={<ClockIcon className={iconCls} />} label="Zona horaria">
+          <DesktopPickerRow
+            icon={<ClockIcon className={iconCls} />}
+            label="Zona horaria"
+            valueDisplay={tzLabel}
+            disabled={!canEdit}
+          >
             <TimezoneSelect
               value={watchedTimezone}
               onValueChange={(v) => form.setValue("timezone", v ?? "")}
@@ -392,29 +494,26 @@ const PanelGeneral = memo(() => {
               placeholder="Seleccionar zona horaria"
               disabled={!canEdit}
             />
-          </DesktopField>
-          <DesktopField icon={<CalendarIcon className={iconCls} />} label="Inicio de semana">
-            <WeekStartSelect
-              value={watchedWeekStart}
-              onValueChange={(v) =>
-                form.setValue("weekStart", v as "monday" | "sunday")
-              }
-              name="weekStart"
-              placeholder="Seleccionar día"
-              disabled={!canEdit}
-            />
-          </DesktopField>
-          <DesktopField icon={<SettingsIcon className={iconCls} />} label="Formato de hora" last>
-            <DateTimeFormatSelect
-              value={watchedDateTimeFormat}
-              onValueChange={(v) =>
-                form.setValue("dateTimeFormat", v as "12" | "24")
-              }
-              name="dateTimeFormat"
-              placeholder="Seleccionar formato"
-              disabled={!canEdit}
-            />
-          </DesktopField>
+          </DesktopPickerRow>
+          <DesktopToggleRow
+            icon={<CalendarIcon className={iconCls} />}
+            label="Inicio de semana"
+            valueDisplay={weekStartLabel}
+            onClick={() =>
+              canEdit &&
+              form.setValue("weekStart", watchedWeekStart === "monday" ? "sunday" : "monday")
+            }
+          />
+          <DesktopToggleRow
+            icon={<SettingsIcon className={iconCls} />}
+            label="Formato de hora"
+            valueDisplay={dateFormatLabel}
+            last
+            onClick={() =>
+              canEdit &&
+              form.setValue("dateTimeFormat", watchedDateTimeFormat === "12" ? "24" : "12")
+            }
+          />
         </div>
       </div>
     );
@@ -703,7 +802,17 @@ function VariablesList() {
       <div className="flex flex-col gap-16">
         {sections.map(({ label, items, location }) => (
           <div key={location}>
-            <SectionLabel className="mb-3">{label}</SectionLabel>
+            <div className="mb-3 flex items-center justify-between">
+              <SectionLabel>{label}</SectionLabel>
+              <button
+                type="button"
+                onClick={() => setAddLocation(location)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <PlusIcon className="size-3.5" />
+                Nuevo
+              </button>
+            </div>
             <div>
               {items.length === 0 ? (
                 <p className="py-4 text-sm text-muted-foreground">Sin campos</p>
@@ -736,14 +845,6 @@ function VariablesList() {
                 ))
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => setAddLocation(location)}
-              className="mt-1 flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-            >
-              <PlusIcon className="size-4" />
-              Añadir campo
-            </button>
           </div>
         ))}
       </div>

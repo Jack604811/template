@@ -13,4 +13,7 @@ export const bookingsParams = {
     .withOptions({ clearOnDefault: true }),
   startDate: parseAsIsoDate,
   endDate: parseAsIsoDate,
+  collectionId: parseAsString
+    .withDefault("")
+    .withOptions({ clearOnDefault: true }),
 };

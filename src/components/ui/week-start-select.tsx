@@ -46,7 +46,7 @@ const WeekStartSelectComponent = React.forwardRef<
         <SelectTrigger className="w-full" data-valid={valid} ref={ref}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="start" alignOffset={48}>
           <SelectGroup>
             <SelectItem value="monday">Monday</SelectItem>
             <SelectItem value="sunday">Sunday</SelectItem>

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BotIcon,
   CalendarDaysIcon,
   CreditCardIcon,
   FolderOpenIcon,
@@ -9,7 +10,6 @@ import {
   MessageCircleIcon,
   SettingsIcon,
   StarIcon,
-  WorkflowIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -34,10 +34,10 @@ const menuItems = [
   {
     title: "Main",
     items: [
-      { title: "Home", icon: HomeIcon, url: "/chat" },
+      { title: "Home", icon: HomeIcon, url: "/" },
       { title: "Reservas", icon: CalendarDaysIcon, url: "/bookings" },
-      { title: "Chats", icon: MessageCircleIcon, url: "/chats" },
-      { title: "Agentes", icon: WorkflowIcon, url: "/agents" },
+      { title: "Chats", icon: MessageCircleIcon, url: "/chat" },
+      { title: "Agentes", icon: BotIcon, url: "/agents" },
       { title: "Services", icon: FolderOpenIcon, url: "/services" },
       { title: "Settings", icon: SettingsIcon, url: "/settings" },
     ],

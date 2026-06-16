@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useQuery } from "@tanstack/react-query"
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -8,8 +9,9 @@ import {
 } from "lucide-react"
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker"
 
-import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import { useTRPC } from "@/trpc/client"
 
 function Calendar({
   className,
@@ -24,9 +26,15 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
+  const trpc = useTRPC()
+  const { data: memberships } = useQuery(trpc.organizations.getMany.queryOptions())
+  const { data: currentOrgId } = useQuery(trpc.organizations.getCurrent.queryOptions())
+  const currentOrg = memberships?.find((m) => m.organization.id === currentOrgId)?.organization
+  const weekStartsOn = (currentOrg?.weekStart === "monday" ? 1 : 0) as 0 | 1
 
   return (
     <DayPicker
+      weekStartsOn={weekStartsOn}
       showOutsideDays={showOutsideDays}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:--spacing(8)] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",

@@ -60,6 +60,7 @@ export const bookingsRouter = createTRPCRouter({
         search: z.string().default(""),
         startDate: z.date().optional(),
         endDate: z.date().optional(),
+        collectionId: z.string().default(""),
       }),
     )
     .query(async ({ ctx, input }) => {
@@ -81,6 +82,9 @@ export const bookingsRouter = createTRPCRouter({
                 },
               ],
             }
+          : {}),
+        ...(input.collectionId
+          ? { bookable: { collectionId: input.collectionId } }
           : {}),
       };
 

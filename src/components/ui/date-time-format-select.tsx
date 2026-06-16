@@ -47,7 +47,7 @@ const DateTimeFormatSelectComponent = React.forwardRef<
         <SelectTrigger className="w-full" data-valid={valid} ref={ref}>
           <SelectValue placeholder={placeholder} />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="start" alignOffset={48}>
           <SelectGroup>
             <SelectItem value="12">12-hour</SelectItem>
             <SelectItem value="24">24-hour</SelectItem>

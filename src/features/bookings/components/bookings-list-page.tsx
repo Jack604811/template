@@ -22,6 +22,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Pills } from "@/components/ui/pills";
 import {
   Popover,
   PopoverContent,
@@ -286,6 +287,30 @@ const GroupLabel = ({ date }: { date: Date }) => {
   );
 };
 
+const CollectionFilter = () => {
+  const trpc = useTRPC();
+  const [params, setParams] = useBookingsParams();
+  const { data: collections = [] } = useQuery(
+    trpc.bookableCollections.getMany.queryOptions(),
+  );
+
+  if (collections.length === 0) return null;
+
+  const items = [
+    { id: "", label: "Todos" },
+    ...collections.map((c) => ({ id: c.id, label: c.name })),
+  ];
+
+  return (
+    <Pills
+      items={items}
+      value={params.collectionId ?? ""}
+      onValueChange={(id) => setParams({ collectionId: id, page: 1 })}
+      className="overflow-x-auto scrollbar-none px-4 pb-3"
+    />
+  );
+};
+
 export const BookingsListActions = () => {
   const router = useRouter();
   const [params, setParams] = useBookingsParams();
@@ -309,6 +334,7 @@ export const BookingsListActions = () => {
           onChange={(value) => setParams({ search: value, page: 1 })}
         />
       </div>
+      <CollectionFilter />
     </div>
   );
 };

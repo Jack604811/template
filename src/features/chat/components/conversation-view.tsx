@@ -130,8 +130,12 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="flex h-14 shrink-0 items-center gap-1 border-b px-2">
+    <div
+      className="grid min-w-0 flex-1"
+      style={{ gridTemplateRows: "auto 1fr auto", height: "100%" }}
+    >
+      {/* Row 1 — header */}
+      <div className="flex h-14 items-center gap-1 border-b px-2">
         {isMobile && onBack && (
           <button
             type="button"
@@ -166,38 +170,42 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
         </button>
       </div>
 
-      <Conversation>
-        <ConversationContent className="gap-3 px-4 py-4">
-          {messages.length === 0 ? (
-            <ConversationEmptyState>
-              <div className="flex flex-col items-center gap-3 text-center">
-                <Avatar className="size-20">
-                  <AvatarFallback
-                    className="text-2xl font-semibold text-white"
-                    style={getAvatarStyle(conversation.name)}
-                  >
-                    {conversation.initials}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="text-[17px] font-semibold">{conversation.name}</p>
-                  <p className="mt-0.5 text-sm capitalize text-muted-foreground">{conversation.channel}</p>
+      {/* Row 2 — scrollable conversation */}
+      <div className="overflow-hidden">
+        <Conversation className="h-full">
+          <ConversationContent className="gap-3 px-4 py-4">
+            {messages.length === 0 ? (
+              <ConversationEmptyState>
+                <div className="flex flex-col items-center gap-3 text-center">
+                  <Avatar className="size-20">
+                    <AvatarFallback
+                      className="text-2xl font-semibold text-white"
+                      style={getAvatarStyle(conversation.name)}
+                    >
+                      {conversation.initials}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-[17px] font-semibold">{conversation.name}</p>
+                    <p className="mt-0.5 text-sm capitalize text-muted-foreground">{conversation.channel}</p>
+                  </div>
+                  <Button variant="outline" size="sm" className="mt-1 rounded-full px-5" onClick={onToggleInfo}>
+                    Ver perfil
+                  </Button>
                 </div>
-                <Button variant="outline" size="sm" className="mt-1 rounded-full px-5" onClick={onToggleInfo}>
-                  Ver perfil
-                </Button>
-              </div>
-            </ConversationEmptyState>
-          ) : (
-            messages.map((message) => (
-              <MessageBubble key={message.id} message={message} conversation={conversation} />
-            ))
-          )}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
+              </ConversationEmptyState>
+            ) : (
+              messages.map((message) => (
+                <MessageBubble key={message.id} message={message} conversation={conversation} />
+              ))
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
+      </div>
 
-      <div className="shrink-0">
+      {/* Row 3 — input */}
+      <div>
         <PromptInputProvider>
           <ConnectedQuickReplies />
           <MessageInput onSend={handleSend} />

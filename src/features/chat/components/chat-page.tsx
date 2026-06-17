@@ -63,7 +63,7 @@ export function ChatPage() {
   if (isMobile) {
     if (params.id && selectedConversation) {
       return (
-        <div className="flex h-full flex-col">
+        <div className="flex h-dvh flex-col overflow-hidden">
           <ConversationView
             conversation={selectedConversation}
             onToggleInfo={() => setInfoOpen((v) => !v)}

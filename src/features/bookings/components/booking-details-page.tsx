@@ -1482,7 +1482,7 @@ export const BookingDetailsPage = ({ bookingId }: BookingDetailsPageProps) => {
             </Popover>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-[20px] font-semibold text-foreground leading-tight truncate">
+            <p className="text-[26px] font-bold text-foreground leading-tight truncate">
               {booking.customer?.name ?? "—"}
             </p>
             <p className="text-[14px] text-muted-foreground truncate">

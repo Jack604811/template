@@ -9,7 +9,7 @@ import { useBookablesParams } from "./use-bookables-params";
  */
 export const useSuspenseBookables = (collectionId: string | null) => {
   const trpc = useTRPC();
-  const [params] = useBookablesParams();
+  const [{ collectionId: _ignored, ...params }] = useBookablesParams();
 
   return useSuspenseQuery(
     trpc.bookables.getMany.queryOptions({
@@ -81,7 +81,6 @@ export const useUpdateBookable = () => {
   return useMutation(
     trpc.bookables.update.mutationOptions({
       onSuccess: (data) => {
-        toast.success(`Bookable "${data.title}" updated`);
         startTransition(() => {
           queryClient.invalidateQueries(
             trpc.bookables.getOne.queryOptions({ id: data.id }),

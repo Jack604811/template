@@ -39,7 +39,7 @@ export const BookableHeader = ({ title, onSave, onCancel, isSaving = false, base
                     handleBreadcrumbClick();
                   }}
                 >
-                  Catalog
+                  Servicios
                 </Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
@@ -67,7 +67,7 @@ export const BookableHeader = ({ title, onSave, onCancel, isSaving = false, base
                 onClick={onSave}
                 disabled={isSaving}
               >
-                {isSaving ? "Saving..." : "Save"}
+                {isSaving ? "Guardando..." : "Guardar"}
               </Button>
             )}
           </div>

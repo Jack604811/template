@@ -1,15 +1,14 @@
 "use client";
 
-import type { UseFormReturn } from "react-hook-form";
 import {
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+  CalendarIcon,
+  ClockIcon,
+  UserIcon,
+  Users2Icon,
+  ZapIcon,
+} from "lucide-react";
+import type { UseFormReturn } from "react-hook-form";
+import { FormField } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import {
   MAX_ADVANCE_UNITS,
   maxAdvanceUnitLabels,
@@ -25,6 +23,13 @@ import {
   minAdvanceUnitLabels,
 } from "../lib/schemas";
 import type { BookableFormValues } from "../lib/schemas";
+import {
+  FormRow,
+  SwitchRow,
+  iconCls,
+  numberInputCls,
+  selectTriggerCls,
+} from "./bookable-form-row";
 
 interface BookingOptionsSectionProps {
   form: UseFormReturn<BookableFormValues>;
@@ -34,56 +39,44 @@ export const BookingOptionsSection = ({ form }: BookingOptionsSectionProps) => {
   const allowMultipleGuests = form.watch("allowMultipleGuests");
 
   return (
-    <div className="space-y-6">
-      {/* Booking Window */}
-      <div className="rounded-lg border bg-card p-6 space-y-4">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">
-            Booking Window
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Control how far in advance bookings can be made
-          </p>
-        </div>
-        <div className="space-y-2">
-          <FormLabel>Minimum Notice</FormLabel>
-          <div className="flex gap-2">
-            <FormField
-              control={form.control}
-              name="minAdvanceValue"
-              render={({ field }) => (
-                <FormItem className="w-full max-w-[120px]">
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      placeholder="0"
-                      className="w-full"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value ? parseInt(e.target.value, 10) : null,
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="minAdvanceUnit"
-              render={({ field: unitField }) => (
-                <FormItem className="flex-1 min-w-[140px]">
-                  <FormControl>
+    <div className="divide-y divide-border/40">
+      {/* Ventana de reserva */}
+      <div className="pb-6">
+        <p className="mb-1 px-5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Ventana de reserva
+        </p>
+        <FormField
+          control={form.control}
+          name="minAdvanceValue"
+          render={({ field, fieldState }) => (
+            <FormRow
+              icon={<ClockIcon className={iconCls} />}
+              label="Aviso mínimo"
+              tooltip="Tiempo mínimo entre que se hace la reserva y cuando ocurre"
+              error={fieldState.error?.message}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={0}
+                  className={`${numberInputCls} w-12`}
+                  value={field.value ?? ""}
+                  onChange={(e) =>
+                    field.onChange(
+                      e.target.value ? parseInt(e.target.value, 10) : null,
+                    )
+                  }
+                />
+                <FormField
+                  control={form.control}
+                  name="minAdvanceUnit"
+                  render={({ field: unitField }) => (
                     <Select
                       onValueChange={unitField.onChange}
                       value={unitField.value ?? "HOURS"}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Unit" />
+                      <SelectTrigger className={selectTriggerCls}>
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {MIN_ADVANCE_UNITS.map((unit) => (
@@ -93,55 +86,46 @@ export const BookingOptionsSection = ({ form }: BookingOptionsSectionProps) => {
                         ))}
                       </SelectContent>
                     </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormDescription>
-            How much notice do you need before a booking?
-          </FormDescription>
-        </div>
-        <div className="space-y-2">
-          <FormLabel>Maximum Advance Booking</FormLabel>
-          <div className="flex gap-2">
-            <FormField
-              control={form.control}
-              name="maxAdvanceValue"
-              render={({ field }) => (
-                <FormItem className="w-full max-w-[120px]">
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Optional"
-                      className="w-full"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value ? parseInt(e.target.value, 10) : null,
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="maxAdvanceUnit"
-              render={({ field: unitField }) => (
-                <FormItem className="flex-1 min-w-[140px]">
-                  <FormControl>
+                  )}
+                />
+              </div>
+            </FormRow>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="maxAdvanceValue"
+          render={({ field, fieldState }) => (
+            <FormRow
+              icon={<CalendarIcon className={iconCls} />}
+              label="Reserva máxima anticipada"
+              tooltip="Con cuánta anticipación pueden reservar los clientes"
+              last
+              error={fieldState.error?.message}
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="—"
+                  className={`${numberInputCls} w-12`}
+                  value={field.value ?? ""}
+                  onChange={(e) =>
+                    field.onChange(
+                      e.target.value ? parseInt(e.target.value, 10) : null,
+                    )
+                  }
+                />
+                <FormField
+                  control={form.control}
+                  name="maxAdvanceUnit"
+                  render={({ field: unitField }) => (
                     <Select
                       onValueChange={unitField.onChange}
                       value={unitField.value ?? "DAYS"}
                     >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Unit" />
+                      <SelectTrigger className={selectTriggerCls}>
+                        <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         {MAX_ADVANCE_UNITS.map((unit) => (
@@ -151,48 +135,30 @@ export const BookingOptionsSection = ({ form }: BookingOptionsSectionProps) => {
                         ))}
                       </SelectContent>
                     </Select>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-          <FormDescription>
-            How far into the future can guests book?
-          </FormDescription>
-        </div>
+                  )}
+                />
+              </div>
+            </FormRow>
+          )}
+        />
       </div>
 
-      {/* Capacity Settings */}
-      <div className="rounded-lg border bg-card p-6 space-y-4">
-        <div>
-          <h3 className="text-base font-semibold text-foreground">
-            Capacity Settings
-          </h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage guest capacity for this booking
-          </p>
-        </div>
+      {/* Capacidad */}
+      <div className="pt-6">
+        <p className="mb-1 px-5 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Capacidad
+        </p>
         <FormField
           control={form.control}
           name="allowMultipleGuests"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-              <div className="space-y-0.5">
-                <FormLabel className="text-base">
-                  Allow Multiple Guests
-                </FormLabel>
-                <FormDescription>
-                  Enable bookings for groups or multiple people
-                </FormDescription>
-              </div>
-              <FormControl>
-                <Switch
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                />
-              </FormControl>
-            </FormItem>
+            <SwitchRow
+              icon={<Users2Icon className={iconCls} />}
+              label="Permitir múltiples clientes"
+              tooltip="Activa para permitir que grupos reserven juntos"
+              checked={field.value}
+              onCheckedChange={field.onChange}
+            />
           )}
         />
         {allowMultipleGuests && (
@@ -200,49 +166,49 @@ export const BookingOptionsSection = ({ form }: BookingOptionsSectionProps) => {
             <FormField
               control={form.control}
               name="minGuests"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Minimum Guests</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      className="w-full max-w-[120px]"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value ? parseInt(e.target.value, 10) : null,
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              render={({ field, fieldState }) => (
+                <FormRow
+                  icon={<UserIcon className={iconCls} />}
+                  label="Mínimo de clientes"
+                  tooltip="Número mínimo de personas para confirmar la reserva"
+                  error={fieldState.error?.message}
+                >
+                  <input
+                    type="number"
+                    min={0}
+                    className={`${numberInputCls} w-16`}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value ? parseInt(e.target.value, 10) : null,
+                      )
+                    }
+                  />
+                </FormRow>
               )}
             />
             <FormField
               control={form.control}
               name="maxGuestsPerBooking"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Maximum Guests per Booking</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={1}
-                      className="w-full max-w-[120px]"
-                      {...field}
-                      value={field.value ?? ""}
-                      onChange={(e) =>
-                        field.onChange(
-                          e.target.value ? parseInt(e.target.value, 10) : null,
-                        )
-                      }
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+              render={({ field, fieldState }) => (
+                <FormRow
+                  icon={<Users2Icon className={iconCls} />}
+                  label="Máximo de clientes por reserva"
+                  tooltip="Límite de personas que pueden asistir en una sola reserva"
+                  error={fieldState.error?.message}
+                >
+                  <input
+                    type="number"
+                    min={1}
+                    className={`${numberInputCls} w-16`}
+                    value={field.value ?? ""}
+                    onChange={(e) =>
+                      field.onChange(
+                        e.target.value ? parseInt(e.target.value, 10) : null,
+                      )
+                    }
+                  />
+                </FormRow>
               )}
             />
           </>
@@ -250,28 +216,26 @@ export const BookingOptionsSection = ({ form }: BookingOptionsSectionProps) => {
         <FormField
           control={form.control}
           name="units"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Maximum Simultaneous Bookings</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  min={1}
-                  className="w-full max-w-[120px]"
-                  {...field}
-                  value={field.value ?? ""}
-                  onChange={(e) =>
-                    field.onChange(
-                      e.target.value ? parseInt(e.target.value, 10) : 1,
-                    )
-                  }
-                />
-              </FormControl>
-              <FormDescription>
-                How many bookings can happen at the same time?
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
+          render={({ field, fieldState }) => (
+            <FormRow
+              icon={<ZapIcon className={iconCls} />}
+              label="Reservas simultáneas máximas"
+              tooltip="Cuántas reservas pueden ocurrir al mismo tiempo para este servicio"
+              last
+              error={fieldState.error?.message}
+            >
+              <input
+                type="number"
+                min={1}
+                className={`${numberInputCls} w-16`}
+                value={field.value ?? ""}
+                onChange={(e) =>
+                  field.onChange(
+                    e.target.value ? parseInt(e.target.value, 10) : 1,
+                  )
+                }
+              />
+            </FormRow>
           )}
         />
       </div>

@@ -2,35 +2,76 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronLeftIcon, CopyIcon, EyeIcon, LinkIcon, MoreVerticalIcon, ShareIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm, type Resolver } from "react-hook-form";
 import { Form } from "@/components/ui/form";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import { Pills } from "@/components/ui/pills";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { findTaxByTypeValueAndCountry, PREDEFINED_TAXES } from "@/config/taxes";
 import { useCurrentOrganizationWithSettings } from "@/features/organizations/hooks/use-organizations";
 import { BookableStatus, DurationUnit, TaxType } from "@/generated/prisma";
 import { useDebounce } from "@/hooks/use-debounce";
 import { useDetailPageNavigation } from "@/hooks/use-detail-page-navigation";
-import { formatTime } from "@/lib/format-utils";
+import { formatCurrency, formatTime } from "@/lib/format-utils";
+import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-import { useSuspenseBookable, useUpdateBookable } from "../hooks/use-bookables";
+import { useDuplicateBookable, useSuspenseBookable, useRemoveBookable, useUpdateBookable } from "../hooks/use-bookables";
+import { useSuspenseCollections } from "../hooks/use-collections";
 import {
   bookableToFormValues,
   formValuesToBookableInput,
   getTaxCountryFromOrgCountry,
 } from "../lib/form-utils";
-import { type BookableFormValues, bookableFormSchema } from "../lib/schemas";
+import { type BookableFormValues, bookableFormSchema, durationUnitLabels } from "../lib/schemas";
 import { AdvanceSection } from "./advance-section";
+import { AvailabilitySection } from "./availability-section";
+import { BookableImage } from "./bookable-image";
 import {
-  BookableDetailsSidebar,
+  BOOKABLE_DETAIL_SECTIONS,
   DEFAULT_BOOKABLE_SECTION,
   type BookableDetailSectionId,
 } from "./bookable-details-sidebar";
-import { AvailabilitySection } from "./availability-section";
-import { BookableForm } from "./bookable-form";
-import { BookableHeader } from "./bookable-header";
 import { BookingOptionsSection } from "./booking-options-section";
 import { BookingSetupSection } from "./booking-setup-section";
-import { useSuspenseCollections } from "../hooks/use-collections";
+
+const ActionItem = ({
+  icon,
+  label,
+  onClick,
+  disabled,
+  className,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  className?: string;
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    disabled={disabled}
+    className={cn(
+      "flex w-full items-center gap-3 rounded-lg px-2 py-3 text-sm transition-colors hover:bg-muted/60 disabled:pointer-events-none disabled:opacity-40",
+      className,
+    )}
+  >
+    <span className="flex size-5 items-center justify-center">{icon}</span>
+    {label}
+  </button>
+);
 
 interface BookableDetailsPageProps {
   bookableId: string;
@@ -48,13 +89,16 @@ export const BookableDetailsPage = ({
   const [currentSection, setCurrentSection] =
     useState<BookableDetailSectionId>(DEFAULT_BOOKABLE_SECTION);
   const updateBookable = useUpdateBookable();
+  const removeBookable = useRemoveBookable();
+  const duplicateBookable = useDuplicateBookable();
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const currentOrg = useCurrentOrganizationWithSettings();
   const currency = currentOrg?.currency || "USD";
   const dateTimeFormat = (currentOrg?.dateTimeFormat as "12" | "24") || "24";
 
   const taxCountry = getTaxCountryFromOrgCountry(currentOrg?.country) ?? null;
 
-  // Filter taxes by org country so only relevant taxes (e.g. IVA for Colombia) appear; include current bookable's tax so the Select can display it when loading
   const availableTaxes = useMemo(() => {
     const base =
       taxCountry == null
@@ -73,7 +117,6 @@ export const BookableDetailsPage = ({
     return base;
   }, [taxCountry, bookable?.taxType, bookable?.taxValue]);
 
-  // Generate time options for availability pickers
   const timeOptions = useMemo(() => {
     const options = [];
     for (let hour = 0; hour < 24; hour++) {
@@ -89,7 +132,6 @@ export const BookableDetailsPage = ({
     return options;
   }, [dateTimeFormat]);
 
-  // Initialize form with loaded bookable so Status and Tax dropdowns show correct values on first paint
   const form = useForm<BookableFormValues>({
     resolver: zodResolver(bookableFormSchema) as Resolver<BookableFormValues>,
     defaultValues: bookable
@@ -132,7 +174,6 @@ export const BookableDetailsPage = ({
         },
   });
 
-  // Reset form when bookable changes (e.g. navigating to another bookable)
   useEffect(() => {
     if (bookable) {
       form.reset(bookableToFormValues(bookable, taxCountry));
@@ -148,7 +189,6 @@ export const BookableDetailsPage = ({
         id: bookableId,
       });
 
-      // Optimistic update (Pattern 1: React Query cache - docs/OPTIMISTIC_UPDATES.md)
       queryClient.setQueryData(
         queryOptions.queryKey,
         (old: typeof bookable | undefined) => {
@@ -171,11 +211,8 @@ export const BookableDetailsPage = ({
     performSave(form.getValues());
   }, 500);
 
-  // Use watch() instead of subscribe() - subscribe doesn't reliably fire for Controller/FormField
-  // (units, allowMultipleDays, Switch, Select). watch() correctly detects all field changes.
   const watchedValues = form.watch();
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: watchedValues triggers effect on units, allowMultipleDays changes
+  // biome-ignore lint/correctness/useExhaustiveDependencies: watchedValues triggers effect on all field changes
   useEffect(() => {
     if (!form.formState.isDirty || !bookable) return;
     debouncedSave();
@@ -188,80 +225,188 @@ export const BookableDetailsPage = ({
     [performSave],
   );
 
-  if (!bookable) {
-    return null;
-  }
+  if (!bookable) return null;
+
+  const durationLabel = `${bookable.durationValue} ${durationUnitLabels[bookable.durationUnit as DurationUnit]}`;
+  const priceLabel = formatCurrency(Number(bookable.basePrice), currency);
+  const collectionName = collections.find((c) => c.id === bookable.collectionId)?.name ?? null;
+  const statusLabel = bookable.status === BookableStatus.PUBLISHED ? "Publicado" : bookable.status === BookableStatus.ARCHIVED ? "Archivado" : "Borrador";
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="flex flex-1 overflow-hidden">
-        <BookableDetailsSidebar
-          className="w-64 flex-shrink-0"
-          bookableId={bookableId}
-          section={currentSection}
-          onSectionChange={setCurrentSection}
-        />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <BookableHeader
-            title={bookable.title || "Bookable"}
-            onSave={() => form.handleSubmit(handleSubmit)()}
-            onCancel={handleCancel}
-            isSaving={updateBookable.isPending}
-            baseRoute="/services"
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 pt-3 pb-2 shrink-0">
+        <button
+          type="button"
+          onClick={handleCancel}
+          className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+        >
+          <ChevronLeftIcon className="size-5" />
+        </button>
+        <div className="h-1 w-10 rounded-full bg-foreground/20" />
+        <Popover open={actionsOpen} onOpenChange={setActionsOpen}>
+          <PopoverTrigger asChild>
+            <button
+              type="button"
+              className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+            >
+              <MoreVerticalIcon className="size-5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="rounded-2xl p-1 min-w-52" title="Acciones">
+            <ActionItem
+              icon={<CopyIcon className="size-4" />}
+              label="Duplicar"
+              onClick={async () => {
+                setActionsOpen(false);
+                await duplicateBookable.mutateAsync({ id: bookableId });
+              }}
+            />
+            <ActionItem icon={<LinkIcon className="size-4" />} label="Copiar enlace" disabled />
+            <ActionItem icon={<EyeIcon className="size-4" />} label="Vista previa" disabled />
+            <ActionItem icon={<ShareIcon className="size-4" />} label="Compartir" disabled />
+            <div className="h-px bg-border my-1" />
+            <ActionItem
+              icon={<Trash2Icon className="size-4 text-destructive" />}
+              label="Eliminar"
+              className="text-destructive"
+              onClick={() => {
+                setActionsOpen(false);
+                setArchiveConfirmOpen(true);
+              }}
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+
+      <div className="flex-1 overflow-y-auto">
+        {/* Hero */}
+        <div className="flex items-start gap-4 px-5 pt-3 pb-4">
+          <BookableImage
+            images={bookable.images}
+            alt={bookable.title}
+            size={80}
           />
-          <main className="flex-1 overflow-auto">
-            <div className="container mx-auto px-4 lg:px-8 py-6">
-              <div className="max-w-2xl mx-auto">
-                <Form {...form}>
-                  <form
-                    id="bookable-form"
-                    onSubmit={form.handleSubmit(handleSubmit)}
-                    className="space-y-6"
-                  >
-                    <div
-                      className={
-                        currentSection === "booking-options" ||
-                        currentSection === "advance" ||
-                        currentSection === "availability"
-                          ? ""
-                          : "bg-card rounded-lg border p-6"
-                      }
-                    >
-                      {currentSection === "booking-setup" ? (
-                        <BookingSetupSection
-                          form={form}
-                          collections={collections}
-                        />
-                      ) : currentSection === "availability" ? (
-                        <AvailabilitySection
-                          form={form}
-                          timeOptions={timeOptions}
-                          dateTimeFormat={dateTimeFormat}
-                        />
-                      ) : currentSection === "booking-options" ? (
-                        <BookingOptionsSection form={form} />
-                      ) : currentSection === "advance" ? (
-                        <AdvanceSection
-                          form={form}
-                          availableTaxes={availableTaxes}
-                          currency={currency}
-                        />
-                      ) : (
-                        <BookableForm
-                          form={form}
-                          availableTaxes={availableTaxes}
-                          timeOptions={timeOptions}
-                          currency={currency}
-                        />
-                      )}
-                    </div>
-                  </form>
-                </Form>
+          <div className="flex-1 min-w-0">
+            <p className="text-[26px] font-bold text-foreground leading-tight truncate">
+              {bookable.title || "Sin nombre"}
+            </p>
+            {collectionName && (
+              <p className="text-[14px] text-muted-foreground truncate">
+                {collectionName}
+              </p>
+            )}
+            <p className="text-[13px] text-muted-foreground mt-0.5">
+              {priceLabel}
+              <span className="text-muted-foreground/60"> · {durationLabel}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div className="flex items-start max-w-lg border-t border-none border-border/40 mb-1">
+          {[
+            { label: "Precio", value: priceLabel },
+            { label: "Duración", value: durationLabel },
+            { label: "Estado", value: statusLabel },
+          ].map((stat, i) => (
+            <div key={stat.label} className="flex-1 flex items-stretch min-w-[180px]">
+              {i > 0 && <div className="w-px bg-border/40 self-stretch" />}
+              <div className="flex-1 flex flex-col items-start gap-0.5 px-4 py-3">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  {stat.label}
+                </p>
+                <p className="text-[16px] font-semibold text-foreground tabular-nums leading-tight">
+                  {stat.value}
+                </p>
               </div>
             </div>
-          </main>
+          ))}
         </div>
+
+        {/* Section tabs */}
+        <Pills
+          items={[...BOOKABLE_DETAIL_SECTIONS]}
+          value={currentSection}
+          onValueChange={(v) => setCurrentSection(v as BookableDetailSectionId)}
+          className="overflow-x-auto scrollbar-none px-4 py-3 border-b border-border/40"
+        />
+
+        {/* Content */}
+        <Form {...form}>
+          <form
+            id="bookable-form"
+            onSubmit={form.handleSubmit(handleSubmit)}
+          >
+            <div className="py-4">
+              {currentSection === "booking-setup" && (
+                <BookingSetupSection form={form} collections={collections} />
+              )}
+              {currentSection === "availability" && (
+                <AvailabilitySection
+                  form={form}
+                  timeOptions={timeOptions}
+                  dateTimeFormat={dateTimeFormat}
+                />
+              )}
+              {currentSection === "booking-options" && (
+                <BookingOptionsSection form={form} />
+              )}
+              {currentSection === "advance" && (
+                <AdvanceSection
+                  form={form}
+                  availableTaxes={availableTaxes}
+                  currency={currency}
+                />
+              )}
+            </div>
+          </form>
+        </Form>
       </div>
+
+      <Drawer open={archiveConfirmOpen} onOpenChange={setArchiveConfirmOpen}>
+        <DrawerContent>
+          <div className="flex items-center justify-between px-5 pt-4 pb-3">
+            <DrawerClose asChild>
+              <button
+                type="button"
+                className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground"
+              >
+                <XIcon className="size-5" />
+              </button>
+            </DrawerClose>
+            <DrawerTitle className="text-[15px] font-semibold">Eliminar servicio</DrawerTitle>
+            <div className="size-10" />
+          </div>
+          <DrawerDescription className="sr-only">Confirmar eliminación</DrawerDescription>
+          <div className="px-5 pb-safe-or-6 flex flex-col gap-4">
+            <p className="text-sm text-center text-muted-foreground">
+              Esta acción eliminará el servicio. No se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <DrawerClose asChild>
+                <button
+                  type="button"
+                  className="flex-1 py-3.5 rounded-2xl border border-border text-[14px] font-medium text-foreground"
+                >
+                  Cancelar
+                </button>
+              </DrawerClose>
+              <button
+                type="button"
+                onClick={async () => {
+                  await removeBookable.mutateAsync({ id: bookableId });
+                  handleCancel();
+                }}
+                disabled={removeBookable.isPending}
+                className="flex-1 py-3.5 rounded-2xl bg-destructive text-destructive-foreground text-[14px] font-semibold transition-opacity disabled:opacity-50"
+              >
+                {removeBookable.isPending ? "Eliminando…" : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 };

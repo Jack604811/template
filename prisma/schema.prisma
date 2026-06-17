@@ -92,6 +92,7 @@ model Organization {
   invitations         Invitation[]
   mcpServers          McpServer[]
   members             Member[]
+  conversations       Conversation[]
 
   @@map("organization")
 }
@@ -414,6 +415,54 @@ model BookingUpsell {
   booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
   @@map("booking_upsell")
+}
+
+model Conversation {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel         ChannelType  @default(WHATSAPP)
+  externalId      String
+  contactName     String?
+  lastMessageAt   DateTime?
+  lastMessageText String?
+  unreadCount     Int          @default(0)
+  credentialId    String?
+  messages        Message[]
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([organizationId, channel, externalId])
+  @@index([organizationId, lastMessageAt(sort: Desc)])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  externalId     String?
+  role           MessageRole
+  content        String
+  mediaType      String?
+  mediaId        String?
+  mediaUrl       String?
+  mediaFilename  String?
+  timestamp      DateTime     @default(now())
+
+  @@index([conversationId, timestamp])
+}
+
+enum ChannelType {
+  WHATSAPP
+  INSTAGRAM
+  TIKTOK
+  MESSENGER
+  WEB
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
 }
 
 enum CredentialType {

@@ -1,6 +1,7 @@
 "use client";
 
 import { SearchIcon } from "lucide-react";
+import { EntitySearch } from "@/components/entity-components";
 import {
   Empty,
   EmptyDescription,
@@ -8,17 +9,16 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
 import { Pills } from "@/components/ui/pills";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ChatFilter, Conversation } from "../types";
 import { ConversationItem } from "./conversation-item";
 
 const CHAT_FILTERS: { id: ChatFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "unread", label: "Unread" },
-  { id: "joined", label: "Joined" },
-  { id: "groups", label: "Groups" },
+  { id: "all", label: "Todos" },
+  { id: "unread", label: "No leídos" },
+  { id: "joined", label: "Activos" },
+  { id: "groups", label: "Grupos" },
 ];
 
 interface ConversationListProps {
@@ -54,16 +54,12 @@ export function ConversationList({
   return (
     <div className="flex h-full flex-col">
       <header className="shrink-0 px-4 pt-5 pb-3">
-        <h1 className="mb-4 text-2xl font-bold tracking-tight">Messages</h1>
-        <div className="relative">
-          <SearchIcon className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="border-transparent bg-muted/40 pl-9 focus-visible:border-border"
-            placeholder="Search or start a new chat"
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-          />
-        </div>
+        <h1 className="mb-4 text-2xl font-bold tracking-tight">Mensajes</h1>
+        <EntitySearch
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Buscar conversación"
+        />
       </header>
 
       <Pills
@@ -80,8 +76,8 @@ export function ConversationList({
               <EmptyMedia variant="icon">
                 <SearchIcon />
               </EmptyMedia>
-              <EmptyTitle>No conversations</EmptyTitle>
-              <EmptyDescription>Try a different search or filter.</EmptyDescription>
+              <EmptyTitle>Sin conversaciones</EmptyTitle>
+              <EmptyDescription>Los mensajes de WhatsApp aparecerán aquí.</EmptyDescription>
             </EmptyHeader>
           </Empty>
         ) : (

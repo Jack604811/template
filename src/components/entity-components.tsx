@@ -122,7 +122,7 @@ export const EntitySearch = ({
     <div className="relative w-full sm:max-w-sm">
       <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
       <Input
-        className="pl-9 bg-muted/40 border-transparent focus-visible:border-border"
+        className="pl-9 bg-muted border-transparent focus-visible:border-border rounded-full"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}

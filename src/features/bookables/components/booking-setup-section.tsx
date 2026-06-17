@@ -1,14 +1,8 @@
 "use client";
 
+import { AlignLeftIcon, CircleDotIcon, TagIcon, TypeIcon } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
-import {
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
+import { FormField } from "@/components/ui/form";
 import {
   Select,
   SelectContent,
@@ -16,8 +10,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { BookableStatus } from "@/generated/prisma";
 import type { BookableFormValues } from "../lib/schemas";
+import { FormRow, iconCls, inputCls, selectTriggerCls } from "./bookable-form-row";
 
 interface BookingSetupSectionProps {
   form: UseFormReturn<BookableFormValues>;
@@ -29,78 +24,91 @@ export const BookingSetupSection = ({
   collections,
 }: BookingSetupSectionProps) => {
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-base font-semibold text-foreground">
-          Booking Details
-        </h3>
-        <p className="text-sm text-muted-foreground mt-1">
-          Basic information about your booking type.
-        </p>
-      </div>
-
+    <div>
       <FormField
         control={form.control}
         name="title"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Booking Name *</FormLabel>
-            <FormControl>
-              <Input
-                className="w-full"
-                placeholder="e.g. Spa Treatment Session"
-                {...field}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
+        render={({ field, fieldState }) => (
+          <FormRow
+            icon={<TypeIcon className={iconCls} />}
+            label="Nombre"
+            tooltip="El nombre que verán los clientes al buscar este servicio"
+            error={fieldState.error?.message}
+          >
+            <input
+              className={inputCls}
+              placeholder="ej. Sesión de tratamiento de spa"
+              {...field}
+            />
+          </FormRow>
         )}
       />
-
-      <FormField
-        control={form.control}
-        name="description"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Description</FormLabel>
-            <FormControl>
-              <Textarea
-                placeholder="e.g. Relax and rejuvenate with our premium spa treatment. Includes massage, aromatherapy, and personalized care."
-                className="min-h-[100px] w-full resize-y"
-                {...field}
-                value={field.value ?? ""}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
       <FormField
         control={form.control}
         name="collectionId"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Category</FormLabel>
-            <Select
-              onValueChange={field.onChange}
-              value={field.value ?? undefined}
-            >
-              <FormControl>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a category" />
-                </SelectTrigger>
-              </FormControl>
+        render={({ field, fieldState }) => (
+          <FormRow
+            icon={<TagIcon className={iconCls} />}
+            label="Categoría"
+            tooltip="Agrupa este servicio con otros de la misma categoría"
+            error={fieldState.error?.message}
+          >
+            <Select onValueChange={field.onChange} value={field.value ?? undefined}>
+              <SelectTrigger className={selectTriggerCls}>
+                <SelectValue placeholder="Seleccionar categoría" />
+              </SelectTrigger>
               <SelectContent>
-                {collections.map((collection) => (
-                  <SelectItem key={collection.id} value={collection.id}>
-                    {collection.name}
+                {collections.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <FormMessage />
-          </FormItem>
+          </FormRow>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="status"
+        render={({ field, fieldState }) => (
+          <FormRow
+            icon={<CircleDotIcon className={iconCls} />}
+            label="Estado"
+            tooltip="Controla si este servicio es visible para los clientes"
+            error={fieldState.error?.message}
+          >
+            <Select onValueChange={field.onChange} value={field.value}>
+              <SelectTrigger className={selectTriggerCls}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={BookableStatus.DRAFT}>Borrador</SelectItem>
+                <SelectItem value={BookableStatus.PUBLISHED}>Publicado</SelectItem>
+                <SelectItem value={BookableStatus.ARCHIVED}>Archivado</SelectItem>
+              </SelectContent>
+            </Select>
+          </FormRow>
+        )}
+      />
+      <FormField
+        control={form.control}
+        name="description"
+        render={({ field, fieldState }) => (
+          <FormRow
+            icon={<AlignLeftIcon className={iconCls} />}
+            label="Descripción"
+            tooltip="Describe el servicio para ayudar a los clientes a tomar una decisión"
+            last
+            error={fieldState.error?.message}
+          >
+            <textarea
+              className="w-full rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 text-[15px] text-foreground leading-snug font-[inherit] resize-none min-h-[100px] outline-none placeholder:text-muted-foreground/40"
+              placeholder="ej. Relájate y rejuvenece con nuestro tratamiento de spa premium."
+              {...field}
+              value={field.value ?? ""}
+            />
+          </FormRow>
         )}
       />
     </div>

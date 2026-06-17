@@ -103,10 +103,10 @@ export const statusLabels: Record<BookableStatus, string> = {
 };
 
 export const durationUnitLabels: Record<DurationUnit, string> = {
-  [DurationUnit.MINUTES]: "Minutes",
-  [DurationUnit.HOURS]: "Hours",
-  [DurationUnit.DAYS]: "Days",
-  [DurationUnit.NIGHTS]: "Nights",
+  [DurationUnit.MINUTES]: "Minutos",
+  [DurationUnit.HOURS]: "Horas",
+  [DurationUnit.DAYS]: "Días",
+  [DurationUnit.NIGHTS]: "Noches",
 };
 
 /** Duration units shown in the booking duration dropdown. */
@@ -124,14 +124,14 @@ export const MIN_ADVANCE_UNITS: MinAdvanceUnit[] = ["MINUTES", "HOURS", "DAYS"];
 export const MAX_ADVANCE_UNITS: MaxAdvanceUnit[] = ["DAYS", "WEEKS"];
 
 export const minAdvanceUnitLabels: Record<MinAdvanceUnit, string> = {
-  MINUTES: "Minutes",
-  HOURS: "Hours",
-  DAYS: "Days",
+  MINUTES: "Minutos",
+  HOURS: "Horas",
+  DAYS: "Días",
 };
 
 export const maxAdvanceUnitLabels: Record<MaxAdvanceUnit, string> = {
-  DAYS: "Days",
-  WEEKS: "Weeks",
+  DAYS: "Días",
+  WEEKS: "Semanas",
 };
 
 export const tooltipContent = {

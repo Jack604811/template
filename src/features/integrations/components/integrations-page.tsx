@@ -1,0 +1,175 @@
+"use client";
+
+import { useQuery } from "@tanstack/react-query";
+import { KeyRoundIcon } from "lucide-react";
+import Image from "next/image";
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { EntitySearch } from "@/components/entity-components";
+import { Button } from "@/components/ui/button";
+import { Pills } from "@/components/ui/pills";
+import { credentialTypeOptions } from "@/features/credentials/components/credential";
+import type { Credential, CredentialType } from "@/generated/prisma";
+import { useTRPC } from "@/trpc/client";
+import { CreateApiKeyDialog } from "./create-api-key-dialog";
+import {
+  IntegrationAppCard,
+  IntegrationsEmptyCard,
+} from "./integration-app-card";
+
+
+const CATEGORY_PILLS = [
+  { id: "all", label: "Todas" },
+  { id: "ai", label: "IA" },
+  { id: "communication", label: "Comunicación" },
+  { id: "productivity", label: "Productividad" },
+  { id: "business", label: "Negocio" },
+];
+
+export function IntegrationsPage() {
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [activeCategory, setActiveCategory] = useState("all");
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="hidden sm:flex items-center justify-between px-4 pt-6 pb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Integraciones</h1>
+        <Button size="sm" onClick={() => setApiKeyOpen(true)}>
+          <KeyRoundIcon className="size-4" />
+          Crear API key
+        </Button>
+      </div>
+
+      {/* Search */}
+      <div className="px-4 pt-8 pb-3">
+        <EntitySearch
+          placeholder="Buscar integración..."
+          value={search}
+          onChange={setSearch}
+        />
+      </div>
+
+      {/* Category pills */}
+      <Pills
+        items={CATEGORY_PILLS}
+        value={activeCategory}
+        onValueChange={setActiveCategory}
+        className="overflow-x-auto scrollbar-none px-4 pb-3"
+      />
+
+      <IntegrationsGrid
+        search={search}
+        activeCategory={activeCategory}
+        onApiKeyOpen={() => setApiKeyOpen(true)}
+      />
+
+      <CreateApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
+    </div>
+  );
+}
+
+
+function IntegrationsGrid({
+  search,
+  activeCategory,
+  onApiKeyOpen,
+}: {
+  search: string;
+  activeCategory: string;
+  onApiKeyOpen: () => void;
+}) {
+  const trpc = useTRPC();
+  const router = useRouter();
+  const { data } = useQuery(
+    trpc.credentials.getMany.queryOptions({ pageSize: 100 }),
+  );
+
+  const credentialsByType = useMemo(() => {
+    const map = new Map<CredentialType, Credential[]>();
+    const items: Credential[] = data?.items ?? [];
+    for (const c of items) {
+      const existing = map.get(c.type) ?? [];
+      map.set(c.type, [...existing, c]);
+    }
+    return map;
+  }, [data]);
+
+  const filteredApps = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return credentialTypeOptions.filter((app) => {
+      const matchesSearch = !q || app.label.toLowerCase().includes(q) || app.description.toLowerCase().includes(q);
+      const matchesCategory = activeCategory === "all" || (app as { category?: string }).category === activeCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [search, activeCategory]);
+
+  const showApiKeyCard = activeCategory === "all" && !search.trim();
+
+  return (
+    <div className="flex-1 overflow-y-auto px-4 pt-4 pb-8 md:px-6">
+      {!showApiKeyCard && filteredApps.length === 0 ? (
+        <IntegrationsEmptyCard />
+      ) : (
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {showApiKeyCard && <ApiKeyCard onClick={onApiKeyOpen} />}
+          {filteredApps.map((app) => (
+            <IntegrationAppCard
+              key={app.value}
+              app={app}
+              credentials={credentialsByType.get(app.value as CredentialType) ?? []}
+              onManage={() => router.push(`/integrations/${app.value.toLowerCase()}`)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApiKeyCard({ onClick }: { onClick: () => void }) {
+  return (
+    <>
+      {/* Desktop */}
+      <button
+        type="button"
+        onClick={onClick}
+        className="hidden md:flex flex-col rounded-2xl border border-border bg-card p-5 gap-4 text-left shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer w-full"
+      >
+        <div className="flex items-start justify-between">
+          <div className="relative h-14 w-14 rounded-[16px] bg-white shadow-sm overflow-hidden flex items-center justify-center">
+            <Image src="/logos/logo.svg" alt="Nodebase" width={36} height={36} />
+          </div>
+          <span className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-tight bg-muted text-foreground">
+            Platform
+          </span>
+        </div>
+        <div className="flex-1">
+          <h3 className="text-[15px] font-semibold leading-snug text-foreground">API Keys</h3>
+          <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground line-clamp-2">
+            Genera claves para conectar tus apps y servicios externos a Nodebase.
+          </p>
+        </div>
+        <div className="flex items-center pt-1 border-t border-border/40">
+          <span className="text-[13px] text-muted-foreground">Crear nueva key</span>
+        </div>
+      </button>
+
+      {/* Mobile */}
+      <button
+        type="button"
+        onClick={onClick}
+        className="md:hidden flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-colors hover:bg-accent/50 active:bg-accent"
+      >
+        <div className="relative h-11 w-11 shrink-0 rounded-[13px] bg-[#FF7A00] overflow-hidden flex items-center justify-center">
+          <Image src="/logos/logo.svg" alt="Nodebase" width={28} height={28} />
+        </div>
+        <div className="flex flex-1 flex-col min-w-0">
+          <span className="text-[15px] font-medium leading-snug truncate">API Keys</span>
+          <span className="text-[12px] text-muted-foreground">Crear nueva key</span>
+        </div>
+      </button>
+    </>
+  );
+}
+

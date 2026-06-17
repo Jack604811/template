@@ -16,7 +16,6 @@ interface TimeInputProps {
   onChange: (value: string) => void;
   /** "12" for 12-hour with AM/PM, "24" for 24-hour */
   dateTimeFormat?: "12" | "24";
-  placeholder?: string;
   className?: string;
   disabled?: boolean;
 }
@@ -46,7 +45,6 @@ export function TimeInput({
   value,
   onChange,
   dateTimeFormat = "24",
-  placeholder = "09:00",
   className,
   disabled,
 }: TimeInputProps) {
@@ -57,22 +55,66 @@ export function TimeInput({
   );
   const { hour12, minute, amPm } = parsed12h;
 
-  // 24h: single native time input
+  const parsed24h = useMemo(() => {
+    if (!/^\d{1,2}:\d{2}$/.test(value || "")) return { hour24: 9, minute: 0 };
+    const [h, m] = (value || "09:00").split(":").map(Number);
+    return {
+      hour24: Math.min(23, Math.max(0, h ?? 0)),
+      minute: Math.min(59, Math.max(0, m ?? 0)),
+    };
+  }, [value]);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  const sharedInputCls =
+    "h-7 w-8 border-0 bg-transparent p-0 text-center shadow-none focus-visible:ring-0";
+
+  const wrapperCls = cn(
+    "border-input flex h-9 w-full min-w-0 items-center gap-0.5 rounded-md border bg-transparent px-2 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
+    disabled && "pointer-events-none opacity-50",
+    className,
+  );
+
+  // 24h: text inputs to preserve leading zeros
   if (!is12h) {
     return (
-      <Input
-        type="time"
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        className={cn("h-9", className)}
-        placeholder={placeholder}
-      />
+      <div className={wrapperCls}>
+        <Input
+          type="text"
+          inputMode="numeric"
+          maxLength={2}
+          value={pad(parsed24h.hour24)}
+          onChange={(e) => {
+            const v = Number.parseInt(e.target.value, 10);
+            if (Number.isNaN(v)) return;
+            const h = Math.min(23, Math.max(0, v));
+            onChange(`${pad(h)}:${pad(parsed24h.minute)}`);
+          }}
+          disabled={disabled}
+          className={sharedInputCls}
+          aria-label="Hour"
+        />
+        <span className="text-muted-foreground text-sm">:</span>
+        <Input
+          type="text"
+          inputMode="numeric"
+          maxLength={2}
+          value={pad(parsed24h.minute)}
+          onChange={(e) => {
+            const v = Number.parseInt(e.target.value, 10);
+            if (Number.isNaN(v)) return;
+            const m = Math.min(59, Math.max(0, v));
+            onChange(`${pad(parsed24h.hour24)}:${pad(m)}`);
+          }}
+          disabled={disabled}
+          className={sharedInputCls}
+          aria-label="Minute"
+        />
+      </div>
     );
   }
 
-  // 12h: hour + minute inputs + AM/PM select
-
+  // 12h: text inputs + AM/PM select
   const handle12hChange = (
     nextHour: number,
     nextMinute: number,
@@ -84,40 +126,34 @@ export function TimeInput({
   };
 
   return (
-    <div
-      className={cn(
-        "border-input flex h-9 w-full min-w-0 items-center gap-1.5 rounded-md border bg-transparent px-2 shadow-xs transition-[color,box-shadow] focus-within:border-ring focus-within:ring-ring/50 focus-within:ring-[3px]",
-        disabled && "pointer-events-none opacity-50",
-        className,
-      )}
-    >
+    <div className={wrapperCls}>
       <Input
-        type="number"
-        min={1}
-        max={12}
-        value={hour12}
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={pad(hour12)}
         onChange={(e) => {
           const v = Number.parseInt(e.target.value, 10);
           if (Number.isNaN(v)) return;
           handle12hChange(v, minute, amPm);
         }}
         disabled={disabled}
-        className="h-7 w-10 border-0 bg-transparent p-0 text-center shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className={sharedInputCls}
         aria-label="Hour"
       />
       <span className="text-muted-foreground text-sm">:</span>
       <Input
-        type="number"
-        min={0}
-        max={59}
-        value={String(minute).padStart(2, "0")}
+        type="text"
+        inputMode="numeric"
+        maxLength={2}
+        value={pad(minute)}
         onChange={(e) => {
           const v = Number.parseInt(e.target.value, 10);
           if (Number.isNaN(v)) return;
           handle12hChange(hour12, v, amPm);
         }}
         disabled={disabled}
-        className="h-7 w-10 border-0 bg-transparent p-0 text-center shadow-none focus-visible:ring-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        className={sharedInputCls}
         aria-label="Minute"
       />
       <Select

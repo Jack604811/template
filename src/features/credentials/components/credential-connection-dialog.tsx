@@ -37,7 +37,7 @@ import {
 import { getCredentialOption } from "./credential";
 
 const formSchema = z.object({
-  name: z.string().min(1, "Name is required"),
+  name: z.string().min(1, "El nombre es obligatorio"),
   type: z.nativeEnum(CredentialType),
   value: z.string(),
   extraValues: z.record(z.string(), z.string()).optional(),
@@ -105,7 +105,7 @@ function CopyField({ label, value }: { label: string; value: string }) {
   const copy = () =>
     navigator.clipboard
       .writeText(value)
-      .then(() => toast.success(`${label} copied`));
+      .then(() => toast.success(`${label} copiado`));
 
   return (
     <div className="space-y-1.5">
@@ -205,13 +205,13 @@ export const CredentialConnectionDialog = ({
         form.setError("value", {
           message:
             primaryLabel === "Access Token"
-              ? "Access token is required. Paste your token from Meta Developer Console (API Setup)."
-              : "This field is required.",
+              ? "El access token es obligatorio. Pégalo desde Meta Developer Console (API Setup)."
+              : "Este campo es obligatorio.",
         });
         return;
       }
       if (!isEditMode && !serializedValue) {
-        form.setError("value", { message: "This field is required." });
+        form.setError("value", { message: "Este campo es obligatorio." });
         return;
       }
 
@@ -222,14 +222,14 @@ export const CredentialConnectionDialog = ({
           type: credentialType,
           value: serializedValue,
         });
-        toast.success(`${app?.label} credential updated successfully`);
+        toast.success(`Credencial de ${app?.label} actualizada`);
       } else {
         const newCredential = await createCredential.mutateAsync({
           name: values.name,
           type: credentialType,
           value: serializedValue ?? "",
         });
-        toast.success(`${app?.label} account connected successfully`);
+        toast.success(`${app?.label} conectado correctamente`);
         onCredentialCreated?.(newCredential.id);
       }
 
@@ -259,7 +259,7 @@ export const CredentialConnectionDialog = ({
             <div className="flex items-center gap-3">
               <Image src={app.logo} alt={app.label} width={28} height={28} className="rounded" />
               <div>
-                <DialogTitle>Connect {app.label}</DialogTitle>
+                <DialogTitle>Conectar {app.label}</DialogTitle>
                 <DialogDescription>{app.description}</DialogDescription>
               </div>
             </div>
@@ -269,21 +269,21 @@ export const CredentialConnectionDialog = ({
             <p className="text-sm text-muted-foreground">
               {connectUrl
                 ? isEditMode
-                  ? "You will be redirected to Google to re-authorize access and refresh your token."
-                  : "You will be redirected to Google to authorize access."
-                : "OAuth authentication will be implemented soon."}
+                  ? "Serás redirigido a Google para reautorizar el acceso y renovar tu token."
+                  : "Serás redirigido a Google para autorizar el acceso."
+                : "La autenticación OAuth estará disponible pronto."}
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
+              Cancelar
             </Button>
             {connectUrl ? (
               <Button asChild>
-                <a href={connectUrl}>{isEditMode ? "Re-authorize with Google" : "Connect with Google"}</a>
+                <a href={connectUrl}>{isEditMode ? "Reautorizar con Google" : "Conectar con Google"}</a>
               </Button>
             ) : (
-              <Button disabled>Connect</Button>
+              <Button disabled>Conectar</Button>
             )}
           </DialogFooter>
         </DialogContent>
@@ -308,10 +308,10 @@ export const CredentialConnectionDialog = ({
             <Image src={app.logo} alt={app.label} width={28} height={28} className="rounded" />
             <div>
               <DialogTitle>
-                {isEditMode ? `Edit ${app.label} credential` : `Connect ${app.label}`}
+                {isEditMode ? `Editar ${app.label}` : `Conectar ${app.label}`}
               </DialogTitle>
               <DialogDescription>
-                {isEditMode ? "Update your credential details" : app.description}
+                {isEditMode ? "Actualiza los datos de tu credencial." : app.description}
               </DialogDescription>
             </div>
           </div>
@@ -324,9 +324,9 @@ export const CredentialConnectionDialog = ({
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Name</FormLabel>
+                  <FormLabel>Nombre</FormLabel>
                   <FormControl>
-                    <Input placeholder={`My ${app.label} credential`} {...field} />
+                    <Input placeholder={`Mi cuenta de ${app.label}`} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -344,8 +344,8 @@ export const CredentialConnectionDialog = ({
                       type="password"
                       placeholder={
                         isEditMode
-                          ? "Leave blank to keep existing"
-                          : app.placeholder || "Enter your API key"
+                          ? "Deja en blanco para mantener el valor actual"
+                          : app.placeholder || "Ingresa tu API key"
                       }
                       {...field}
                     />
@@ -366,7 +366,7 @@ export const CredentialConnectionDialog = ({
                     <FormControl>
                       <Input
                         placeholder={
-                          isEditMode ? "Leave blank to keep existing" : extraField.placeholder
+                          isEditMode ? "Deja en blanco para mantener el valor actual" : extraField.placeholder
                         }
                         value={typeof field.value === "string" ? field.value : ""}
                         onChange={field.onChange}
@@ -386,19 +386,19 @@ export const CredentialConnectionDialog = ({
                 <Separator />
                 <div className="space-y-3">
                   <div>
-                    <p className="text-sm font-medium">Webhook configuration</p>
+                    <p className="text-sm font-medium">Configuración del webhook</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      Add these in Meta → WhatsApp → Configuration → Webhook, then subscribe to the <strong>messages</strong> field.
+                      Agrega estos valores en Meta → WhatsApp → Configuración → Webhook y suscríbete al campo <strong>messages</strong>.
                     </p>
                   </div>
-                  <CopyField label="Callback URL" value={webhookUrl} />
+                  <CopyField label="URL de callback" value={webhookUrl} />
                   {existingCredential?.id ? (
-                    <CopyField label="Verify token" value={existingCredential.id} />
+                    <CopyField label="Token de verificación" value={existingCredential.id} />
                   ) : (
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">Verify token</Label>
+                      <Label className="text-sm font-medium">Token de verificación</Label>
                       <p className="text-xs text-muted-foreground">
-                        Save this credential first to get your verify token.
+                        Guarda esta credencial primero para obtener tu token de verificación.
                       </p>
                     </div>
                   )}
@@ -408,12 +408,12 @@ export const CredentialConnectionDialog = ({
 
             <DialogFooter className="pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="submit" disabled={isPending}>
                 {isPending
-                  ? isEditMode ? "Updating..." : "Connecting..."
-                  : isEditMode ? "Update" : "Connect"}
+                  ? isEditMode ? "Guardando..." : "Conectando..."
+                  : isEditMode ? "Guardar" : "Conectar"}
               </Button>
             </DialogFooter>
           </form>

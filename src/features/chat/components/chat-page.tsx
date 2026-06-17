@@ -1,86 +1,23 @@
 "use client";
 
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseAsString, useQueryStates } from "nuqs";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import type { ChatFilter, Conversation } from "../types";
 import { ChatDetails } from "./chat-details";
 import { ConversationList } from "./conversation-list";
 import { ConversationView } from "./conversation-view";
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  {
-    id: "1",
-    name: "alex.johnson",
-    initials: "AJ",
-    channel: "tiktok",
-    lastMessage: "Hey! Did you see the photos from ...",
-    lastMessageAt: new Date(Date.now() - 5 * 60000),
-    unreadCount: 1,
-    online: true,
-  },
-  {
-    id: "2",
-    name: "mike.chen",
-    initials: "MC",
-    channel: "instagram",
-    lastMessage: "See you tomorrow 👋",
-    lastMessageAt: new Date(Date.now() - 2 * 3600000),
-    unreadCount: 0,
-    online: false,
-  },
-  {
-    id: "3",
-    name: "emma.davis",
-    initials: "ED",
-    channel: "tiktok",
-    lastMessage: "That sounds great! 🔵",
-    lastMessageAt: new Date(Date.now() - 4 * 3600000),
-    unreadCount: 1,
-    online: false,
-  },
-  {
-    id: "4",
-    name: "james.wilson",
-    initials: "JW",
-    channel: "whatsapp",
-    lastMessage: "Loved your latest post!",
-    lastMessageAt: new Date(Date.now() - 6 * 3600000),
-    unreadCount: 0,
-    online: true,
-  },
-  {
-    id: "5",
-    name: "olivia.martin",
-    initials: "OM",
-    channel: "discord",
-    lastMessage: "Can you send me the details?",
-    lastMessageAt: new Date(Date.now() - 8 * 3600000),
-    unreadCount: 0,
-    online: false,
-  },
-  {
-    id: "6",
-    name: "daniel.lee",
-    initials: "DL",
-    channel: "web",
-    lastMessage: "Perfect timing!",
-    lastMessageAt: new Date(Date.now() - 10 * 3600000),
-    unreadCount: 0,
-    online: false,
-  },
-  {
-    id: "7",
-    name: "sophia.garcia",
-    initials: "SG",
-    channel: "instagram",
-    lastMessage: "I'll check it out",
-    lastMessageAt: new Date(Date.now() - 12 * 3600000),
-    unreadCount: 0,
-    online: true,
-  },
-];
+function getInitials(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length >= 2) {
+    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
 
 const chatParams = {
   id: parseAsString,
@@ -89,16 +26,38 @@ const chatParams = {
 };
 
 export function ChatPage() {
+  const trpc = useTRPC();
   const [params, setParams] = useQueryStates(chatParams);
   const [infoOpen, setInfoOpen] = useState(false);
   const isMobile = useIsMobile();
 
-  const selectedConversation =
-    MOCK_CONVERSATIONS.find((c) => c.id === params.id) ?? null;
+  const { data: rawConversations = [] } = useQuery({
+    ...trpc.chat.getConversations.queryOptions({ search: params.search }),
+    refetchInterval: 5000,
+  });
+
+  const conversations: Conversation[] = rawConversations.map((c) => {
+    const name = c.contactName ?? c.externalId;
+    return {
+      id: c.id,
+      name,
+      initials: getInitials(name),
+      channel: c.channel.toLowerCase() as Conversation["channel"],
+      lastMessage: c.lastMessageText ?? "",
+      lastMessageAt: c.lastMessageAt ?? c.createdAt,
+      unreadCount: c.unreadCount,
+      online: false,
+    };
+  });
+
+  const selectedConversation = conversations.find((c) => c.id === params.id) ?? null;
+
+  const markAsRead = useMutation(trpc.chat.markAsRead.mutationOptions());
 
   function handleSelect(id: string) {
     setParams({ id });
     setInfoOpen(false);
+    markAsRead.mutate({ conversationId: id });
   }
 
   if (isMobile) {
@@ -122,7 +81,7 @@ export function ChatPage() {
     return (
       <div className="flex h-full flex-col">
         <ConversationList
-          conversations={MOCK_CONVERSATIONS}
+          conversations={conversations}
           selectedId={params.id}
           filter={params.filter as ChatFilter}
           search={params.search}
@@ -138,7 +97,7 @@ export function ChatPage() {
     <div className="flex h-dvh overflow-hidden">
       <div className="w-[320px] shrink-0 border-r">
         <ConversationList
-          conversations={MOCK_CONVERSATIONS}
+          conversations={conversations}
           selectedId={params.id}
           filter={params.filter as ChatFilter}
           search={params.search}
@@ -148,7 +107,6 @@ export function ChatPage() {
         />
       </div>
 
-      {/* Chat — hidden below xl when info is open */}
       <div className={cn("flex min-w-0 flex-1 overflow-hidden", infoOpen && "hidden xl:flex")}>
         <ConversationView
           key={params.id ?? "empty"}
@@ -157,7 +115,6 @@ export function ChatPage() {
         />
       </div>
 
-      {/* Details — full-width below xl, fixed panel at xl+ */}
       {infoOpen && selectedConversation && (
         <div className="flex flex-1 overflow-hidden xl:w-[320px] xl:flex-none xl:border-l">
           <ChatDetails

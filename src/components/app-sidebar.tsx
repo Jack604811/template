@@ -8,6 +8,7 @@ import {
   HomeIcon,
   LogOutIcon,
   MessageCircleIcon,
+  PlugZapIcon,
   SettingsIcon,
   StarIcon,
 } from "lucide-react";
@@ -39,6 +40,7 @@ const menuItems = [
       { title: "Chats", icon: MessageCircleIcon, url: "/chat" },
       { title: "Agentes", icon: BotIcon, url: "/agents" },
       { title: "Services", icon: FolderOpenIcon, url: "/services" },
+      { title: "Integraciones", icon: PlugZapIcon, url: "/integrations" },
       { title: "Settings", icon: SettingsIcon, url: "/settings" },
     ],
   },

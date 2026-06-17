@@ -1,8 +1,10 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { writeFileSync } from "node:fs";
 import { type NextRequest, NextResponse } from "next/server";
-import { CredentialType, NodeType } from "@/generated/prisma";
+import { ChannelType, CredentialType, MessageRole, NodeType } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
+import { MEDIA_BUCKET, supabase } from "@/lib/supabase";
 import { qstash } from "@/lib/upstash";
 
 type MetaWebhookPayload = {
@@ -24,6 +26,7 @@ type MetaWebhookPayload = {
           audio?: { id?: string; mime_type?: string; sha256?: string; voice?: boolean };
           video?: { id?: string; mime_type?: string; sha256?: string; caption?: string };
           document?: { id?: string; mime_type?: string; sha256?: string; filename?: string; caption?: string };
+          sticker?: { id?: string; mime_type?: string; sha256?: string; animated?: boolean };
           location?: { latitude?: number; longitude?: number; name?: string; address?: string };
           button?: { text?: string; payload?: string };
           interactive?: { type?: string; button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
@@ -81,7 +84,19 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  console.log("WhatsApp webhook: POST received");
+  console.log("[webhook] cwd:", process.cwd());
+  console.log("[webhook] raw body length:", rawBody.length);
+  try {
+    writeFileSync(
+      `${process.cwd()}/last-whatsapp-payload.json`,
+      JSON.stringify(JSON.parse(rawBody), null, 2),
+    );
+    console.log("[webhook] payload written to last-whatsapp-payload.json");
+  } catch (e) {
+    console.error("[webhook] failed to write payload file:", e);
+  }
+  console.log("=== WhatsApp webhook POST ===");
+  console.log("RAW BODY:", rawBody);
 
   let body: MetaWebhookPayload;
   try {
@@ -112,6 +127,8 @@ export async function POST(request: NextRequest) {
         const senderName = contact?.profile?.name ?? undefined;
         const from = message.from ?? contact?.wa_id ?? "";
 
+        console.log("[webhook] RAW MESSAGE:", JSON.stringify(message));
+
         // Build normalized message context
         const whatsapp: Record<string, unknown> = {
           messageId: message.id,
@@ -128,16 +145,28 @@ export async function POST(request: NextRequest) {
             whatsapp.text = message.text?.body;
             break;
           case "image":
-            whatsapp.image = message.image;
+            whatsapp.mediaId = message.image?.id;
+            whatsapp.mimeType = message.image?.mime_type ?? "image/jpeg";
+            whatsapp.caption = message.image?.caption;
             break;
           case "audio":
-            whatsapp.audio = message.audio;
+            whatsapp.mediaId = message.audio?.id;
+            whatsapp.mimeType = message.audio?.mime_type ?? "audio/ogg";
             break;
           case "video":
-            whatsapp.video = message.video;
+            whatsapp.mediaId = message.video?.id;
+            whatsapp.mimeType = message.video?.mime_type ?? "video/mp4";
+            whatsapp.caption = message.video?.caption;
             break;
           case "document":
-            whatsapp.document = message.document;
+            whatsapp.mediaId = message.document?.id;
+            whatsapp.mimeType = message.document?.mime_type ?? "application/octet-stream";
+            whatsapp.mediaFilename = message.document?.filename;
+            whatsapp.caption = message.document?.caption;
+            break;
+          case "sticker":
+            whatsapp.mediaId = message.sticker?.id;
+            whatsapp.mimeType = message.sticker?.mime_type ?? "image/webp";
             break;
           case "location":
             whatsapp.location = message.location;
@@ -163,33 +192,158 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ status: "ok" });
 }
 
+async function uploadWhatsAppMedia(
+  rawMediaId: string,
+  accessToken: string,
+  mimeType: string,
+  filename: string,
+): Promise<string | null> {
+  try {
+    const metaRes = await fetch(`https://graph.facebook.com/v22.0/${rawMediaId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!metaRes.ok) {
+      console.error(`[media-upload] Meta resolve failed ${metaRes.status}:`, await metaRes.text());
+      return null;
+    }
+    const { url } = (await metaRes.json()) as { url?: string };
+    if (!url) {
+      console.error("[media-upload] No URL from Meta");
+      return null;
+    }
+
+    const fileRes = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!fileRes.ok) {
+      console.error(`[media-upload] File download failed ${fileRes.status}`);
+      return null;
+    }
+
+    const buffer = Buffer.from(await fileRes.arrayBuffer());
+    const path = `whatsapp/${rawMediaId}/${filename}`;
+
+    const { error } = await supabase.storage
+      .from(MEDIA_BUCKET)
+      .upload(path, buffer, { contentType: mimeType, upsert: true });
+
+    if (error) {
+      console.error("[media-upload] Supabase upload error:", error.message);
+      return null;
+    }
+
+    const { data } = supabase.storage.from(MEDIA_BUCKET).getPublicUrl(path);
+    return data.publicUrl;
+  } catch (err) {
+    console.error("[media-upload] Unexpected error:", err);
+    return null;
+  }
+}
+
 async function triggerMatchingWorkflows(
   phoneNumberId: string,
   whatsapp: Record<string, unknown>,
 ) {
-  // Load all WhatsApp credentials and find matching phone number ID
   const credentials = await prisma.credential.findMany({
     where: { type: CredentialType.WHATSAPP },
   });
 
-  const matchingCredentialIds: string[] = [];
+  const matchingCredentials: { id: string; organizationId: string; accessToken: string }[] = [];
   for (const cred of credentials) {
     try {
       const raw = decrypt(cred.value).trim();
       if (raw.startsWith("{")) {
-        const parsed = JSON.parse(raw) as { phoneNumberId?: string };
-        if (parsed.phoneNumberId?.trim() === phoneNumberId.trim()) {
-          matchingCredentialIds.push(cred.id);
+        const parsed = JSON.parse(raw) as { phoneNumberId?: string; value?: string };
+        const stored = parsed.phoneNumberId?.trim();
+        if (stored === phoneNumberId.trim()) {
+          matchingCredentials.push({
+            id: cred.id,
+            organizationId: cred.organizationId,
+            accessToken: parsed.value?.trim() ?? "",
+          });
         }
       }
-    } catch {
-      // ignore invalid credentials
+    } catch (e) {
+      console.error(`WhatsApp webhook: failed to decrypt credential ${cred.id}`, e);
     }
   }
 
-  if (matchingCredentialIds.length === 0) return;
+  if (matchingCredentials.length === 0) {
+    console.log(`WhatsApp webhook: no credentials matched phoneNumberId="${phoneNumberId}"`);
+    return;
+  }
+  console.log(`WhatsApp webhook: ${matchingCredentials.length} credential(s) matched`);
 
-  // Find all WHATSAPP_TRIGGER nodes using those credentials
+  const from = whatsapp.from as string;
+  const senderName = whatsapp.senderName as string | undefined;
+  const messageId = whatsapp.messageId as string;
+  const msgType = whatsapp.type as string;
+  const caption = whatsapp.caption as string | undefined;
+  const content = msgType === "text"
+    ? (whatsapp.text as string)
+    : (caption ?? `[${msgType}]`);
+  const mediaType = msgType !== "text" ? msgType : null;
+  const mediaId = whatsapp.mediaId as string | undefined;
+  const mimeType = whatsapp.mimeType as string | undefined;
+  const mediaFilename = whatsapp.mediaFilename as string | undefined;
+  const timestamp = whatsapp.timestamp
+    ? new Date(Number(whatsapp.timestamp) * 1000)
+    : new Date();
+
+  for (const cred of matchingCredentials) {
+    try {
+      let mediaUrl: string | null = null;
+      if (mediaId && mediaType && cred.accessToken) {
+        const ext = mimeType?.split("/")[1] ?? "bin";
+        const filename = mediaFilename ?? `${mediaId}.${ext}`;
+        mediaUrl = await uploadWhatsAppMedia(mediaId, cred.accessToken, mimeType ?? "application/octet-stream", filename);
+      }
+
+      const conversation = await prisma.conversation.upsert({
+        where: {
+          organizationId_channel_externalId: {
+            organizationId: cred.organizationId,
+            channel: ChannelType.WHATSAPP,
+            externalId: from,
+          },
+        },
+        update: {
+          lastMessageAt: timestamp,
+          lastMessageText: content,
+          unreadCount: { increment: 1 },
+          ...(senderName ? { contactName: senderName } : {}),
+        },
+        create: {
+          organizationId: cred.organizationId,
+          channel: ChannelType.WHATSAPP,
+          externalId: from,
+          contactName: senderName,
+          credentialId: cred.id,
+          lastMessageAt: timestamp,
+          lastMessageText: content,
+          unreadCount: 1,
+        },
+      });
+
+      await prisma.message.create({
+        data: {
+          conversationId: conversation.id,
+          externalId: messageId,
+          role: MessageRole.USER,
+          content,
+          mediaType,
+          mediaId,
+          mediaUrl,
+          mediaFilename,
+          timestamp,
+        },
+      });
+    } catch (err) {
+      console.error("WhatsApp webhook: failed to persist conversation/message", err);
+    }
+  }
+
+  const matchingCredentialIds = matchingCredentials.map((c) => c.id);
   const nodes = await prisma.node.findMany({
     where: { type: NodeType.WHATSAPP_TRIGGER },
     select: { id: true, workflowId: true, data: true },

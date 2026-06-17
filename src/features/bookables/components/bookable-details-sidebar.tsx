@@ -3,19 +3,17 @@
 import { memo, useCallback } from "react";
 import {
   CalendarClockIcon,
+  CalendarPlusIcon,
   Settings2Icon,
   SlidersHorizontalIcon,
-  TimerIcon,
-  CalendarPlusIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const BOOKABLE_DETAIL_SECTIONS = [
-  { id: "booking-setup", label: "Booking setup", icon: Settings2Icon },
-  { id: "availability", label: "Availability", icon: CalendarClockIcon },
-  { id: "booking-options", label: "Booking options", icon: SlidersHorizontalIcon },
-  { id: "limit-buffers", label: "Limit & buffers", icon: TimerIcon },
-  { id: "advance", label: "Advance", icon: CalendarPlusIcon },
+  { id: "booking-setup", label: "Configuración", icon: Settings2Icon },
+  { id: "availability", label: "Disponibilidad", icon: CalendarClockIcon },
+  { id: "booking-options", label: "Opciones de reserva", icon: SlidersHorizontalIcon },
+  { id: "advance", label: "Avanzado", icon: CalendarPlusIcon },
 ] as const;
 
 export type BookableDetailSectionId = (typeof BOOKABLE_DETAIL_SECTIONS)[number]["id"];
@@ -50,11 +48,11 @@ export const BookableDetailsSidebar = memo(
           className,
         )}
       >
-        <nav className="flex-1 p-4 py-4 overflow-y-auto">
-          <div className="mb-3 px-2">
-            <span className="text-sm font-medium text-foreground">Settings</span>
-          </div>
-          <div className="space-y-1">
+        <nav className="flex-1 overflow-y-auto p-4 py-4">
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 mb-1 mt-2">
+            Configuración
+          </p>
+          <div className="space-y-0.5">
             {BOOKABLE_DETAIL_SECTIONS.map(({ id, label, icon: Icon }) => {
               const isActive = currentSection === id;
               return (
@@ -63,13 +61,13 @@ export const BookableDetailsSidebar = memo(
                   type="button"
                   onClick={() => handleSectionClick(id)}
                   className={cn(
-                    "w-full flex items-center gap-2 px-2 py-2 rounded-lg transition-colors text-sm text-left",
+                    "flex w-full items-center gap-2.5 px-2 py-2 rounded-lg text-left text-sm transition-colors",
                     isActive
-                      ? "bg-primary/10 text-primary font-medium"
-                      : "text-foreground hover:bg-accent",
+                      ? "bg-muted text-foreground font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
                   )}
                 >
-                  <Icon className="h-4 w-4 shrink-0" />
+                  <Icon className="size-4 shrink-0" />
                   <span className="truncate">{label}</span>
                 </button>
               );

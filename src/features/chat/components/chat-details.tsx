@@ -80,28 +80,29 @@ function PanelContent({
 }) {
   return (
     <div className="flex h-full flex-col">
+      <div className="flex h-14 shrink-0 items-center justify-between px-2">
+        {mobile ? (
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+          >
+            <ChevronLeftIcon className="size-5" />
+          </button>
+        ) : (
+          <div className="size-10" />
+        )}
+        <button
+          type="button"
+          onClick={onClose}
+          className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+        >
+          <XIcon className="size-4" />
+        </button>
+      </div>
       <ScrollArea className="flex-1">
         <div className="relative flex flex-col items-center gap-1.5 px-4 pb-6 pt-4">
-          <div className="flex w-full items-center justify-between">
-            {mobile ? (
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
-              >
-                <ChevronLeftIcon className="size-5" />
-              </button>
-            ) : (
-              <div className="size-10" />
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
-            >
-              <XIcon className="size-4" />
-            </button>
-          </div>
+          <div />
           <Avatar className="mt-2 size-20">
             <AvatarFallback
               className="text-2xl font-semibold text-white"
@@ -117,40 +118,42 @@ function PanelContent({
         <Separator />
 
         <div className="px-4 py-3">
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Notes
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Notas
           </p>
-          <Textarea
-            placeholder="Add notes about this contact..."
-            className="min-h-[80px] resize-none border-0 bg-transparent p-0 text-sm shadow-none focus-visible:ring-0"
-          />
+          <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
+            <Textarea
+              placeholder="Agregar notas sobre este contacto..."
+              className="min-h-[80px] resize-none border-0 bg-transparent p-0 text-[15px] leading-snug shadow-none focus-visible:ring-0"
+            />
+          </div>
         </div>
 
         <Separator />
 
         <div className="py-1">
-          <InfoRow icon={<UsersIcon />} label="Assigned Team" value="None" />
-          <InfoRow icon={<ImageIcon />} label="Media, Links, and Docs" value="None" />
-          <InfoRow icon={<StarIcon />} label="Starred Messages" value="None" />
+          <InfoRow icon={<UsersIcon />} label="Equipo asignado" value="Ninguno" />
+          <InfoRow icon={<ImageIcon />} label="Multimedia y docs" value="Ninguno" />
+          <InfoRow icon={<StarIcon />} label="Mensajes destacados" value="Ninguno" />
         </div>
 
         <Separator />
 
         <div className="py-1">
-          <InfoRow icon={<PaletteIcon />} label="Theme" />
-          <InfoRow icon={<CameraIcon />} label="Save to Camera Roll" value="Default" />
-          <InfoRow icon={<LockIcon />} label="Encryption" />
-          <InfoRow icon={<TimerIcon />} label="Disappearing Messages" value="Off" />
-          <InfoRow icon={<BellIcon />} label="Mute Messages" />
+          <InfoRow icon={<PaletteIcon />} label="Tema" />
+          <InfoRow icon={<CameraIcon />} label="Guardar en fotos" value="Por defecto" />
+          <InfoRow icon={<LockIcon />} label="Cifrado" />
+          <InfoRow icon={<TimerIcon />} label="Mensajes temporales" value="Desactivado" />
+          <InfoRow icon={<BellIcon />} label="Silenciar mensajes" />
         </div>
 
         <Separator />
 
         <div className="py-1">
-          <InfoRow icon={<ShieldIcon />} label="Restrict" />
-          <InfoRow icon={<BanIcon />} label="Block" />
-          <InfoRow icon={<FlagIcon />} label="Report" />
-          <InfoRow icon={<TrashIcon />} label="Delete Chat" destructive />
+          <InfoRow icon={<ShieldIcon />} label="Restringir" />
+          <InfoRow icon={<BanIcon />} label="Bloquear" />
+          <InfoRow icon={<FlagIcon />} label="Reportar" />
+          <InfoRow icon={<TrashIcon />} label="Eliminar chat" destructive />
         </div>
       </ScrollArea>
     </div>

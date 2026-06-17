@@ -117,12 +117,12 @@ export const NewBookablePage = () => {
                       handleBreadcrumbClick();
                     }}
                   >
-                    Catalog
+                    Servicios
                   </Link>
                 </BreadcrumbLink>
               </BreadcrumbItem>
               <BreadcrumbSeparator />
-              <BreadcrumbItem>New Bookable</BreadcrumbItem>
+              <BreadcrumbItem>Nuevo servicio</BreadcrumbItem>
             </BreadcrumbList>
           </Breadcrumb>
           <div className="flex items-center gap-2">
@@ -133,7 +133,7 @@ export const NewBookablePage = () => {
               onClick={handleCancel}
               disabled={createBookable.isPending}
             >
-              Cancel
+              Cancelar
             </Button>
             <Button
               type="button"
@@ -141,7 +141,7 @@ export const NewBookablePage = () => {
               onClick={() => form.handleSubmit(handleSubmit)()}
               disabled={createBookable.isPending}
             >
-              {createBookable.isPending ? "Creating..." : "Create"}
+              {createBookable.isPending ? "Creando..." : "Crear"}
             </Button>
           </div>
         </div>

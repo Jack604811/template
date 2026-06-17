@@ -136,7 +136,7 @@ const StatsCarousel = ({ stats }: { stats: StatItem[] }) => {
 export const BookingsListStats = () => {
   const stats = useStatsItems();
   return (
-    <div className="hidden sm:flex items-center py-5">
+    <div className="hidden sm:flex items-center pt-8 pb-5">
       {stats.map((s, idx) => (
         <Fragment key={s.label}>
           {idx > 0 && (
@@ -171,7 +171,7 @@ export const BookingsListStatsCarousel = () => {
   );
   const startDate = params.startDate ?? new Date();
   return (
-    <div className="sm:hidden px-4">
+    <div className="sm:hidden px-4 pt-12">
       <StatsCarousel
         stats={buildStatsItems(
           data,
@@ -317,7 +317,7 @@ export const BookingsListActions = () => {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-start justify-center gap-4 px-4 py-4 sm:justify-start">
+      <div className="flex items-start justify-center gap-4 px-4 pb-4 sm:justify-start">
         <ActionBtn
           icon={PlusIcon}
           label="Nueva"

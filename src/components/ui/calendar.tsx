@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { useQuery } from "@tanstack/react-query"
+import { es } from "date-fns/locale"
 import {
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -34,6 +35,7 @@ function Calendar({
 
   return (
     <DayPicker
+      locale={es}
       weekStartsOn={weekStartsOn}
       showOutsideDays={showOutsideDays}
       className={cn(

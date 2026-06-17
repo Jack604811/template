@@ -14,7 +14,7 @@ export const BookableImage = memo(({ images, alt = "Bookable", size = 40 }: Book
   const imageUrl = formatBookableImage(images);
 
   if (!imageUrl) {
-    return <div className="w-10 h-10 bg-muted rounded" />;
+    return <div style={{ width: size, height: size }} className="shrink-0 bg-muted rounded-lg" />;
   }
 
   return (
@@ -23,7 +23,8 @@ export const BookableImage = memo(({ images, alt = "Bookable", size = 40 }: Book
       alt={alt}
       width={size}
       height={size}
-      className="rounded object-cover"
+      style={{ width: size, height: size }}
+      className="shrink-0 rounded-lg object-cover"
     />
   );
 });

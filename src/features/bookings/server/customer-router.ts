@@ -179,7 +179,7 @@ export const customerRouter = createTRPCRouter({
             },
           };
 
-          const realtime = (inngest as { realtime?: { publish: (opts: unknown) => Promise<unknown> } }).realtime;
+          const realtime = (inngest as unknown as { realtime?: { publish: (opts: unknown) => Promise<unknown> } }).realtime;
           if (realtime?.publish) {
             return realtime.publish({
               channel: bookingChannel(),

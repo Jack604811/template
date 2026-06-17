@@ -63,7 +63,7 @@ const Page = async ({ searchParams }: Props) => {
 
   return (
     <div className="flex flex-col h-full">
-      <h1 className="px-4 pt-6 pb-2 text-2xl font-bold tracking-tight">Reservas</h1>
+      <h1 className="hidden sm:block px-4 pt-6 pb-2 text-2xl font-bold tracking-tight">Reservas</h1>
       <HydrateClient>
         <ErrorBoundary fallback={<div className="p-4 text-sm text-destructive">Error loading stats</div>}>
           <Suspense fallback={<StatsLoading />}>

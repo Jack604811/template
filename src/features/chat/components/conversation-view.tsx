@@ -1,8 +1,7 @@
 "use client";
 
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeftIcon, MessageSquareIcon } from "lucide-react";
-import { nanoid } from "nanoid";
-import { useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -23,87 +22,26 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
 import type { Conversation as ConversationType } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
+import { MessageBubble } from "./message-bubble";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
 
-interface Message {
-  id: string;
-  role: "user" | "contact";
-  text: string;
-  createdAt: Date;
-}
-
-function MessageBubble({
-  message,
-  conversation,
-}: {
-  message: Message;
-  conversation: ConversationType;
-}) {
-  const isUser = message.role === "user";
-  return (
-    <div
-      className={cn(
-        "flex items-end gap-2",
-        isUser ? "flex-row-reverse" : "flex-row",
-      )}
-    >
-      {!isUser && (
-        <Avatar className="mb-1 size-7 shrink-0">
-          <AvatarFallback
-            className="text-[11px] font-semibold text-white"
-            style={getAvatarStyle(conversation.name)}
-          >
-            {conversation.initials}
-          </AvatarFallback>
-        </Avatar>
-      )}
-      <div
-        className={cn(
-          "max-w-[70%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-          isUser
-            ? "rounded-br-sm bg-primary text-primary-foreground"
-            : "rounded-bl-sm bg-muted text-foreground",
-        )}
-      >
-        {message.text}
-      </div>
-    </div>
-  );
-}
-
 const CHAT_QUICK_REPLIES = [
-  "How can I help you today?",
-  "Let me check that for you.",
-  "Could you provide more details?",
-  "I'll escalate this to our team.",
-  "Your issue has been resolved.",
-  "Is there anything else I can help with?",
+  "¿En qué puedo ayudarte?",
+  "Déjame verificar eso.",
+  "¿Podrías darme más detalles?",
+  "Lo escalaré a nuestro equipo.",
+  "Tu solicitud ha sido resuelta.",
+  "¿Hay algo más en lo que pueda ayudarte?",
 ];
 
 function ConnectedQuickReplies() {
   const { textInput } = usePromptInputController();
-  return (
-    <QuickReplies
-      replies={CHAT_QUICK_REPLIES}
-      onSelect={textInput.setInput}
-    />
-  );
+  return <QuickReplies replies={CHAT_QUICK_REPLIES} onSelect={textInput.setInput} />;
 }
-
-const DUMMY_REPLIES = [
-  "That's interesting! Tell me more.",
-  "Got it!",
-  "Sounds good to me!",
-  "I'll check it out and get back to you.",
-  "Sure, let's do it!",
-  "Thanks for letting me know.",
-  "Haha, no way!",
-  "I was just thinking the same thing.",
-];
 
 interface ConversationViewProps {
   conversation: ConversationType | null;
@@ -111,13 +49,63 @@ interface ConversationViewProps {
   onBack?: () => void;
 }
 
-export function ConversationView({
-  conversation,
-  onToggleInfo,
-  onBack,
-}: ConversationViewProps) {
+export function ConversationView({ conversation, onToggleInfo, onBack }: ConversationViewProps) {
   const isMobile = useIsMobile();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const trpc = useTRPC();
+  const queryClient = useQueryClient();
+
+  const messagesQueryOptions = trpc.chat.getMessages.queryOptions(
+    { conversationId: conversation?.id ?? "" },
+  );
+
+  const sendMessage = useMutation(trpc.chat.sendMessage.mutationOptions({
+    onMutate: async ({ content }) => {
+      await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
+      const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
+      const optimisticId = `optimistic-${Date.now()}`;
+      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) => [
+        ...(old ?? []),
+        {
+          id: optimisticId,
+          conversationId: conversation?.id ?? "",
+          externalId: null,
+          role: "ASSISTANT" as const,
+          content,
+          mediaType: null,
+          mediaUrl: null,
+          mediaFilename: null,
+          timestamp: new Date(),
+        },
+      ]);
+      return { previous, optimisticId };
+    },
+    onSuccess: (realMessage, _vars, context) => {
+      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
+        (old ?? []).map((m) => (m.id === context?.optimisticId ? realMessage : m)),
+      );
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) {
+        queryClient.setQueryData(messagesQueryOptions.queryKey, context.previous);
+      }
+    },
+  }));
+
+  const { data: rawMessages = [] } = useQuery({
+    ...messagesQueryOptions,
+    enabled: !!conversation,
+    refetchInterval: conversation && !sendMessage.isPending ? 1500 : false,
+  });
+
+  const messages = rawMessages.map((m) => ({
+    id: m.id,
+    role: (m.role === "USER" ? "contact" : "user") as "user" | "contact",
+    text: m.content,
+    mediaType: m.mediaType,
+    mediaUrl: m.mediaUrl,
+    mediaFilename: m.mediaFilename,
+    createdAt: m.timestamp,
+  }));
 
   if (!conversation) {
     return (
@@ -127,10 +115,8 @@ export function ConversationView({
             <EmptyMedia variant="icon">
               <MessageSquareIcon />
             </EmptyMedia>
-            <EmptyTitle>Your Messages</EmptyTitle>
-            <EmptyDescription>
-              Send private photos and messages to a friend or group.
-            </EmptyDescription>
+            <EmptyTitle>Tus mensajes</EmptyTitle>
+            <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>
@@ -138,22 +124,8 @@ export function ConversationView({
   }
 
   function handleSend(text: string) {
-    const userMsg: Message = {
-      id: nanoid(),
-      role: "user",
-      text,
-      createdAt: new Date(),
-    };
-    setMessages((prev) => [...prev, userMsg]);
-
-    setTimeout(() => {
-      const reply =
-        DUMMY_REPLIES[Math.floor(Math.random() * DUMMY_REPLIES.length)];
-      setMessages((prev) => [
-        ...prev,
-        { id: nanoid(), role: "contact", text: reply, createdAt: new Date() },
-      ]);
-    }, 800);
+    if (!conversation || !text.trim()) return;
+    sendMessage.mutate({ conversationId: conversation.id, content: text });
   }
 
   return (
@@ -182,9 +154,7 @@ export function ConversationView({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-none">
-              {conversation.name}
-            </p>
+            <p className="truncate text-sm font-semibold leading-none">{conversation.name}</p>
             <p className="mt-0.5 truncate text-[11px] capitalize text-muted-foreground">
               {conversation.channel}
             </p>
@@ -209,30 +179,17 @@ export function ConversationView({
                   </AvatarFallback>
                 </Avatar>
                 <div>
-                  <p className="text-[17px] font-semibold">
-                    {conversation.name}
-                  </p>
-                  <p className="mt-0.5 text-sm capitalize text-muted-foreground">
-                    {conversation.channel}
-                  </p>
+                  <p className="text-[17px] font-semibold">{conversation.name}</p>
+                  <p className="mt-0.5 text-sm capitalize text-muted-foreground">{conversation.channel}</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-1 rounded-full px-5"
-                  onClick={onToggleInfo}
-                >
-                  View Profile
+                <Button variant="outline" size="sm" className="mt-1 rounded-full px-5" onClick={onToggleInfo}>
+                  Ver perfil
                 </Button>
               </div>
             </ConversationEmptyState>
           ) : (
             messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                conversation={conversation}
-              />
+              <MessageBubble key={message.id} message={message} conversation={conversation} />
             ))
           )}
         </ConversationContent>

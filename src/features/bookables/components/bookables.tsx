@@ -1,6 +1,7 @@
 "use client";
 
-import { memo, useState, createContext, useCallback, useContext } from "react";
+import { memo, useState, createContext, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   EntityContainer,
   EntitySearch,
@@ -8,17 +9,19 @@ import {
   ErrorView,
   LoadingView,
 } from "@/components/entity-components";
-import { BookablesSidebar } from "./bookables-sidebar";
+import { Pills } from "@/components/ui/pills";
 import { BookablesTable } from "./bookables-table";
 import { BookablesListHeader } from "./bookables-list-header";
 import { useBookablesParams } from "../hooks/use-bookables-params";
 import { useEntitySearch } from "@/hooks/use-entity-search";
 import { useSuspenseBookables } from "../hooks/use-bookables";
+import { useTRPC } from "@/trpc/client";
 
 export const NewItemHandlerContext = createContext<{
   setHandler: (handler: () => void) => void;
 } | null>(null);
 
+/** @deprecated Sidebar removed — kept for type compat only */
 export const SelectedCollectionContext = createContext<{
   selectedCollectionId: string | null;
   setSelectedCollectionId: (id: string | null) => void;
@@ -42,10 +45,35 @@ export const BookablesSearch = memo(() => {
 
 BookablesSearch.displayName = "BookablesSearch";
 
+const CollectionFilter = memo(() => {
+  const trpc = useTRPC();
+  const [params, setParams] = useBookablesParams();
+  const { data: collections = [] } = useQuery(
+    trpc.bookableCollections.getMany.queryOptions(),
+  );
+
+  if (collections.length === 0) return null;
+
+  const items = [
+    { id: "", label: "All" },
+    ...collections.map((c) => ({ id: c.id, label: c.name })),
+  ];
+
+  return (
+    <Pills
+      items={items}
+      value={params.collectionId ?? ""}
+      onValueChange={(id) => setParams({ collectionId: id || null, page: 1 })}
+      className="overflow-x-auto scrollbar-none pb-1"
+    />
+  );
+});
+
+CollectionFilter.displayName = "CollectionFilter";
+
 export const BookablesContainer = memo(
   ({ children }: { children: React.ReactNode }) => {
     const [newItemHandler, setNewItemHandler] = useState<(() => void) | null>(null);
-    const [selectedCollectionId, setSelectedCollectionId] = useState<string | null>(null);
 
     const handleSetHandler = useCallback((handler: () => void) => {
       setNewItemHandler(() => handler);
@@ -53,32 +81,20 @@ export const BookablesContainer = memo(
 
     const contextValue = { setHandler: handleSetHandler };
 
-    const collectionContextValue = { selectedCollectionId, setSelectedCollectionId };
-
-    const fallbackHandler = useCallback(() => {
-      // Handler not set yet
-    }, []);
-
     return (
       <NewItemHandlerContext.Provider value={contextValue}>
-        <SelectedCollectionContext.Provider value={collectionContextValue}>
-          <div className="flex h-full flex-col">
-            <div className="flex flex-1 overflow-hidden">
-              <BookablesSidebar className="w-64 flex-shrink-0" />
-              <div className="flex-1 flex flex-col overflow-hidden">
-                <BookablesListHeader onNew={newItemHandler || undefined} />
-                <div className="flex-1 overflow-auto">
-                  <EntityContainer
-                    search={<BookablesSearch />}
-                    pagination={<BookablesPagination />}
-                  >
-                    {children}
-                  </EntityContainer>
-                </div>
-              </div>
-            </div>
+        <div className="flex h-full flex-col">
+          <BookablesListHeader onNew={newItemHandler || undefined} />
+          <div className="flex-1 overflow-auto">
+            <EntityContainer
+              search={<BookablesSearch />}
+              pagination={<BookablesPagination />}
+            >
+              <CollectionFilter />
+              {children}
+            </EntityContainer>
           </div>
-        </SelectedCollectionContext.Provider>
+        </div>
       </NewItemHandlerContext.Provider>
     );
   },
@@ -86,15 +102,9 @@ export const BookablesContainer = memo(
 
 BookablesContainer.displayName = "BookablesContainer";
 
-
 export const BookablesPagination = memo(() => {
-  const collectionContext = useContext(SelectedCollectionContext);
-  if (!collectionContext) {
-    throw new Error("BookablesPagination must be used within SelectedCollectionContext");
-  }
-  const { selectedCollectionId } = collectionContext;
-  const bookables = useSuspenseBookables(selectedCollectionId);
   const [params, setParams] = useBookablesParams();
+  const bookables = useSuspenseBookables(params.collectionId ?? null);
 
   return (
     <EntityPagination
@@ -121,4 +131,3 @@ export const BookablesLoading = () => {
 export const BookablesError = () => {
   return <ErrorView message="Error loading bookables" />;
 };
-

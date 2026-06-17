@@ -31,7 +31,7 @@ export function MessageInput({ onSend }: MessageInputProps) {
     <div ref={ref} className="px-4 py-3">
       <PromptInput onSubmit={handleSubmit}>
         <PromptInputTextarea
-          placeholder="Message..."
+          placeholder="Mensaje..."
           className="min-h-0! max-h-32 py-2 text-sm"
         />
         <PromptInputFooter className="pt-1">

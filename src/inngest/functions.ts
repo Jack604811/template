@@ -109,7 +109,8 @@ export const executeWorkflow = inngest.createFunction(
       executionContextChannel(),
     ],
   },
-  async ({ event, step, publish }) => {
+  async ({ event, step, ...ctx }) => {
+    const publish = (ctx as unknown as { publish: (msg: unknown) => Promise<unknown> }).publish;
     const inngestEventId = event.id;
     const workflowId = event.data.workflowId;
 

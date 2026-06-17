@@ -20,8 +20,8 @@ export function MobileBottomNav() {
   if (!MAIN_PATHS.has(pathname)) return null;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="flex h-16 items-center justify-around safe-area-inset-bottom">
+    <div className="fixed bottom-6 left-0 right-0 z-50 md:hidden flex justify-center px-4">
+      <nav className="flex items-center gap-1 rounded-full border border-white/10 bg-neutral-950 p-2 shadow-lg">
         {TABS.map(({ title, icon: Icon, url }) => {
           const isActive = pathname === url;
           return (
@@ -29,26 +29,16 @@ export function MobileBottomNav() {
               key={url}
               href={url}
               className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 py-2 transition-colors",
-                isActive ? "text-foreground" : "text-muted-foreground/60",
+                "flex flex-col items-center gap-1 rounded-full px-4 py-2 transition-colors",
+                isActive ? "bg-white/20 text-white" : "text-white/50 hover:text-white/80",
               )}
             >
-              <div className={cn(
-                "flex size-8 items-center justify-center rounded-xl transition-colors",
-                isActive && "bg-foreground/8",
-              )}>
-                <Icon className={cn("size-5", isActive && "stroke-[2.2px]")} />
-              </div>
-              <span className={cn(
-                "text-[10px] font-medium leading-none",
-                isActive ? "text-foreground" : "text-muted-foreground/60",
-              )}>
-                {title}
-              </span>
+              <Icon className="size-5" />
+              <span className="text-[10px] font-medium leading-none">{title}</span>
             </Link>
           );
         })}
-      </div>
-    </nav>
+      </nav>
+    </div>
   );
 }

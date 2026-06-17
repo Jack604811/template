@@ -6,7 +6,7 @@ const Layout = ({ children }: { children: React.ReactNode; }) => {
   return (
     <SidebarProvider defaultOpen={false}>
       <AppSidebar />
-      <SidebarInset className="bg-accent/20 pb-16 md:pb-0">
+      <SidebarInset className="bg-accent/20 pb-28 md:pb-0">
         {children}
       </SidebarInset>
       <MobileBottomNav />

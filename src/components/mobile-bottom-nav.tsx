@@ -3,6 +3,7 @@
 import { CalendarDaysIcon, FolderOpenIcon, HomeIcon, MessageCircleIcon, SettingsIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -15,12 +16,11 @@ const TABS = [
 
 const MAIN_PATHS = new Set(["/", "/bookings", "/chat", "/services", "/settings"]);
 
-export function MobileBottomNav() {
+function MobileBottomNavInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   if (!MAIN_PATHS.has(pathname)) return null;
-  // Hide when a conversation is open on mobile
   if (pathname === "/chat" && searchParams.get("id")) return null;
 
   return (
@@ -44,5 +44,13 @@ export function MobileBottomNav() {
         })}
       </nav>
     </div>
+  );
+}
+
+export function MobileBottomNav() {
+  return (
+    <Suspense>
+      <MobileBottomNavInner />
+    </Suspense>
   );
 }

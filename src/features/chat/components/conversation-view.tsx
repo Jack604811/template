@@ -72,6 +72,7 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
           role: "ASSISTANT" as const,
           content,
           mediaType: null,
+          mediaId: null,
           mediaUrl: null,
           mediaFilename: null,
           timestamp: new Date(),

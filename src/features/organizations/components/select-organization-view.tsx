@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { useSwitchOrganization } from "../hooks/use-organizations";
 import { CreateOrganizationDialog } from "./create-organization-dialog";
 
@@ -29,15 +30,17 @@ interface Props {
 export const SelectOrganizationView = ({ memberships }: Props) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const switchOrg = useSwitchOrganization();
+  const { hasActiveSubscription } = useHasActiveSubscription();
+  const plan = hasActiveSubscription ? "Pro" : "Free";
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <CreateOrganizationDialog open={dialogOpen} onOpenChange={setDialogOpen} />
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle>Select Organization</CardTitle>
+          <CardTitle>Seleccionar negocio</CardTitle>
           <CardDescription>
-            Choose an organization to continue, or create a new one.
+            Elige un negocio para continuar o crea uno nuevo.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -49,11 +52,11 @@ export const SelectOrganizationView = ({ memberships }: Props) => {
                   variant="outline"
                   className="w-full justify-start h-auto py-4"
                   onClick={() =>
-                    switchOrg.mutate({
-                      organizationId: membership.organization.id,
-                    })
+                    switchOrg.mutate(
+                      { organizationId: membership.organization.id },
+                      { onSuccess: () => { window.location.href = "/chat"; } },
+                    )
                   }
-                 
                 >
                   <Building2Icon className="size-5 mr-3" />
                   <div className="flex-1 text-left">
@@ -61,7 +64,7 @@ export const SelectOrganizationView = ({ memberships }: Props) => {
                       {membership.organization.name}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {membership.role}
+                      {plan}
                     </div>
                   </div>
                 </Button>
@@ -70,8 +73,8 @@ export const SelectOrganizationView = ({ memberships }: Props) => {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Building2Icon className="size-12 mx-auto mb-4 opacity-50" />
-              <p>You're not a member of any organizations yet.</p>
-              <p className="text-sm mt-1">Create one to get started.</p>
+              <p>Aún no eres miembro de ningún negocio.</p>
+              <p className="text-sm mt-1">Crea uno para comenzar.</p>
             </div>
           )}
           <Button
@@ -80,7 +83,7 @@ export const SelectOrganizationView = ({ memberships }: Props) => {
             onClick={() => setDialogOpen(true)}
           >
             <PlusIcon className="size-4 mr-2" />
-            Create New Organization
+            Crear nuevo negocio
           </Button>
         </CardContent>
       </Card>

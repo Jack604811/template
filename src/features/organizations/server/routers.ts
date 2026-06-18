@@ -94,12 +94,14 @@ export const organizationsRouter = createTRPCRouter({
         });
       }
 
-      // Update session with new active organization
       await auth.api.setActiveOrganization({
         headers: await headers(),
-        body: {
-          organizationId: input.organizationId,
-        },
+        body: { organizationId: input.organizationId },
+      });
+
+      await prisma.user.update({
+        where: { id: ctx.auth.user.id },
+        data: { lastActiveOrganizationId: input.organizationId },
       });
 
       return { success: true };

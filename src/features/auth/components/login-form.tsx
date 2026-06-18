@@ -49,7 +49,7 @@ export function LoginForm() {
       provider: "github",
     }, {
       onSuccess: () => {
-        router.push("/");
+        router.push("/chat");
       },
       onError: () => {
         toast.error("Something went wrong");
@@ -62,7 +62,7 @@ export function LoginForm() {
       provider: "google",
     }, {
       onSuccess: () => {
-        router.push("/");
+        router.push("/chat");
       },
       onError: () => {
         toast.error("Something went wrong");
@@ -74,10 +74,10 @@ export function LoginForm() {
     await authClient.signIn.email({
       email: values.email,
       password: values.password,
-      callbackURL: "/",
+      callbackURL: "/chat",
     }, {
       onSuccess: () => {
-        router.push("/");
+        router.push("/chat");
       },
       onError: (ctx) => {
         toast.error(ctx.error.message);

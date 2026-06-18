@@ -1,8 +1,6 @@
 const Layout = ({ children }: { children: React.ReactNode; }) => {
   return (
-    <>
-      <main className="flex-1">{children}</main>
-    </>
+    <div className="flex flex-1 flex-col overflow-hidden">{children}</div>
   );
 };
 

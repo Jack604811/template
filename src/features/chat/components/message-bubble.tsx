@@ -1,8 +1,11 @@
 "use client";
 
 import {
+  ArchiveIcon,
   DownloadIcon,
+  ExternalLinkIcon,
   FileIcon,
+  FileSpreadsheetIcon,
   FileTextIcon,
   ImageIcon,
   MapPinIcon,
@@ -125,31 +128,51 @@ function VideoBubble({ message, isUser }: { message: Message; isUser: boolean })
   );
 }
 
+const DOC_TYPES: Record<string, { icon: React.ElementType; iconColor: string; bg: string; label: string }> = {
+  pdf:  { icon: FileTextIcon,       iconColor: "text-red-500",    bg: "bg-red-500/12",    label: "PDF" },
+  doc:  { icon: FileTextIcon,       iconColor: "text-blue-500",   bg: "bg-blue-500/12",   label: "Word" },
+  docx: { icon: FileTextIcon,       iconColor: "text-blue-500",   bg: "bg-blue-500/12",   label: "Word" },
+  xls:  { icon: FileSpreadsheetIcon, iconColor: "text-green-500", bg: "bg-green-500/12",  label: "Excel" },
+  xlsx: { icon: FileSpreadsheetIcon, iconColor: "text-green-500", bg: "bg-green-500/12",  label: "Excel" },
+  csv:  { icon: FileSpreadsheetIcon, iconColor: "text-green-500", bg: "bg-green-500/12",  label: "CSV" },
+  ppt:  { icon: FileIcon,            iconColor: "text-orange-500", bg: "bg-orange-500/12", label: "PowerPoint" },
+  pptx: { icon: FileIcon,            iconColor: "text-orange-500", bg: "bg-orange-500/12", label: "PowerPoint" },
+  zip:  { icon: ArchiveIcon,         iconColor: "text-yellow-500", bg: "bg-yellow-500/12", label: "ZIP" },
+  rar:  { icon: ArchiveIcon,         iconColor: "text-yellow-500", bg: "bg-yellow-500/12", label: "RAR" },
+  "7z": { icon: ArchiveIcon,         iconColor: "text-yellow-500", bg: "bg-yellow-500/12", label: "7Z" },
+};
+
 function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean }) {
   const filename = message.mediaFilename ?? "Documento";
-  const ext = filename.split(".").pop()?.toUpperCase() ?? "DOC";
+  const rawExt = filename.split(".").pop()?.toLowerCase() ?? "";
+  const docType = DOC_TYPES[rawExt];
+  const Icon = docType?.icon ?? FileIcon;
+  const iconColor = isUser ? "text-primary-foreground/90" : (docType?.iconColor ?? "text-foreground/60");
+  const bgColor = isUser ? "bg-primary-foreground/15" : (docType?.bg ?? "bg-foreground/8");
+  const label = (docType?.label ?? rawExt.toUpperCase()) || "Archivo";
 
   return (
-    <div className="flex items-center gap-3 py-1 pr-1">
-      <div className={cn(
-        "flex size-10 shrink-0 items-center justify-center rounded-xl",
-        isUser ? "bg-primary-foreground/20" : "bg-blue-500/15",
-      )}>
-        <FileTextIcon className={cn("size-5", isUser ? "text-primary-foreground/80" : "text-blue-500")} />
+    <div className="flex items-center gap-3 py-0.5 pr-0.5" style={{ minWidth: 220 }}>
+      <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-2xl", bgColor)}>
+        <Icon className={cn("size-5", iconColor)} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-medium leading-tight">{filename}</p>
-        <p className={cn("text-[11px]", isUser ? "text-primary-foreground/60" : "text-muted-foreground")}>
-          {ext}
+        <p className={cn("mt-0.5 text-[11px]", isUser ? "text-primary-foreground/55" : "text-muted-foreground")}>
+          {label}
         </p>
       </div>
       {message.mediaUrl && (
         <a
           href={message.mediaUrl}
           download={filename}
+          target="_blank"
+          rel="noreferrer"
           className={cn(
-            "flex size-7 shrink-0 items-center justify-center rounded-full transition-colors",
-            isUser ? "bg-primary-foreground/20 hover:bg-primary-foreground/30" : "bg-foreground/8 hover:bg-foreground/12",
+            "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
+            isUser
+              ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
+              : "bg-foreground/8 hover:bg-foreground/15",
           )}
           onClick={(e) => e.stopPropagation()}
         >
@@ -161,27 +184,76 @@ function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean
 }
 
 function LocationBubble({ message, isUser }: { message: Message; isUser: boolean }) {
-  const location = message.text.replace("[location]", "").trim();
+  const placeName = message.mediaFilename ?? "";
+  const geoMatch = message.mediaUrl?.match(/^geo:(-?[\d.]+),(-?[\d.]+)/);
+  const lat = geoMatch?.[1];
+  const lon = geoMatch?.[2];
+  const mapsUrl = lat && lon
+    ? `https://maps.google.com/?q=${lat},${lon}`
+    : placeName
+      ? `https://maps.google.com/?q=${encodeURIComponent(placeName)}`
+      : null;
+
   return (
-    <div className="overflow-hidden rounded-xl">
+    <a
+      href={mapsUrl ?? undefined}
+      target="_blank"
+      rel="noreferrer"
+      className={cn("block w-56 overflow-hidden rounded-2xl", !mapsUrl && "pointer-events-none")}
+    >
+      {/* Map preview area */}
       <div className={cn(
-        "flex h-28 w-52 items-center justify-center",
-        isUser ? "bg-primary-foreground/10" : "bg-emerald-500/10",
+        "relative flex h-32 items-center justify-center overflow-hidden",
+        isUser ? "bg-primary-foreground/10" : "bg-emerald-950/60",
       )}>
-        <div className="flex flex-col items-center gap-1.5">
-          <MapPinIcon className={cn("size-7", isUser ? "text-primary-foreground/60" : "text-emerald-600")} />
-          <span className={cn("px-3 text-center text-[11px]", isUser ? "text-primary-foreground/50" : "text-muted-foreground")}>
-            {location || "Ubicación compartida"}
-          </span>
+        {/* Grid lines simulating a map */}
+        <div className="absolute inset-0 opacity-20"
+          style={{
+            backgroundImage: "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+          }}
+        />
+        {/* Roads simulation */}
+        <div className={cn("absolute inset-0 opacity-15",
+          isUser ? "bg-primary-foreground" : "bg-emerald-400",
+        )} style={{
+          backgroundImage: "linear-gradient(transparent 46%, currentColor 46%, currentColor 54%, transparent 54%), linear-gradient(90deg, transparent 30%, currentColor 30%, currentColor 36%, transparent 36%)",
+          backgroundSize: "80px 80px",
+        }} />
+        {/* Pin */}
+        <div className="relative flex flex-col items-center">
+          <div className={cn(
+            "flex size-10 items-center justify-center rounded-full shadow-lg",
+            isUser ? "bg-primary-foreground text-primary" : "bg-emerald-500 text-white",
+          )}>
+            <MapPinIcon className="size-5" />
+          </div>
+          <div className={cn(
+            "mt-0.5 size-2 rounded-full opacity-30",
+            isUser ? "bg-primary-foreground" : "bg-emerald-500",
+          )} />
         </div>
       </div>
+      {/* Footer */}
       <div className={cn(
-        "border-t px-3 py-2",
-        isUser ? "border-primary-foreground/10" : "border-border/40",
+        "flex items-center justify-between gap-2 px-3 py-2.5",
+        isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
       )}>
-        <p className="text-[12px] font-medium">Ver en mapa</p>
+        <div className="min-w-0">
+          <p className="text-[12px] font-semibold leading-tight">
+            {placeName || "Ubicación compartida"}
+          </p>
+          {lat && lon && (
+            <p className={cn("text-[10px]", isUser ? "text-primary-foreground/50" : "text-muted-foreground")}>
+              {parseFloat(lat).toFixed(4)}, {parseFloat(lon).toFixed(4)}
+            </p>
+          )}
+        </div>
+        {mapsUrl && (
+          <ExternalLinkIcon className={cn("size-3.5 shrink-0", isUser ? "text-primary-foreground/60" : "text-muted-foreground")} />
+        )}
       </div>
-    </div>
+    </a>
   );
 }
 

@@ -14,12 +14,33 @@ const Page = async () => {
     redirect("/login");
   }
 
-  // If user already has an active organization, redirect to calendar
-  if (session.session.activeOrganizationId) {
-    redirect("/calendar");
+  // Auto-switch only on fresh login (no org in session yet)
+  if (!session.session.activeOrganizationId) {
+    const user = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { lastActiveOrganizationId: true },
+    });
+
+    if (user?.lastActiveOrganizationId) {
+      const member = await prisma.member.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: user.lastActiveOrganizationId,
+            userId: session.user.id,
+          },
+        },
+      });
+
+      if (member) {
+        await auth.api.setActiveOrganization({
+          headers: await headers(),
+          body: { organizationId: user.lastActiveOrganizationId },
+        });
+        redirect("/chat");
+      }
+    }
   }
 
-  // Get user's organizations
   const memberships = await prisma.member.findMany({
     where: { userId: session.user.id },
     include: { organization: true },

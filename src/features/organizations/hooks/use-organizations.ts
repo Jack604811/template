@@ -5,7 +5,6 @@ import { useTRPC } from "@/trpc/client";
 import { useMutation, useQueryClient, useSuspenseQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { startTransition } from "react";
-import { useNavigationHistory } from "@/hooks/use-navigation-history";
 
 /**
  * Hook to fetch all organizations user is a member of
@@ -53,12 +52,10 @@ export const useSwitchOrganization = () => {
   const pathname = usePathname();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const { getBaseRoute, resetAllHistory } = useNavigationHistory();
   
   return useMutation(
     trpc.organizations.switchOrganization.mutationOptions({
       onSuccess: () => {
-        toast.success("Switched organization");
         queryClient.invalidateQueries();
         
         // If on workflow editor page, redirect to workflows list

@@ -107,13 +107,14 @@ export async function POST(request: NextRequest) {
       if (!phoneNumberId) continue;
 
       for (const message of value.messages) {
-        // Skip status updates, reactions, and non-displayable events
+        // Skip status updates and non-message events
         if (!message.id) continue;
-        if (message.type === "reaction" || message.type === "ephemeral") continue;
 
         const contact = value.contacts?.[0];
         const senderName = contact?.profile?.name ?? undefined;
         const from = message.from ?? contact?.wa_id ?? "";
+
+        console.log("[webhook] RAW MESSAGE:", JSON.stringify(message));
 
         // Build normalized message context
         const whatsapp: Record<string, unknown> = {
@@ -272,6 +273,7 @@ async function triggerMatchingWorkflows(
   const mediaId = whatsapp.mediaId as string | undefined;
   const mimeType = whatsapp.mimeType as string | undefined;
   const mediaFilename = whatsapp.mediaFilename as string | undefined;
+  const location = whatsapp.location as { latitude?: number; longitude?: number; name?: string; address?: string } | undefined;
   const timestamp = whatsapp.timestamp
     ? new Date(Number(whatsapp.timestamp) * 1000)
     : new Date();
@@ -279,7 +281,12 @@ async function triggerMatchingWorkflows(
   for (const cred of matchingCredentials) {
     try {
       let mediaUrl: string | null = null;
-      if (mediaId && mediaType && cred.accessToken) {
+      let resolvedFilename = mediaFilename;
+
+      if (msgType === "location" && location?.latitude != null && location?.longitude != null) {
+        mediaUrl = `geo:${location.latitude},${location.longitude}`;
+        resolvedFilename = [location.name, location.address].filter(Boolean).join(" — ") || undefined;
+      } else if (mediaId && mediaType && cred.accessToken) {
         const ext = mimeType?.split("/")[1] ?? "bin";
         const filename = mediaFilename ?? `${mediaId}.${ext}`;
         mediaUrl = await uploadWhatsAppMedia(mediaId, cred.accessToken, mimeType ?? "application/octet-stream", filename);
@@ -320,7 +327,7 @@ async function triggerMatchingWorkflows(
           mediaType,
           mediaId,
           mediaUrl,
-          mediaFilename,
+          mediaFilename: resolvedFilename,
           timestamp,
         },
       });

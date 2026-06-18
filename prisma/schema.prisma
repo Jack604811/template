@@ -17,6 +17,7 @@ model User {
   image         String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @default(now()) @updatedAt
+  lastActiveOrganizationId String?
   templates     Workflow[]
   accounts      Account[]
   memberships   Member[]

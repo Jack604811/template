@@ -27,6 +27,7 @@ import {
   XIcon,
   ZapIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -57,6 +58,7 @@ import { CustomFieldDialog } from "@/features/custom-fields/components/custom-fi
 import { useSuspenseCustomFields } from "@/features/custom-fields/hooks/use-custom-fields";
 import { CustomFieldDisplayLocation, CustomFieldType } from "@/generated/prisma";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -979,10 +981,12 @@ function MobileSettings({
   orgName,
   orgId,
   role,
+  plan,
 }: {
   orgName: string;
   orgId: string;
   role: "owner" | "admin" | "member";
+  plan: string;
 }) {
   const [openTab, setOpenTab] = useState<Tab | null>(null);
   const activeTab = TABS.find((t) => t.id === openTab);
@@ -991,7 +995,7 @@ function MobileSettings({
     <>
       <div className="flex flex-col px-4 py-4">
         {/* Org profile */}
-        <div className="flex items-center gap-3 py-3 px-2">
+        <Link href="/select-organization" className="flex items-center gap-3 py-3 px-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted">
           <div className="size-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
             <Building2Icon className="size-7 text-primary" />
           </div>
@@ -1000,12 +1004,13 @@ function MobileSettings({
               {orgName}
             </p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-[11px] font-semibold bg-primary/15 text-primary px-2 py-0.5 rounded-full capitalize">
-                {role}
+              <span className="text-[11px] font-semibold bg-primary/15 text-primary px-2 py-0.5 rounded-full">
+                {plan}
               </span>
             </div>
           </div>
-        </div>
+          <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground/40" />
+        </Link>
 
         {/* Category list */}
         <div className="mt-4">
@@ -1095,10 +1100,12 @@ function DesktopSettings({
   orgName,
   orgId,
   role,
+  plan,
 }: {
   orgName: string;
   orgId: string;
   role: "owner" | "admin" | "member";
+  plan: string;
 }) {
   const [active, setActive] = useState<Tab>("general");
 
@@ -1107,19 +1114,20 @@ function DesktopSettings({
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r flex flex-col p-4 gap-1">
         {/* Org strip */}
-        <div className="flex items-center gap-2.5 px-2 py-3 mb-2">
+        <Link href="/select-organization" className="flex items-center gap-2.5 px-2 py-3 mb-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted">
           <div className="size-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
             <Building2Icon className="size-5 text-primary" />
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-foreground leading-tight truncate">
               {orgName}
             </p>
-            <p className="text-[11px] text-muted-foreground capitalize">
-              {role}
+            <p className="text-[11px] text-muted-foreground">
+              {plan}
             </p>
           </div>
-        </div>
+          <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/40" />
+        </Link>
 
         {/* Tab buttons */}
         <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-2 mb-1 mt-2">
@@ -1171,23 +1179,25 @@ export const SettingsPage = memo(() => {
   const isMobile = useIsMobile();
   const { data: memberships } = useSuspenseOrganizations();
   const { data: currentOrgId } = useCurrentOrganization();
+  const { hasActiveSubscription } = useHasActiveSubscription();
 
   const membership = memberships.find(
     (m) => m.organization.id === currentOrgId,
   );
   const org = membership?.organization;
   const role = (membership?.role ?? "member") as "owner" | "admin" | "member";
+  const plan = hasActiveSubscription ? "Pro" : "Free";
 
   if (!org || !currentOrgId) return null;
 
   if (isMobile) {
     return (
-      <MobileSettings orgName={org.name} orgId={currentOrgId} role={role} />
+      <MobileSettings orgName={org.name} orgId={currentOrgId} role={role} plan={plan} />
     );
   }
 
   return (
-    <DesktopSettings orgName={org.name} orgId={currentOrgId} role={role} />
+    <DesktopSettings orgName={org.name} orgId={currentOrgId} role={role} plan={plan} />
   );
 });
 SettingsPage.displayName = "SettingsPage";

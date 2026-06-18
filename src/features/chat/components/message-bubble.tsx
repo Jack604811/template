@@ -72,8 +72,8 @@ function ImageBubble({ message, isUser }: { message: Message; isUser: boolean })
         <img
           src={message.mediaUrl}
           alt="imagen"
-          className="max-h-64 max-w-[260px] rounded-xl object-cover"
-          loading="lazy"
+          className="block h-auto w-full max-w-[260px] rounded-xl"
+          style={{ maxHeight: "16rem" }}
         />
       ) : (
         <div className={cn(
@@ -94,13 +94,14 @@ function VideoBubble({ message, isUser }: { message: Message; isUser: boolean })
   return (
     <div className="flex flex-col">
       {message.mediaUrl ? (
-        // eslint-disable-next-line jsx-a11y/media-has-caption
         <video
           src={message.mediaUrl}
           controls
           className="max-h-64 max-w-[260px] rounded-xl object-cover"
           preload="metadata"
-        />
+        >
+          <track kind="captions" />
+        </video>
       ) : (
         <div className={cn(
           "relative flex h-40 w-52 items-center justify-center rounded-xl",

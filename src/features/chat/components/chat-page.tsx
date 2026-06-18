@@ -68,11 +68,25 @@ export function ChatPage() {
   const selectedConversation = conversations.find((c) => c.id === params.id) ?? null;
 
   const markAsRead = useMutation(trpc.chat.markAsRead.mutationOptions());
+  const deleteConversation = useMutation(
+    trpc.chat.deleteConversation.mutationOptions(),
+  );
 
   function handleSelect(id: string) {
     setParams({ id });
     setInfoOpen(false);
     markAsRead.mutate({ conversationId: id });
+  }
+
+  function handleDelete(id: string) {
+    deleteConversation.mutate(
+      { conversationId: id },
+      {
+        onSuccess: () => {
+          if (params.id === id) setParams({ id: null });
+        },
+      },
+    );
   }
 
   if (isMobile) {
@@ -88,6 +102,7 @@ export function ChatPage() {
             conversation={selectedConversation}
             open={infoOpen}
             onClose={() => setInfoOpen(false)}
+            onDelete={handleDelete}
           />
         </div>
       );
@@ -101,6 +116,7 @@ export function ChatPage() {
           filter={params.filter as ChatFilter}
           search={params.search}
           onSelect={handleSelect}
+          onDelete={handleDelete}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
         />
@@ -117,6 +133,7 @@ export function ChatPage() {
           filter={params.filter as ChatFilter}
           search={params.search}
           onSelect={handleSelect}
+          onDelete={handleDelete}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
         />

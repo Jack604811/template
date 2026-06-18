@@ -37,12 +37,14 @@ interface InfoRowProps {
   label: string;
   value?: string;
   destructive?: boolean;
+  onClick?: () => void;
 }
 
-function InfoRow({ icon, label, value, destructive = false }: InfoRowProps) {
+function InfoRow({ icon, label, value, destructive = false, onClick }: InfoRowProps) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={cn(
         "flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-muted/50",
         destructive ? "text-destructive" : "text-foreground",
@@ -67,15 +69,18 @@ interface ChatDetailsProps {
   conversation: Conversation;
   open: boolean;
   onClose: () => void;
+  onDelete: (id: string) => void;
 }
 
 function PanelContent({
   conversation,
   onClose,
+  onDelete,
   mobile = false,
 }: {
   conversation: Conversation;
   onClose: () => void;
+  onDelete: (id: string) => void;
   mobile?: boolean;
 }) {
   return (
@@ -153,7 +158,7 @@ function PanelContent({
           <InfoRow icon={<ShieldIcon />} label="Restringir" />
           <InfoRow icon={<BanIcon />} label="Bloquear" />
           <InfoRow icon={<FlagIcon />} label="Reportar" />
-          <InfoRow icon={<TrashIcon />} label="Eliminar chat" destructive />
+          <InfoRow icon={<TrashIcon />} label="Eliminar chat" destructive onClick={() => { onDelete(conversation.id); onClose(); }} />
         </div>
       </ScrollArea>
     </div>
@@ -164,6 +169,7 @@ export function ChatDetails({
   conversation,
   open,
   onClose,
+  onDelete,
 }: ChatDetailsProps) {
   const isMobile = useIsMobile();
 
@@ -173,7 +179,7 @@ export function ChatDetails({
         <DrawerContent className="h-[92dvh] p-0">
           <DrawerTitle className="sr-only">Contact Info</DrawerTitle>
           <DrawerDescription className="sr-only">{conversation.name}</DrawerDescription>
-          <PanelContent conversation={conversation} onClose={onClose} mobile />
+          <PanelContent conversation={conversation} onClose={onClose} onDelete={onDelete} mobile />
         </DrawerContent>
       </Drawer>
     );
@@ -183,7 +189,7 @@ export function ChatDetails({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <PanelContent conversation={conversation} onClose={onClose} />
+      <PanelContent conversation={conversation} onClose={onClose} onDelete={onDelete} />
     </div>
   );
 }

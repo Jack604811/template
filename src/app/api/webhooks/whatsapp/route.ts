@@ -184,6 +184,9 @@ async function uploadWhatsAppMedia(
   accessToken: string,
   mimeType: string,
   filename: string,
+  orgId: string,
+  platform: string,
+  conversationId: string,
 ): Promise<string | null> {
   try {
     const metaRes = await fetch(`https://graph.facebook.com/v22.0/${rawMediaId}`, {
@@ -208,7 +211,7 @@ async function uploadWhatsAppMedia(
     }
 
     const buffer = Buffer.from(await fileRes.arrayBuffer());
-    const path = `whatsapp/${rawMediaId}/${filename}`;
+    const path = `${orgId}/${platform}/${conversationId}/${filename}`;
 
     const { error } = await supabase.storage
       .from(MEDIA_BUCKET)
@@ -280,18 +283,6 @@ async function triggerMatchingWorkflows(
 
   for (const cred of matchingCredentials) {
     try {
-      let mediaUrl: string | null = null;
-      let resolvedFilename = mediaFilename;
-
-      if (msgType === "location" && location?.latitude != null && location?.longitude != null) {
-        mediaUrl = `geo:${location.latitude},${location.longitude}`;
-        resolvedFilename = [location.name, location.address].filter(Boolean).join(" — ") || undefined;
-      } else if (mediaId && mediaType && cred.accessToken) {
-        const ext = mimeType?.split("/")[1] ?? "bin";
-        const filename = mediaFilename ?? `${mediaId}.${ext}`;
-        mediaUrl = await uploadWhatsAppMedia(mediaId, cred.accessToken, mimeType ?? "application/octet-stream", filename);
-      }
-
       const conversation = await prisma.conversation.upsert({
         where: {
           organizationId_channel_externalId: {
@@ -317,6 +308,26 @@ async function triggerMatchingWorkflows(
           unreadCount: 1,
         },
       });
+
+      let mediaUrl: string | null = null;
+      let resolvedFilename = mediaFilename;
+
+      if (msgType === "location" && location?.latitude != null && location?.longitude != null) {
+        mediaUrl = `geo:${location.latitude},${location.longitude}`;
+        resolvedFilename = [location.name, location.address].filter(Boolean).join(" — ") || undefined;
+      } else if (mediaId && mediaType && cred.accessToken) {
+        const ext = mimeType?.split("/")[1] ?? "bin";
+        const filename = mediaFilename ?? `${mediaId}.${ext}`;
+        mediaUrl = await uploadWhatsAppMedia(
+          mediaId,
+          cred.accessToken,
+          mimeType ?? "application/octet-stream",
+          filename,
+          cred.organizationId,
+          "whatsapp",
+          conversation.id,
+        );
+      }
 
       await prisma.message.create({
         data: {

@@ -27,6 +27,7 @@ interface ConversationListProps {
   filter: ChatFilter;
   search: string;
   onSelect: (id: string) => void;
+  onDelete: (id: string) => void;
   onFilterChange: (filter: ChatFilter) => void;
   onSearchChange: (search: string) => void;
 }
@@ -37,6 +38,7 @@ export function ConversationList({
   filter,
   search,
   onSelect,
+  onDelete,
   onFilterChange,
   onSearchChange,
 }: ConversationListProps) {
@@ -87,6 +89,7 @@ export function ConversationList({
               conversation={c}
               selected={c.id === selectedId}
               onClick={() => onSelect(c.id)}
+              onDelete={onDelete}
             />
           ))
         )}

@@ -75,12 +75,11 @@ function ImageBubble({ message, isUser }: { message: Message; isUser: boolean })
         <img
           src={message.mediaUrl}
           alt="imagen"
-          className="block h-auto w-full max-w-[260px] rounded-xl"
-          style={{ maxHeight: "16rem" }}
+          className="block h-auto w-64 max-h-full rounded-xl object-cover"
         />
       ) : (
         <div className={cn(
-          "flex h-40 w-52 items-center justify-center rounded-xl",
+          "flex h-40 w-64 items-center justify-center rounded-xl",
           isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
         )}>
           <ImageIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />
@@ -152,7 +151,7 @@ function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean
   const label = (docType?.label ?? rawExt.toUpperCase()) || "Archivo";
 
   return (
-    <div className="flex items-center gap-3 py-0.5 pr-0.5" style={{ minWidth: 220 }}>
+    <div className="flex w-56 items-center gap-3 py-0.5 pr-0.5">
       <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-2xl", bgColor)}>
         <Icon className={cn("size-5", iconColor)} />
       </div>
@@ -199,7 +198,7 @@ function LocationBubble({ message, isUser }: { message: Message; isUser: boolean
       href={mapsUrl ?? undefined}
       target="_blank"
       rel="noreferrer"
-      className={cn("block w-56 overflow-hidden rounded-2xl", !mapsUrl && "pointer-events-none")}
+      className={cn("block w-64 overflow-hidden rounded-2xl", !mapsUrl && "pointer-events-none")}
     >
       {/* Map preview area */}
       <div className={cn(

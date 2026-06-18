@@ -1,6 +1,7 @@
 import { ChannelType, MessageRole } from "@/generated/prisma";
 import prisma from "@/lib/db";
 import { decrypt } from "@/lib/encryption";
+import { MEDIA_BUCKET, supabase } from "@/lib/supabase";
 import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 import z from "zod";
 
@@ -129,6 +130,31 @@ export const chatRouter = createTRPCRouter({
       await prisma.conversation.updateMany({
         where: { id: input.conversationId, organizationId: ctx.organizationId },
         data: { unreadCount: 0 },
+      });
+    }),
+
+  deleteConversation: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+        select: { channel: true },
+      });
+      if (!conversation) return;
+
+      const platform = conversation.channel.toLowerCase();
+      const prefix = `${ctx.organizationId}/${platform}/${input.conversationId}/`;
+      const { data: files } = await supabase.storage
+        .from(MEDIA_BUCKET)
+        .list(prefix.slice(0, -1));
+      if (files && files.length > 0) {
+        await supabase.storage
+          .from(MEDIA_BUCKET)
+          .remove(files.map((f) => `${prefix}${f.name}`));
+      }
+
+      await prisma.conversation.delete({
+        where: { id: input.conversationId },
       });
     }),
 });

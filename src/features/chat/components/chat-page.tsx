@@ -11,6 +11,21 @@ import { ChatDetails } from "./chat-details";
 import { ConversationList } from "./conversation-list";
 import { ConversationView } from "./conversation-view";
 
+const MEDIA_LABELS: Record<string, string> = {
+  "[image]": "Imagen",
+  "[video]": "Video",
+  "[audio]": "Audio",
+  "[voice]": "Audio",
+  "[document]": "Archivo",
+  "[sticker]": "Sticker",
+  "[location]": "Ubicación",
+  "[contacts]": "Contacto",
+};
+
+function formatLastMessage(text: string): string {
+  return MEDIA_LABELS[text.trim()] ?? text;
+}
+
 function getInitials(name: string): string {
   const words = name.trim().split(/\s+/);
   if (words.length >= 2) {
@@ -43,7 +58,7 @@ export function ChatPage() {
       name,
       initials: getInitials(name),
       channel: c.channel.toLowerCase() as Conversation["channel"],
-      lastMessage: c.lastMessageText ?? "",
+      lastMessage: formatLastMessage(c.lastMessageText ?? ""),
       lastMessageAt: c.lastMessageAt ?? c.createdAt,
       unreadCount: c.unreadCount,
       online: false,

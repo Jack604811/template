@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { writeFileSync } from "node:fs";
 import { type NextRequest, NextResponse } from "next/server";
 import { ChannelType, CredentialType, MessageRole, NodeType } from "@/generated/prisma";
 import prisma from "@/lib/db";
@@ -84,19 +83,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  console.log("[webhook] cwd:", process.cwd());
-  console.log("[webhook] raw body length:", rawBody.length);
-  try {
-    writeFileSync(
-      `${process.cwd()}/last-whatsapp-payload.json`,
-      JSON.stringify(JSON.parse(rawBody), null, 2),
-    );
-    console.log("[webhook] payload written to last-whatsapp-payload.json");
-  } catch (e) {
-    console.error("[webhook] failed to write payload file:", e);
-  }
   console.log("=== WhatsApp webhook POST ===");
-  console.log("RAW BODY:", rawBody);
 
   let body: MetaWebhookPayload;
   try {
@@ -120,14 +107,13 @@ export async function POST(request: NextRequest) {
       if (!phoneNumberId) continue;
 
       for (const message of value.messages) {
-        // Skip status updates and non-message events
+        // Skip status updates, reactions, and non-displayable events
         if (!message.id) continue;
+        if (message.type === "reaction" || message.type === "ephemeral") continue;
 
         const contact = value.contacts?.[0];
         const senderName = contact?.profile?.name ?? undefined;
         const from = message.from ?? contact?.wa_id ?? "";
-
-        console.log("[webhook] RAW MESSAGE:", JSON.stringify(message));
 
         // Build normalized message context
         const whatsapp: Record<string, unknown> = {

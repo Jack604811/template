@@ -344,10 +344,10 @@ function PanelContent({
               <button
                 type="button"
                 onClick={openNotesDrawer}
-                className="w-full rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 text-left"
+                className="w-full rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 text-left min-h-[80px] items-start flex flex-col justify-start"
               >
                 {notes ? (
-                  <span className="text-[15px] text-foreground leading-snug line-clamp-3">{notes}</span>
+                  <span className="text-[15px] text-foreground leading-snug">{notes}</span>
                 ) : (
                   <span className="text-[15px] text-muted-foreground/50 italic">Agregar notas sobre este contacto...</span>
                 )}
@@ -388,7 +388,8 @@ function PanelContent({
               <DrawerDescription className="sr-only">Editar notas del contacto</DrawerDescription>
               <div className="px-5 pt-2 pb-safe-or-6 flex flex-col gap-3">
                 <textarea
-                  ref={(el) => el?.focus()}
+                  // eslint-disable-next-line jsx-a11y/no-autofocus
+                  autoFocus
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Agregar notas sobre este contacto..."
@@ -410,6 +411,7 @@ function PanelContent({
 
           <div className="py-1">
             <InfoRow icon={<UsersIcon />} label="Equipo asignado" value="Ninguno" />
+            <InfoRow icon={<TagIcon />} label="Etiquetas" />
 
             <InfoRow
               icon={<ImageIcon />}
@@ -446,7 +448,6 @@ function PanelContent({
           <Separator />
 
           <div className="py-1">
-            <InfoRow icon={<TagIcon />} label="Etiquetas" />
             <InfoRow icon={<CameraIcon />} label="Guardar en fotos" value="Por defecto" />
             <InfoRow icon={<LockIcon />} label="Cifrado" />
             <InfoRow icon={<TimerIcon />} label="Mensajes temporales" value="Desactivado" />

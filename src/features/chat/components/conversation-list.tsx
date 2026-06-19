@@ -17,7 +17,7 @@ import { ConversationItem } from "./conversation-item";
 const CHAT_FILTERS: { id: ChatFilter; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "unread", label: "No leídos" },
-  { id: "joined", label: "Activos" },
+  { id: "joined", label: "Asignados" },
   { id: "groups", label: "Grupos" },
 ];
 
@@ -27,7 +27,6 @@ interface ConversationListProps {
   filter: ChatFilter;
   search: string;
   onSelect: (id: string) => void;
-  onDelete: (id: string) => void;
   onFilterChange: (filter: ChatFilter) => void;
   onSearchChange: (search: string) => void;
 }
@@ -38,7 +37,6 @@ export function ConversationList({
   filter,
   search,
   onSelect,
-  onDelete,
   onFilterChange,
   onSearchChange,
 }: ConversationListProps) {
@@ -89,7 +87,6 @@ export function ConversationList({
               conversation={c}
               selected={c.id === selectedId}
               onClick={() => onSelect(c.id)}
-              onDelete={onDelete}
             />
           ))
         )}

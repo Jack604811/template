@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertCircleIcon,
   ArchiveIcon,
   DownloadIcon,
   ExternalLinkIcon,
@@ -13,6 +14,7 @@ import {
   PlayCircleIcon,
   UserRoundIcon,
   VideoIcon,
+  XIcon,
 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -21,12 +23,88 @@ import { getAvatarStyle } from "../utils/avatar";
 
 export interface Message {
   id: string;
-  role: "user" | "contact";
+  role: "user" | "contact" | "system";
   text: string;
   mediaType: string | null;
   mediaUrl: string | null;
   mediaFilename: string | null;
   createdAt: Date;
+  uploadProgress?: number;
+  uploadFailed?: boolean;
+  onCancelUpload?: () => void;
+  onRetryUpload?: () => void;
+}
+
+function CircularProgress({ value }: { value: number }) {
+  const r = 20;
+  const circ = 2 * Math.PI * r;
+  const dash = (value / 100) * circ;
+  return (
+    <svg width="52" height="52" viewBox="0 0 52 52" aria-hidden="true" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx="26" cy="26" r={r} fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="3.5" />
+      <circle
+        cx="26" cy="26" r={r}
+        fill="none" stroke="white" strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        style={{ transition: "stroke-dasharray 0.15s ease" }}
+      />
+    </svg>
+  );
+}
+
+function MiniCircularProgress({ value }: { value: number }) {
+  const r = 9;
+  const circ = 2 * Math.PI * r;
+  const dash = (value / 100) * circ;
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx="12" cy="12" r={r} fill="none" stroke="currentColor" strokeOpacity={0.25} strokeWidth="2.5" />
+      <circle
+        cx="12" cy="12" r={r}
+        fill="none" stroke="currentColor" strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ - dash}`}
+        style={{ transition: "stroke-dasharray 0.15s ease" }}
+      />
+    </svg>
+  );
+}
+
+function UploadOverlay({ progress, failed, onCancel, onRetry }: {
+  progress: number;
+  failed: boolean;
+  onCancel?: () => void;
+  onRetry?: () => void;
+}) {
+  if (failed) {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="absolute inset-0 flex flex-col items-center justify-center gap-2 rounded-xl bg-black/60"
+      >
+        <div className="flex size-12 items-center justify-center rounded-full bg-white/15 backdrop-blur-sm">
+          <AlertCircleIcon className="size-5 text-white" />
+        </div>
+        <span className="text-[11px] font-semibold text-white drop-shadow">Reintentar</span>
+      </button>
+    );
+  }
+  return (
+    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40 backdrop-blur-[1px]">
+      <div className="relative flex items-center justify-center">
+        <CircularProgress value={progress} />
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute flex size-9 items-center justify-center rounded-full"
+        >
+          <XIcon className="size-4 text-white drop-shadow" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function formatTime(date: Date) {
@@ -68,23 +146,34 @@ function AudioBubble({ message, isUser }: { message: Message; isUser: boolean })
 }
 
 function ImageBubble({ message, isUser }: { message: Message; isUser: boolean }) {
+  const uploading = message.uploadProgress !== undefined;
   return (
     <div className="flex flex-col">
-      {message.mediaUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={message.mediaUrl}
-          alt="imagen"
-          className="block h-auto w-64 max-h-full rounded-xl object-cover"
-        />
-      ) : (
-        <div className={cn(
-          "flex h-40 w-64 items-center justify-center rounded-xl",
-          isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
-        )}>
-          <ImageIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />
-        </div>
-      )}
+      <div className="relative">
+        {message.mediaUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={message.mediaUrl}
+            alt="imagen"
+            className="block h-auto w-64 max-h-full rounded-xl object-cover"
+          />
+        ) : (
+          <div className={cn(
+            "flex h-40 w-64 items-center justify-center rounded-xl",
+            isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
+          )}>
+            <ImageIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />
+          </div>
+        )}
+        {uploading && (
+          <UploadOverlay
+            progress={message.uploadProgress ?? 0}
+            failed={message.uploadFailed ?? false}
+            onCancel={message.onCancelUpload}
+            onRetry={message.onRetryUpload}
+          />
+        )}
+      </div>
       {message.text && message.text !== "[image]" && (
         <p className="mt-1 px-1 text-[13px] leading-snug">{message.text}</p>
       )}
@@ -93,33 +182,44 @@ function ImageBubble({ message, isUser }: { message: Message; isUser: boolean })
 }
 
 function VideoBubble({ message, isUser }: { message: Message; isUser: boolean }) {
+  const uploading = message.uploadProgress !== undefined;
   return (
     <div className="flex flex-col">
-      {message.mediaUrl ? (
-        <video
-          src={message.mediaUrl}
-          controls
-          className="max-h-64 max-w-[260px] rounded-xl object-cover"
-          preload="metadata"
-        >
-          <track kind="captions" />
-        </video>
-      ) : (
-        <div className={cn(
-          "relative flex h-40 w-52 items-center justify-center rounded-xl",
-          isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
-        )}>
-          <VideoIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className={cn(
-              "flex size-12 items-center justify-center rounded-full",
-              isUser ? "bg-primary-foreground/20" : "bg-black/20",
-            )}>
-              <PlayCircleIcon className={cn("size-7", isUser ? "text-primary-foreground/80" : "text-white/80")} />
+      <div className="relative">
+        {message.mediaUrl ? (
+          <video
+            src={message.mediaUrl}
+            controls={!uploading}
+            className="max-h-64 max-w-[260px] rounded-xl object-cover"
+            preload="metadata"
+          >
+            <track kind="captions" />
+          </video>
+        ) : (
+          <div className={cn(
+            "relative flex h-40 w-52 items-center justify-center rounded-xl",
+            isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
+          )}>
+            <VideoIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className={cn(
+                "flex size-12 items-center justify-center rounded-full",
+                isUser ? "bg-primary-foreground/20" : "bg-black/20",
+              )}>
+                <PlayCircleIcon className={cn("size-7", isUser ? "text-primary-foreground/80" : "text-white/80")} />
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+        {uploading && (
+          <UploadOverlay
+            progress={message.uploadProgress ?? 0}
+            failed={message.uploadFailed ?? false}
+            onCancel={message.onCancelUpload}
+            onRetry={message.onRetryUpload}
+          />
+        )}
+      </div>
       {message.text && message.text !== "[video]" && (
         <p className="mt-1 px-1 text-[13px] leading-snug">{message.text}</p>
       )}
@@ -149,34 +249,57 @@ function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean
   const iconColor = isUser ? "text-primary-foreground/90" : (docType?.iconColor ?? "text-foreground/60");
   const bgColor = isUser ? "bg-primary-foreground/15" : (docType?.bg ?? "bg-foreground/8");
   const label = (docType?.label ?? rawExt.toUpperCase()) || "Archivo";
+  const uploading = message.uploadProgress !== undefined;
 
   return (
-    <div className="flex w-56 items-center gap-3 py-0.5 pr-0.5">
-      <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-2xl", bgColor)}>
-        <Icon className={cn("size-5", iconColor)} />
+    <div className="w-56">
+      <div className="flex items-center gap-3 py-0.5 pr-0.5">
+        <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-2xl", bgColor)}>
+          <Icon className={cn("size-5", iconColor)} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[13px] font-medium leading-tight">{filename}</p>
+          <p className={cn("mt-0.5 text-[11px]", isUser ? "text-primary-foreground/55" : "text-muted-foreground")}>
+            {uploading && !message.uploadFailed ? `${message.uploadProgress}%` : label}
+          </p>
+        </div>
+        {uploading ? (
+          <button
+            type="button"
+            onClick={message.uploadFailed ? message.onRetryUpload : message.onCancelUpload}
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
+              isUser ? "bg-primary-foreground/15 hover:bg-primary-foreground/25" : "bg-foreground/8 hover:bg-foreground/15",
+            )}
+          >
+            {message.uploadFailed
+              ? <AlertCircleIcon className="size-3.5 text-destructive" />
+              : <MiniCircularProgress value={message.uploadProgress ?? 0} />
+            }
+          </button>
+        ) : message.mediaUrl ? (
+          <a
+            href={message.mediaUrl}
+            download={filename}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(
+              "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
+              isUser ? "bg-primary-foreground/15 hover:bg-primary-foreground/25" : "bg-foreground/8 hover:bg-foreground/15",
+            )}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DownloadIcon className="size-3.5" />
+          </a>
+        ) : null}
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[13px] font-medium leading-tight">{filename}</p>
-        <p className={cn("mt-0.5 text-[11px]", isUser ? "text-primary-foreground/55" : "text-muted-foreground")}>
-          {label}
-        </p>
-      </div>
-      {message.mediaUrl && (
-        <a
-          href={message.mediaUrl}
-          download={filename}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(
-            "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
-            isUser
-              ? "bg-primary-foreground/15 hover:bg-primary-foreground/25"
-              : "bg-foreground/8 hover:bg-foreground/15",
-          )}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <DownloadIcon className="size-3.5" />
-        </a>
+      {uploading && !message.uploadFailed && (
+        <div className={cn("mt-1.5 h-[3px] w-full overflow-hidden rounded-full", isUser ? "bg-primary-foreground/15" : "bg-foreground/10")}>
+          <div
+            className="h-full rounded-full bg-primary transition-all duration-200"
+            style={{ width: `${message.uploadProgress}%` }}
+          />
+        </div>
       )}
     </div>
   );
@@ -328,7 +451,7 @@ export function MessageBubble({
   const type = message.mediaType ?? "";
   const isNoPadding = ["image", "video", "location", "contacts"].includes(type);
   const isNoBubble = type === "sticker";
-  const isTimeOutside = ["image", "video", "location", "contacts", "document", "audio", "voice"].includes(type);
+  const isTimeOutside = type !== "sticker";
 
   return (
     <div className={cn("flex items-end gap-2", isUser ? "flex-row-reverse" : "flex-row")}>

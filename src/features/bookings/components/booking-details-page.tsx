@@ -125,7 +125,7 @@ function Section({
 }) {
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between px-5 mb-1">
+      <div className="flex items-center justify-between px-5 mb-2">
         <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
           {label}
         </p>
@@ -911,7 +911,7 @@ function ResumenTab({
         </Section>
       )}
 
-      <Section label="Observaciones">
+      <Section label="Notas">
         <EditableNote
           value={booking.notes ?? ""}
           onSave={onNotesChange}

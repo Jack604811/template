@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeftIcon, MessageSquareIcon } from "lucide-react";
+import { ChevronLeftIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -22,12 +23,19 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/trpc/client";
+import { useConversationParticipant } from "../hooks/use-conversation-participant";
+import { mimeToMediaType } from "../lib/compress";
+import { uploadFileXHR } from "../lib/upload";
 import type { Conversation as ConversationType } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
+import type { Message } from "./message-bubble";
 import { MessageBubble } from "./message-bubble";
+import type { SendPayload } from "./message-input";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
+import { SystemMessage } from "./system-message";
 
 const CHAT_QUICK_REPLIES = [
   "¿En qué puedo ayudarte?",
@@ -43,46 +51,102 @@ function ConnectedQuickReplies() {
   return <QuickReplies replies={CHAT_QUICK_REPLIES} onSelect={textInput.setInput} />;
 }
 
+interface UploadingEntry {
+  id: string;
+  file: File;
+  caption: string;
+  mediaType: string;
+  blobUrl: string;
+  progress: number;
+  failed: boolean;
+  abortController: AbortController;
+}
+
 interface ConversationViewProps {
   conversation: ConversationType | null;
+  stableKeyMap: RefObject<Map<string, string>>;
   onToggleInfo: () => void;
   onBack?: () => void;
 }
 
-export function ConversationView({ conversation, onToggleInfo, onBack }: ConversationViewProps) {
+export function ConversationView({
+  conversation,
+  stableKeyMap,
+  onToggleInfo,
+  onBack,
+}: ConversationViewProps) {
   const isMobile = useIsMobile();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const [uploadingEntries, setUploadingEntries] = useState<UploadingEntry[]>([]);
+  const entriesRef = useRef<Map<string, UploadingEntry>>(new Map());
+  const { data: session } = authClient.useSession();
+  const userName = session?.user?.name ?? session?.user?.email ?? "";
 
-  const messagesQueryOptions = trpc.chat.getMessages.queryOptions(
-    { conversationId: conversation?.id ?? "" },
-  );
+  const {
+    messagesQueryOptions,
+    prepareImplicitJoin,
+    confirmImplicitJoin,
+  } = useConversationParticipant(conversation, stableKeyMap);
+
+  const { data: rawMessages = [] } = useQuery({
+    ...messagesQueryOptions,
+    enabled: !!conversation,
+    refetchInterval: () => (conversation && queryClient.isMutating() === 0 ? 1500 : false),
+  });
 
   const sendMessage = useMutation(trpc.chat.sendMessage.mutationOptions({
-    onMutate: async ({ content }) => {
+    onMutate: async ({ content, mediaUrl, mediaType, mediaFilename, conversationId }) => {
       await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
       const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
       const optimisticId = `optimistic-${Date.now()}`;
+      stableKeyMap.current.set(optimisticId, optimisticId);
+      const joinPrep = prepareImplicitJoin();
+      const lastText = mediaType ? (content || `[${mediaType}]`) : content;
+      const now = new Date();
+
       queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) => [
         ...(old ?? []),
+        ...(joinPrep ? [joinPrep.msg] : []),
         {
           id: optimisticId,
-          conversationId: conversation?.id ?? "",
+          conversationId,
           externalId: null,
           role: "ASSISTANT" as const,
-          content,
-          mediaType: null,
+          content: lastText,
+          mediaType: mediaType ?? null,
           mediaId: null,
-          mediaUrl: null,
-          mediaFilename: null,
-          timestamp: new Date(),
+          mediaUrl: mediaUrl ?? null,
+          mediaFilename: mediaFilename ?? null,
+          timestamp: now,
         },
       ]);
-      return { previous, optimisticId };
+
+      queryClient.setQueriesData(
+        { queryKey: [["chat", "getConversations"]] },
+        (old: unknown) =>
+          Array.isArray(old)
+            ? old.map((c: Record<string, unknown>) =>
+                c.id === conversationId
+                  ? { ...c, lastMessageText: lastText, lastMessageAt: now }
+                  : c,
+              )
+            : old,
+      );
+
+      return { previous, optimisticId, joinPrep };
     },
-    onSuccess: (realMessage, _vars, context) => {
+    onSuccess: ({ message, joinSystemMessage }, _vars, context) => {
+      if (context?.optimisticId) stableKeyMap.current.set(message.id, context.optimisticId);
+      confirmImplicitJoin(joinSystemMessage, context?.joinPrep?.joinOptimisticId);
       queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
-        (old ?? []).map((m) => (m.id === context?.optimisticId ? realMessage : m)),
+        (old ?? [])
+          .filter((m) => joinSystemMessage !== null || m.id !== context?.joinPrep?.joinOptimisticId)
+          .map((m) => {
+            if (m.id === context?.optimisticId) return message;
+            if (joinSystemMessage && m.id === context?.joinPrep?.joinOptimisticId) return joinSystemMessage;
+            return m;
+          }),
       );
     },
     onError: (_err, _vars, context) => {
@@ -92,21 +156,113 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
     },
   }));
 
-  const { data: rawMessages = [] } = useQuery({
-    ...messagesQueryOptions,
-    enabled: !!conversation,
-    refetchInterval: conversation && !sendMessage.isPending ? 1500 : false,
+  useEffect(() => {
+    return () => {
+      for (const entry of entriesRef.current.values()) {
+        URL.revokeObjectURL(entry.blobUrl);
+      }
+    };
+  }, []);
+
+  const messages = rawMessages.map((m) => {
+    let text = m.content;
+    if (m.role === "SYSTEM" && userName) {
+      if (text === `${userName} se ha unido a la conversación`) text = "Te has unido a la conversación";
+      else if (text === `${userName} ha abandonado la conversación`) text = "Has abandonado la conversación";
+    }
+    return {
+      id: m.id,
+      role: (m.role === "USER" ? "contact" : m.role === "SYSTEM" ? "system" : "user") as "user" | "contact" | "system",
+      text,
+      mediaType: m.mediaType,
+      mediaUrl: m.mediaUrl,
+      mediaFilename: m.mediaFilename,
+      createdAt: m.timestamp,
+    };
   });
 
-  const messages = rawMessages.map((m) => ({
-    id: m.id,
-    role: (m.role === "USER" ? "contact" : "user") as "user" | "contact",
-    text: m.content,
-    mediaType: m.mediaType,
-    mediaUrl: m.mediaUrl,
-    mediaFilename: m.mediaFilename,
-    createdAt: m.timestamp,
+  function updateEntry(id: string, patch: Partial<UploadingEntry>) {
+    setUploadingEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    const existing = entriesRef.current.get(id);
+    if (existing) entriesRef.current.set(id, { ...existing, ...patch });
+  }
+
+  function removeEntry(id: string) {
+    const entry = entriesRef.current.get(id);
+    if (entry) URL.revokeObjectURL(entry.blobUrl);
+    entriesRef.current.delete(id);
+    setUploadingEntries((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  async function runUpload(entry: UploadingEntry, conversationId: string) {
+    try {
+      const { url, mimeType, filename } = await uploadFileXHR(
+        entry.file,
+        conversationId,
+        (pct) => updateEntry(entry.id, { progress: pct }),
+        entry.abortController.signal,
+      );
+      removeEntry(entry.id);
+      sendMessage.mutate({
+        conversationId,
+        content: entry.caption,
+        mediaUrl: url,
+        mediaType: mimeToMediaType(mimeType),
+        mediaFilename: filename,
+      });
+    } catch (e) {
+      if ((e as Error).name === "AbortError") {
+        removeEntry(entry.id);
+      } else {
+        updateEntry(entry.id, { failed: true });
+      }
+    }
+  }
+
+  function handleSendMedia(file: File, caption: string) {
+    if (!conversation) return;
+    const id = `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const blobUrl = URL.createObjectURL(file);
+    const mediaType = mimeToMediaType(file.type);
+    const abortController = new AbortController();
+    const entry: UploadingEntry = {
+      id, file, caption, mediaType, blobUrl, progress: 0, failed: false, abortController,
+    };
+    entriesRef.current.set(id, entry);
+    setUploadingEntries((prev) => [...prev, entry]);
+    runUpload(entry, conversation.id);
+  }
+
+  function cancelUpload(id: string) {
+    entriesRef.current.get(id)?.abortController.abort();
+  }
+
+  function retryUpload(id: string) {
+    if (!conversation) return;
+    const entry = entriesRef.current.get(id);
+    if (!entry) return;
+    const newController = new AbortController();
+    const updated = { ...entry, abortController: newController, progress: 0, failed: false };
+    entriesRef.current.set(id, updated);
+    setUploadingEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    runUpload(updated, conversation.id);
+  }
+
+  const uploadMessages: Message[] = uploadingEntries.map((u) => ({
+    id: u.id,
+    role: "user" as const,
+    text: u.caption,
+    mediaType: u.mediaType,
+    mediaUrl: u.blobUrl,
+    mediaFilename: u.file.name,
+    createdAt: new Date(),
+    uploadProgress: u.progress,
+    uploadFailed: u.failed,
+    onCancelUpload: () => cancelUpload(u.id),
+    onRetryUpload: () => retryUpload(u.id),
   }));
+
+  const allMessages = [...messages, ...uploadMessages];
 
   if (!conversation) {
     return (
@@ -124,9 +280,16 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
     );
   }
 
-  function handleSend(text: string) {
-    if (!conversation || !text.trim()) return;
-    sendMessage.mutate({ conversationId: conversation.id, content: text });
+  function handleSend(payload: SendPayload) {
+    if (!conversation) return;
+    if (!payload.text.trim() && !payload.mediaUrl) return;
+    sendMessage.mutate({
+      conversationId: conversation.id,
+      content: payload.text,
+      mediaUrl: payload.mediaUrl,
+      mediaType: payload.mediaType,
+      mediaFilename: payload.mediaFilename,
+    });
   }
 
   return (
@@ -134,7 +297,7 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
       className="grid min-w-0 flex-1"
       style={{ gridTemplateRows: "auto 1fr auto", height: "100%" }}
     >
-      {/* Row 1 — header */}
+      {/* header */}
       <div className="flex h-14 items-center gap-1 border-b px-2">
         {isMobile && onBack && (
           <button
@@ -148,7 +311,7 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
         <button
           type="button"
           onClick={onToggleInfo}
-          className="flex flex-1 cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/30"
+          className="flex flex-1 cursor-pointer items-center gap-3 px-2 py-1.5 text-left"
         >
           <Avatar className="hidden size-8 md:flex">
             <AvatarFallback
@@ -164,17 +327,22 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
               {conversation.channel}
             </p>
           </div>
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12">
-            <span className="text-sm font-medium">+</span>
-          </div>
+        </button>
+        <button
+          type="button"
+          onClick={onToggleInfo}
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+          title="Información del contacto"
+        >
+          <PlusIcon className="size-4" />
         </button>
       </div>
 
-      {/* Row 2 — scrollable conversation */}
+      {/* messages */}
       <div className="overflow-hidden">
         <Conversation className="h-full">
           <ConversationContent className="gap-3 px-4 py-4">
-            {messages.length === 0 ? (
+            {allMessages.length === 0 ? (
               <ConversationEmptyState>
                 <div className="flex flex-col items-center gap-3 text-center">
                   <Avatar className="size-20">
@@ -195,20 +363,34 @@ export function ConversationView({ conversation, onToggleInfo, onBack }: Convers
                 </div>
               </ConversationEmptyState>
             ) : (
-              messages.map((message) => (
-                <MessageBubble key={message.id} message={message} conversation={conversation} />
-              ))
+              allMessages.map((message) => {
+                const stableKey = stableKeyMap.current.get(message.id) ?? message.id;
+                return message.role === "system" ? (
+                  <SystemMessage key={stableKey} text={message.text} />
+                ) : (
+                  <MessageBubble
+                    key={stableKey}
+                    message={message as Parameters<typeof MessageBubble>[0]["message"]}
+                    conversation={conversation}
+                  />
+                );
+              })
             )}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
       </div>
 
-      {/* Row 3 — input */}
+      {/* input */}
       <div>
         <PromptInputProvider>
           <ConnectedQuickReplies />
-          <MessageInput onSend={handleSend} />
+          <MessageInput
+            conversationId={conversation.id}
+            credentialId={conversation.credentialId}
+            onSend={handleSend}
+            onSendMedia={handleSendMedia}
+          />
         </PromptInputProvider>
       </div>
     </div>

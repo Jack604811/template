@@ -16,4 +16,5 @@ export interface Conversation {
   unreadCount: number;
   online: boolean;
   initials: string;
+  credentialId?: string | null;
 }

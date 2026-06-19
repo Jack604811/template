@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseAsString, useQueryStates } from "nuqs";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -27,11 +27,7 @@ function formatLastMessage(text: string): string {
 }
 
 function getInitials(name: string): string {
-  const words = name.trim().split(/\s+/);
-  if (words.length >= 2) {
-    return (words[0][0] + words[words.length - 1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
+  return name.trim()[0]?.toUpperCase() ?? "?";
 }
 
 const chatParams = {
@@ -45,9 +41,13 @@ export function ChatPage() {
   const [params, setParams] = useQueryStates(chatParams);
   const [infoOpen, setInfoOpen] = useState(false);
   const isMobile = useIsMobile();
+  const stableKeyMap = useRef<Map<string, string>>(new Map());
 
   const { data: rawConversations = [] } = useQuery({
-    ...trpc.chat.getConversations.queryOptions({ search: params.search }),
+    ...trpc.chat.getConversations.queryOptions({
+      search: params.search,
+      joined: params.filter === "joined" ? true : undefined,
+    }),
     refetchInterval: 5000,
   });
 
@@ -62,31 +62,24 @@ export function ChatPage() {
       lastMessageAt: c.lastMessageAt ?? c.createdAt,
       unreadCount: c.unreadCount,
       online: false,
+      credentialId: c.credentialId,
     };
   });
 
   const selectedConversation = conversations.find((c) => c.id === params.id) ?? null;
 
   const markAsRead = useMutation(trpc.chat.markAsRead.mutationOptions());
-  const deleteConversation = useMutation(
-    trpc.chat.deleteConversation.mutationOptions(),
-  );
 
   function handleSelect(id: string) {
+    stableKeyMap.current.clear();
     setParams({ id });
     setInfoOpen(false);
     markAsRead.mutate({ conversationId: id });
   }
 
-  function handleDelete(id: string) {
-    deleteConversation.mutate(
-      { conversationId: id },
-      {
-        onSuccess: () => {
-          if (params.id === id) setParams({ id: null });
-        },
-      },
-    );
+  function handleDeleteSuccess(id: string) {
+    if (params.id === id) setParams({ id: null });
+    setInfoOpen(false);
   }
 
   if (isMobile) {
@@ -95,14 +88,16 @@ export function ChatPage() {
         <div className="flex h-dvh flex-col overflow-hidden">
           <ConversationView
             conversation={selectedConversation}
+            stableKeyMap={stableKeyMap}
             onToggleInfo={() => setInfoOpen((v) => !v)}
             onBack={() => setParams({ id: null })}
           />
           <ChatDetails
             conversation={selectedConversation}
+            stableKeyMap={stableKeyMap}
             open={infoOpen}
             onClose={() => setInfoOpen(false)}
-            onDelete={handleDelete}
+            onDeleteSuccess={handleDeleteSuccess}
           />
         </div>
       );
@@ -116,7 +111,6 @@ export function ChatPage() {
           filter={params.filter as ChatFilter}
           search={params.search}
           onSelect={handleSelect}
-          onDelete={handleDelete}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
         />
@@ -133,7 +127,6 @@ export function ChatPage() {
           filter={params.filter as ChatFilter}
           search={params.search}
           onSelect={handleSelect}
-          onDelete={handleDelete}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
         />
@@ -143,6 +136,7 @@ export function ChatPage() {
         <ConversationView
           key={params.id ?? "empty"}
           conversation={selectedConversation}
+          stableKeyMap={stableKeyMap}
           onToggleInfo={() => setInfoOpen((v) => !v)}
         />
       </div>
@@ -151,8 +145,10 @@ export function ChatPage() {
         <div className="flex flex-1 overflow-hidden xl:w-[320px] xl:flex-none xl:border-l">
           <ChatDetails
             conversation={selectedConversation}
+            stableKeyMap={stableKeyMap}
             open
             onClose={() => setInfoOpen(false)}
+            onDeleteSuccess={handleDeleteSuccess}
           />
         </div>
       )}

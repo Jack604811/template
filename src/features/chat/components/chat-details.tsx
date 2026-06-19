@@ -1,5 +1,6 @@
 "use client";
 
+import { useMutation } from "@tanstack/react-query";
 import {
   BanIcon,
   BellIcon,
@@ -9,14 +10,16 @@ import {
   FlagIcon,
   ImageIcon,
   LockIcon,
+  LogInIcon,
+  LogOutIcon,
   PaletteIcon,
-  ShieldIcon,
   StarIcon,
   TimerIcon,
   TrashIcon,
   UsersIcon,
   XIcon,
 } from "lucide-react";
+import type { RefObject } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Drawer,
@@ -26,9 +29,10 @@ import {
 } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/client";
+import { useConversationParticipant } from "../hooks/use-conversation-participant";
 import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
 
@@ -67,24 +71,38 @@ function InfoRow({ icon, label, value, destructive = false, onClick }: InfoRowPr
 
 interface ChatDetailsProps {
   conversation: Conversation;
+  stableKeyMap: RefObject<Map<string, string>>;
   open: boolean;
   onClose: () => void;
-  onDelete: (id: string) => void;
+  onDeleteSuccess: (id: string) => void;
 }
 
 function PanelContent({
   conversation,
+  stableKeyMap,
   onClose,
-  onDelete,
+  onDeleteSuccess,
   mobile = false,
 }: {
   conversation: Conversation;
+  stableKeyMap: RefObject<Map<string, string>>;
   onClose: () => void;
-  onDelete: (id: string) => void;
+  onDeleteSuccess: (id: string) => void;
   mobile?: boolean;
 }) {
+  const trpc = useTRPC();
+
+  const { hasJoined, joinConversation, leaveConversation } = useConversationParticipant(
+    conversation,
+    stableKeyMap,
+  );
+
+  const deleteConversation = useMutation(trpc.chat.deleteConversation.mutationOptions({
+    onSuccess: () => onDeleteSuccess(conversation.id),
+  }));
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-1 flex-col overflow-hidden">
       <div className="flex h-14 shrink-0 items-center justify-between px-2">
         {mobile ? (
           <button
@@ -105,7 +123,7 @@ function PanelContent({
           <XIcon className="size-4" />
         </button>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="relative flex flex-col items-center gap-1.5 px-4 pb-6 pt-4">
           <div />
           <Avatar className="mt-2 size-20">
@@ -127,9 +145,9 @@ function PanelContent({
             Notas
           </p>
           <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
-            <Textarea
+            <textarea
               placeholder="Agregar notas sobre este contacto..."
-              className="min-h-[80px] resize-none border-0 bg-transparent p-0 text-[15px] leading-snug shadow-none focus-visible:ring-0"
+              className="w-full bg-transparent border-none outline-none text-[15px] text-foreground leading-snug resize-none p-0 m-0 font-[inherit] min-h-[80px] placeholder:text-muted-foreground/50 placeholder:italic"
             />
           </div>
         </div>
@@ -155,10 +173,27 @@ function PanelContent({
         <Separator />
 
         <div className="py-1">
-          <InfoRow icon={<ShieldIcon />} label="Restringir" />
+          {hasJoined ? (
+            <InfoRow
+              icon={<LogOutIcon />}
+              label="Abandonar la conversación"
+              onClick={() => leaveConversation.mutate({ conversationId: conversation.id })}
+            />
+          ) : (
+            <InfoRow
+              icon={<LogInIcon />}
+              label="Unirte a la conversación"
+              onClick={() => joinConversation.mutate({ conversationId: conversation.id })}
+            />
+          )}
           <InfoRow icon={<BanIcon />} label="Bloquear" />
           <InfoRow icon={<FlagIcon />} label="Reportar" />
-          <InfoRow icon={<TrashIcon />} label="Eliminar chat" destructive onClick={() => { onDelete(conversation.id); onClose(); }} />
+          <InfoRow
+            icon={<TrashIcon />}
+            label="Eliminar chat"
+            destructive
+            onClick={() => deleteConversation.mutate({ conversationId: conversation.id })}
+          />
         </div>
       </ScrollArea>
     </div>
@@ -167,19 +202,26 @@ function PanelContent({
 
 export function ChatDetails({
   conversation,
+  stableKeyMap,
   open,
   onClose,
-  onDelete,
+  onDeleteSuccess,
 }: ChatDetailsProps) {
   const isMobile = useIsMobile();
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
-        <DrawerContent className="h-[92dvh] p-0">
+        <DrawerContent className="mt-0! h-dvh! max-h-dvh! rounded-none p-0">
           <DrawerTitle className="sr-only">Contact Info</DrawerTitle>
           <DrawerDescription className="sr-only">{conversation.name}</DrawerDescription>
-          <PanelContent conversation={conversation} onClose={onClose} onDelete={onDelete} mobile />
+          <PanelContent
+            conversation={conversation}
+            stableKeyMap={stableKeyMap}
+            onClose={onClose}
+            onDeleteSuccess={onDeleteSuccess}
+            mobile
+          />
         </DrawerContent>
       </Drawer>
     );
@@ -189,7 +231,12 @@ export function ChatDetails({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <PanelContent conversation={conversation} onClose={onClose} onDelete={onDelete} />
+      <PanelContent
+        conversation={conversation}
+        stableKeyMap={stableKeyMap}
+        onClose={onClose}
+        onDeleteSuccess={onDeleteSuccess}
+      />
     </div>
   );
 }

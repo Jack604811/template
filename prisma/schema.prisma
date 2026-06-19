@@ -419,22 +419,34 @@ model BookingUpsell {
 }
 
 model Conversation {
-  id              String       @id @default(cuid())
+  id              String                    @id @default(cuid())
   organizationId  String
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  channel         ChannelType  @default(WHATSAPP)
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel         ChannelType               @default(WHATSAPP)
   externalId      String
   contactName     String?
   lastMessageAt   DateTime?
   lastMessageText String?
-  unreadCount     Int          @default(0)
+  unreadCount     Int                       @default(0)
   credentialId    String?
   messages        Message[]
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  participants    ConversationParticipant[]
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, lastMessageAt(sort: Desc)])
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  userName       String
+  joinedAt       DateTime     @default(now())
+
+  @@unique([conversationId, userId])
 }
 
 model Message {
@@ -464,6 +476,7 @@ enum ChannelType {
 enum MessageRole {
   USER
   ASSISTANT
+  SYSTEM
 }
 
 enum CredentialType {

@@ -321,12 +321,78 @@ export const credentialsRouter = createTRPCRouter({
           bodyParameterCount,
           bodyParameterExamples,
           bodyParameterNames,
+          bodyText: bodyComp?.text ?? "",
           isCarousel,
           carouselCards,
         };
       });
       return { templates, wabaId };
     }),
+  /** Fetch product catalogs and their products linked to the WhatsApp Business Account. */
+  getWhatsAppCatalog: organizationProcedure
+    .input(z.object({ credentialId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const credential = await prisma.credential.findUnique({
+        where: { id: input.credentialId, organizationId: ctx.organizationId },
+      });
+      if (!credential || credential.type !== CredentialType.WHATSAPP) {
+        throw new Error("WhatsApp credential not found");
+      }
+      let accessToken: string;
+      let wabaId: string;
+      try {
+        const raw = decrypt(credential.value).trim();
+        if (raw.startsWith("{")) {
+          const parsed = JSON.parse(raw) as { value?: string; phoneNumberId?: string; wabaId?: string };
+          accessToken = typeof parsed.value === "string" ? parsed.value.trim() : "";
+          wabaId = typeof parsed.wabaId === "string" ? parsed.wabaId.trim() : "";
+        } else {
+          accessToken = raw;
+          wabaId = "";
+        }
+      } catch {
+        throw new Error("Invalid credential value");
+      }
+      if (!accessToken) throw new Error("Access token is missing in credential");
+      if (!wabaId) throw new Error("WhatsApp Business Account ID is required. Add it in Credentials.");
+
+      const catalogsRes = await fetch(
+        `https://graph.facebook.com/v22.0/${encodeURIComponent(wabaId)}/product_catalogs?fields=id,name`,
+        { headers: { Authorization: `Bearer ${accessToken}` } },
+      );
+      if (!catalogsRes.ok) {
+        const err = await catalogsRes.text();
+        throw new Error(`Meta API: ${catalogsRes.status} ${err.slice(0, 200)}`);
+      }
+      type ApiCatalog = { id: string; name: string };
+      const catalogsJson = (await catalogsRes.json()) as { data?: ApiCatalog[] };
+      const catalogs = catalogsJson.data ?? [];
+
+      const catalogsWithProducts = await Promise.all(
+        catalogs.map(async (catalog) => {
+          const productsRes = await fetch(
+            `https://graph.facebook.com/v22.0/${encodeURIComponent(catalog.id)}/products?fields=id,name,retailer_id,price,currency,description,image_url,availability&limit=50`,
+            { headers: { Authorization: `Bearer ${accessToken}` } },
+          );
+          type ApiProduct = {
+            id: string;
+            name: string;
+            retailer_id: string;
+            price?: string;
+            currency?: string;
+            description?: string;
+            image_url?: string;
+            availability?: string;
+          };
+          if (!productsRes.ok) return { ...catalog, products: [] as ApiProduct[] };
+          const productsJson = (await productsRes.json()) as { data?: ApiProduct[] };
+          return { ...catalog, products: productsJson.data ?? [] };
+        }),
+      );
+
+      return { catalogs: catalogsWithProducts };
+    }),
+
   /** Create a WhatsApp message template via the Business Management API. */
   createWhatsAppTemplate: organizationProcedure
     .input(

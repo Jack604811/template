@@ -38,12 +38,14 @@ import { QuickReplies } from "./quick-replies";
 import { SystemMessage } from "./system-message";
 
 const CHAT_QUICK_REPLIES = [
-  "¿En qué puedo ayudarte?",
-  "Déjame verificar eso.",
-  "¿Podrías darme más detalles?",
-  "Lo escalaré a nuestro equipo.",
-  "Tu solicitud ha sido resuelta.",
-  "¿Hay algo más en lo que pueda ayudarte?",
+  "Hola 👋 ¿En qué te podemos ayudar hoy?",
+  "Claro, dame un momento para revisarlo.",
+  "¿Me puedes compartir tu número de pedido?",
+  "Ya quedó registrado, en breve te confirmamos.",
+  "Disculpa la demora, lo estamos gestionando.",
+  "Te paso con un especialista ahora mismo.",
+  "¿A qué correo o número te enviamos la confirmación?",
+  "¡Listo! Quedó resuelto. Que tengas un excelente día 😊",
 ];
 
 function ConnectedQuickReplies() {

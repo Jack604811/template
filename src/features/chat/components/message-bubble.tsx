@@ -190,14 +190,14 @@ function VideoBubble({ message, isUser }: { message: Message; isUser: boolean })
           <video
             src={message.mediaUrl}
             controls={!uploading}
-            className="max-h-64 max-w-[260px] rounded-xl object-cover"
+            className="w-64 max-h-64 rounded-xl object-contain"
             preload="metadata"
           >
             <track kind="captions" />
           </video>
         ) : (
           <div className={cn(
-            "relative flex h-40 w-52 items-center justify-center rounded-xl",
+            "relative flex h-40 w-64 items-center justify-center rounded-xl",
             isUser ? "bg-primary-foreground/10" : "bg-foreground/8",
           )}>
             <VideoIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/20")} />

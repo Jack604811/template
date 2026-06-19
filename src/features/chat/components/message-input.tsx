@@ -6,7 +6,9 @@ import {
   LayoutTemplateIcon,
   MapPinIcon,
   MessageSquareQuoteIcon,
+  MicIcon,
   PlusIcon,
+  SendHorizonalIcon,
   ShoppingBagIcon,
   SmileIcon,
 } from "lucide-react";
@@ -17,6 +19,7 @@ import {
   PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
+  usePromptInputController,
 } from "@/components/ai-elements/prompt-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { compressImage } from "../lib/compress";
@@ -50,6 +53,13 @@ const ACTION_OPTIONS = [
   { id: "catalog",       label: "Catálogo",          icon: ShoppingBagIcon         },
   { id: "templates",     label: "Plantillas",        icon: LayoutTemplateIcon      },
 ] as const;
+
+function SubmitIcon() {
+  const { textInput } = usePromptInputController();
+  return textInput.value.trim()
+    ? <SendHorizonalIcon className="size-4" />
+    : <MicIcon className="size-4" />;
+}
 
 export function MessageInput({ conversationId, credentialId, onSend, onSendMedia }: MessageInputProps) {
   const formRef = useRef<HTMLDivElement>(null);
@@ -170,7 +180,7 @@ export function MessageInput({ conversationId, credentialId, onSend, onSendMedia
               <SmileIcon className="size-6" />
             </PromptInputButton>
           </div>
-          <PromptInputSubmit className="size-10 rounded-full" />
+          <PromptInputSubmit className="size-10 rounded-full"><SubmitIcon /></PromptInputSubmit>
         </PromptInputFooter>
       </PromptInput>
     </div>

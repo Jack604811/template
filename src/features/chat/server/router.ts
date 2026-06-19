@@ -90,11 +90,12 @@ export const chatRouter = createTRPCRouter({
         where: { id: input.conversationId, organizationId: ctx.organizationId },
       });
       if (!conversation) throw new Error("Conversation not found");
-      return prisma.message.findMany({
+      const msgs = await prisma.message.findMany({
         where: { conversationId: input.conversationId },
-        orderBy: { timestamp: "asc" },
-        take: 50,
+        orderBy: { timestamp: "desc" },
+        take: 100,
       });
+      return msgs.reverse();
     }),
 
   sendMessage: organizationProcedure

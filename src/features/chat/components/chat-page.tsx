@@ -63,6 +63,7 @@ export function ChatPage() {
       unreadCount: c.unreadCount,
       online: false,
       blocked: c.blocked,
+      notes: c.notes,
       credentialId: c.credentialId,
     };
   });

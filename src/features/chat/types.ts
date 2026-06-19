@@ -18,4 +18,5 @@ export interface Conversation {
   initials: string;
   credentialId?: string | null;
   blocked: boolean;
+  notes?: string | null;
 }

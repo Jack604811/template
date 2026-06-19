@@ -430,6 +430,7 @@ model Conversation {
   unreadCount     Int                       @default(0)
   credentialId    String?
   blocked         Boolean                   @default(false)
+  notes           String?
   messages        Message[]
   participants    ConversationParticipant[]
   createdAt       DateTime                  @default(now())

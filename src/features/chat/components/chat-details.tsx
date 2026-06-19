@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   BanIcon,
   BellIcon,
@@ -18,7 +18,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
-import { type RefObject, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Drawer,
@@ -91,9 +91,33 @@ function PanelContent({
   mobile?: boolean;
 }) {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
   const { isPending: isBlockPending, toggle: toggleBlock } = useContactBlock(conversation, stableKeyMap);
   const [localBlocked, setLocalBlocked] = useState(conversation.blocked);
+  const [notes, setNotes] = useState(conversation.notes ?? "");
+  const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    setNotes(conversation.notes ?? "");
+  }, [conversation.notes]);
+
+  const conversationsQueryKey = trpc.chat.getConversations.queryOptions({ search: "" }).queryKey.slice(0, 1);
+  const updateNotes = useMutation(
+    trpc.chat.updateNotes.mutationOptions({
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: conversationsQueryKey });
+      },
+    }),
+  );
+
+  function handleNotesChange(value: string) {
+    setNotes(value);
+    clearTimeout(saveTimeout.current);
+    saveTimeout.current = setTimeout(() => {
+      updateNotes.mutate({ conversationId: conversation.id, notes: value });
+    }, 800);
+  }
   const { hasJoined, joinConversation, leaveConversation } = useConversationParticipant(
     conversation,
     stableKeyMap,
@@ -148,6 +172,8 @@ function PanelContent({
           </p>
           <div className="rounded-2xl border border-border/60 bg-muted/30 px-4 py-3">
             <textarea
+              value={notes}
+              onChange={(e) => handleNotesChange(e.target.value)}
               placeholder="Agregar notas sobre este contacto..."
               className="w-full bg-transparent border-none outline-none text-[15px] text-foreground leading-snug resize-none p-0 m-0 font-[inherit] min-h-[80px] placeholder:text-muted-foreground/50 placeholder:italic"
             />

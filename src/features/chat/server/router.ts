@@ -485,6 +485,15 @@ export const chatRouter = createTRPCRouter({
       });
     }),
 
+  updateNotes: organizationProcedure
+    .input(z.object({ conversationId: z.string(), notes: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      return prisma.conversation.updateMany({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+        data: { notes: input.notes || null },
+      });
+    }),
+
   blockContact: organizationProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {

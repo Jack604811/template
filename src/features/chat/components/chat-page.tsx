@@ -62,6 +62,7 @@ export function ChatPage() {
       lastMessageAt: c.lastMessageAt ?? c.createdAt,
       unreadCount: c.unreadCount,
       online: false,
+      blocked: c.blocked,
       credentialId: c.credentialId,
     };
   });

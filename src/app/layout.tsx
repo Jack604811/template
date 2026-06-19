@@ -22,15 +22,23 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0a0a0a",
 };
 
 export const metadata: Metadata = {
-  title: "nodebase",
+  title: "Nodebase",
   description: "Nodebase is a platform for building workflows",
   icons: {
     icon: "/favicon.ico",
+    apple: "/logos/logo.svg",
   },
-  
+  appleWebApp: {
+    capable: true,
+    title: "Nodebase",
+    statusBarStyle: "black-translucent",
+  },
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({

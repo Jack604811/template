@@ -295,6 +295,7 @@ async function triggerMatchingWorkflows(
           lastMessageAt: timestamp,
           lastMessageText: content,
           unreadCount: { increment: 1 },
+          blocked: false,
           ...(senderName ? { contactName: senderName } : {}),
         },
         create: {

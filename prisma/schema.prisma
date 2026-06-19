@@ -429,6 +429,7 @@ model Conversation {
   lastMessageText String?
   unreadCount     Int                       @default(0)
   credentialId    String?
+  blocked         Boolean                   @default(false)
   messages        Message[]
   participants    ConversationParticipant[]
   createdAt       DateTime                  @default(now())

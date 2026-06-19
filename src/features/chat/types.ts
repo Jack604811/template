@@ -17,4 +17,5 @@ export interface Conversation {
   online: boolean;
   initials: string;
   credentialId?: string | null;
+  blocked: boolean;
 }

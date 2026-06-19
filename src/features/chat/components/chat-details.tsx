@@ -7,7 +7,6 @@ import {
   CameraIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  FlagIcon,
   ImageIcon,
   LockIcon,
   LogInIcon,
@@ -19,7 +18,7 @@ import {
   UsersIcon,
   XIcon,
 } from "lucide-react";
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Drawer,
@@ -32,6 +31,7 @@ import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
+import { useContactBlock } from "../hooks/use-contact-block";
 import { useConversationParticipant } from "../hooks/use-conversation-participant";
 import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
@@ -92,6 +92,8 @@ function PanelContent({
 }) {
   const trpc = useTRPC();
 
+  const { isPending: isBlockPending, toggle: toggleBlock } = useContactBlock(conversation, stableKeyMap);
+  const [localBlocked, setLocalBlocked] = useState(conversation.blocked);
   const { hasJoined, joinConversation, leaveConversation } = useConversationParticipant(
     conversation,
     stableKeyMap,
@@ -186,8 +188,14 @@ function PanelContent({
               onClick={() => joinConversation.mutate({ conversationId: conversation.id })}
             />
           )}
-          <InfoRow icon={<BanIcon />} label="Bloquear" />
-          <InfoRow icon={<FlagIcon />} label="Reportar" />
+          <InfoRow
+            icon={<BanIcon />}
+            label={localBlocked ? "Desbloquear" : "Bloquear"}
+            onClick={isBlockPending ? undefined : () => {
+              setLocalBlocked((v) => !v);
+              toggleBlock();
+            }}
+          />
           <InfoRow
             icon={<TrashIcon />}
             label="Eliminar chat"

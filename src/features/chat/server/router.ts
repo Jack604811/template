@@ -5,6 +5,28 @@ import { decrypt } from "@/lib/encryption";
 import { MEDIA_BUCKET, supabase } from "@/lib/supabase";
 import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 
+async function resolveCredential(credentialId: string) {
+  const credential = await prisma.credential.findUnique({ where: { id: credentialId } });
+  if (!credential) throw new Error("Credential not found");
+  let accessToken = "";
+  let phoneNumberId = "";
+  try {
+    const raw = decrypt(credential.value).trim();
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw) as { value?: string; phoneNumberId?: string };
+      accessToken = parsed.value?.trim() ?? "";
+      phoneNumberId = parsed.phoneNumberId?.trim() ?? "";
+    } else {
+      accessToken = raw;
+    }
+  } catch {
+    throw new Error("Failed to decrypt credential");
+  }
+  if (!accessToken) throw new Error("Access token missing");
+  if (!phoneNumberId) throw new Error("Phone number ID missing");
+  return { accessToken, phoneNumberId };
+}
+
 function buildWhatsAppPayload(
   to: string,
   content: string,
@@ -461,6 +483,88 @@ export const chatRouter = createTRPCRouter({
         where: { id: input.conversationId, organizationId: ctx.organizationId },
         data: { unreadCount: 0 },
       });
+    }),
+
+  blockContact: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+      });
+      if (!conversation) throw new Error("Conversation not found");
+      if (!conversation.credentialId) throw new Error("No WhatsApp credential linked");
+
+      const { accessToken, phoneNumberId } = await resolveCredential(conversation.credentialId);
+
+      const res = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/block_users`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          block_users: [{ user: conversation.externalId }],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`WhatsApp API error: ${err.slice(0, 200)}`);
+      }
+
+      const userName = ctx.auth.user.name ?? ctx.auth.user.email ?? "Agente";
+      return prisma.$transaction([
+        prisma.conversation.update({
+          where: { id: input.conversationId },
+          data: { blocked: true },
+        }),
+        prisma.message.create({
+          data: {
+            conversationId: input.conversationId,
+            role: "SYSTEM",
+            content: `${userName} bloqueó este contacto`,
+            timestamp: new Date(),
+          },
+        }),
+      ]);
+    }),
+
+  unblockContact: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+      });
+      if (!conversation) throw new Error("Conversation not found");
+      if (!conversation.credentialId) throw new Error("No WhatsApp credential linked");
+
+      const { accessToken, phoneNumberId } = await resolveCredential(conversation.credentialId);
+
+      const res = await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/block_users`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          block_users: [{ user: conversation.externalId }],
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`WhatsApp API error: ${err.slice(0, 200)}`);
+      }
+
+      const userName = ctx.auth.user.name ?? ctx.auth.user.email ?? "Agente";
+      return prisma.$transaction([
+        prisma.conversation.update({
+          where: { id: input.conversationId },
+          data: { blocked: false },
+        }),
+        prisma.message.create({
+          data: {
+            conversationId: input.conversationId,
+            role: "SYSTEM",
+            content: `${userName} desbloqueó este contacto`,
+            timestamp: new Date(),
+          },
+        }),
+      ]);
     }),
 
   deleteConversation: organizationProcedure

@@ -167,7 +167,7 @@ export function MessageInput({ conversationId, credentialId, onSend, onSendMedia
             </Popover>
 
             <PromptInputButton tooltip="Emoji">
-              <SmileIcon className="size-4" />
+              <SmileIcon className="size-6" />
             </PromptInputButton>
           </div>
           <PromptInputSubmit className="size-10 rounded-full" />

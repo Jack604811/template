@@ -25,6 +25,6 @@ export const requireUnauth = async () => {
   });
 
   if (session) {
-    redirect("/");
+    redirect(session.session.activeOrganizationId ? "/workflows" : "/select-organization");
   }
 };

@@ -465,7 +465,7 @@ export function MessageBubble({
           </AvatarFallback>
         </Avatar>
       )}
-      <div className={cn("flex max-w-[65%] flex-col", isUser ? "items-end" : "items-start")}>
+      <div className={cn("flex max-w-[80%] md:max-w-[65%] flex-col", isUser ? "items-end" : "items-start")}>
         <div
           className={cn(
             "relative text-sm",

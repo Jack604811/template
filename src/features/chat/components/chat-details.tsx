@@ -212,7 +212,7 @@ export function ChatDetails({
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
-        <DrawerContent className="mt-0! h-dvh! max-h-dvh! rounded-none p-0">
+        <DrawerContent className="mt-0! h-dvh! max-h-dvh! rounded-none! p-0">
           <DrawerTitle className="sr-only">Contact Info</DrawerTitle>
           <DrawerDescription className="sr-only">{conversation.name}</DrawerDescription>
           <PanelContent

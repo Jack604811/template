@@ -38,9 +38,9 @@ export function ConversationItem({
       )}
     >
       <div className="relative shrink-0">
-        <Avatar className="size-12">
+        <Avatar className="size-10">
           <AvatarFallback
-            className="text-[17px] font-semibold text-white"
+            className="text-[15px] font-semibold text-white"
             style={getAvatarStyle(name)}
           >
             {initials}
@@ -54,7 +54,7 @@ export function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-foreground">{name}</p>
+            <p className="truncate text-[15px] font-semibold text-foreground">{name}</p>
           </div>
           <span className="shrink-0 text-[11px] text-muted-foreground">
             {timeAgo(lastMessageAt)}

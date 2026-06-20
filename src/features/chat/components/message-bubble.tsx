@@ -23,10 +23,7 @@ import {
 } from "lucide-react";
 import NextImage from "next/image";
 import { useRef, useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { getAvatarStyle } from "../utils/avatar";
-import type { Conversation } from "../types";
 import { MessageContextMenu } from "./message-context-menu";
 import { RepliedMessage, type ReplyTarget } from "./replied-message";
 
@@ -542,12 +539,10 @@ function SwipeableRow({ children, onReply, onLongPress, className }: SwipeableRo
 
 export function MessageBubble({
   message,
-  conversation,
   onReply,
   onReact,
 }: {
   message: Message;
-  conversation: Conversation;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
 }) {
@@ -592,17 +587,6 @@ export function MessageBubble({
         {(_swipeProgress) => (
           <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
             <div className={cn("group flex items-center gap-1.5", isUser ? "flex-row-reverse" : "flex-row")}>
-              {!isUser && (
-                <Avatar className="size-7 shrink-0 self-center">
-                  <AvatarFallback
-                    className="text-[11px] font-semibold text-white"
-                    style={getAvatarStyle(conversation.name)}
-                  >
-                    {conversation.initials}
-                  </AvatarFallback>
-                </Avatar>
-              )}
-
               <div
                 ref={bubbleRef}
                 className={cn(
@@ -637,7 +621,7 @@ export function MessageBubble({
             {reactions.length > 0 && (
               <div className={cn(
                 "mt-1 flex flex-wrap gap-1",
-                isUser ? "mr-1 justify-end" : "ml-9 justify-start",
+                isUser ? "mr-1 justify-end" : "justify-start",
               )}>
                 {reactions.map((r) => (
                   <button
@@ -661,7 +645,7 @@ export function MessageBubble({
             {isTimeOutside && !isNoBubble && (
               <span className={cn(
                 "mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/60",
-                isUser ? "mr-1" : "ml-9",
+                isUser ? "mr-1" : "",
               )}>
                 {formatTime(message.createdAt)}
                 {isUser && <MessageStatusIcon status={message.status} />}

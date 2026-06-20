@@ -6,6 +6,7 @@ import { CornerUpLeftIcon, CopyIcon, DownloadIcon, PlusIcon, StarIcon } from "lu
 import { cn } from "@/lib/utils";
 import { MessageContent } from "./message-bubble";
 import type { Message } from "./message-bubble";
+import { RepliedMessage } from "./replied-message";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const PAD = 10;
@@ -150,6 +151,7 @@ export function MessageContextMenu({
               : message.mediaType !== "sticker" && "px-4 py-2.5",
           )}
         >
+          {message.replyTo && <RepliedMessage reply={message.replyTo} isUser={isUser} />}
           <MessageContent message={message} isUser={isUser} />
         </div>
       </div>

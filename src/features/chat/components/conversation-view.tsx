@@ -460,7 +460,6 @@ export function ConversationView({
                     ) : (
                       <MessageBubble
                         message={message as Parameters<typeof MessageBubble>[0]["message"]}
-                        conversation={conversation}
                         onReply={handleReply}
                         onReact={(messageId, emoji) => toggleReaction.mutate({ messageId, emoji })}
                       />

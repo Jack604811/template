@@ -639,18 +639,75 @@ export const chatRouter = createTRPCRouter({
     .input(z.object({ messageId: z.string(), emoji: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.auth.user.id;
-      const existing = await prisma.messageReaction.findUnique({
-        where: { messageId_userId: { messageId: input.messageId, userId } },
+
+      const message = await prisma.message.findUnique({
+        where: { id: input.messageId },
+        select: { externalId: true, conversationId: true },
       });
-      if (existing?.emoji === input.emoji) {
-        await prisma.messageReaction.delete({
+      if (!message) throw new Error("Message not found");
+
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: message.conversationId, organizationId: ctx.organizationId },
+        select: { channel: true, externalId: true, credentialId: true },
+      });
+      if (!conversation) throw new Error("Conversation not found");
+
+      const isWhatsApp =
+        conversation.channel === ChannelType.WHATSAPP &&
+        conversation.credentialId != null &&
+        message.externalId != null;
+
+      let isRemove: boolean;
+
+      if (isWhatsApp) {
+        // WhatsApp: customer has 1 reaction slot (userId = their phone = conversation.externalId)
+        // and the org has 1 reaction slot shared across all team members.
+        // Preserve the customer's reaction; only replace among org members.
+        const myExisting = await prisma.messageReaction.findUnique({
           where: { messageId_userId: { messageId: input.messageId, userId } },
         });
+        isRemove = myExisting?.emoji === input.emoji;
+        await prisma.messageReaction.deleteMany({
+          where: { messageId: input.messageId, userId: { not: conversation.externalId } },
+        });
+        if (!isRemove) {
+          await prisma.messageReaction.create({
+            data: { messageId: input.messageId, userId, emoji: input.emoji },
+          });
+        }
       } else {
-        await prisma.messageReaction.upsert({
+        const existing = await prisma.messageReaction.findUnique({
           where: { messageId_userId: { messageId: input.messageId, userId } },
-          create: { messageId: input.messageId, userId, emoji: input.emoji },
-          update: { emoji: input.emoji },
+        });
+        isRemove = existing?.emoji === input.emoji;
+        if (isRemove) {
+          await prisma.messageReaction.delete({
+            where: { messageId_userId: { messageId: input.messageId, userId } },
+          });
+        } else {
+          await prisma.messageReaction.upsert({
+            where: { messageId_userId: { messageId: input.messageId, userId } },
+            create: { messageId: input.messageId, userId, emoji: input.emoji },
+            update: { emoji: input.emoji },
+          });
+        }
+      }
+
+      if (isWhatsApp) {
+        const { accessToken, phoneNumberId } = await resolveCredential(conversation.credentialId ?? "");
+        await fetch(`https://graph.facebook.com/v22.0/${phoneNumberId}/messages`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            recipient_type: "individual",
+            to: conversation.externalId,
+            type: "reaction",
+            reaction: {
+              message_id: message.externalId,
+              emoji: isRemove ? "" : input.emoji,
+            },
+          }),
         });
       }
     }),

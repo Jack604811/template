@@ -5,7 +5,6 @@ import {
   ArchiveIcon,
   CheckIcon,
   CheckCheckIcon,
-  CopyIcon,
   CornerUpLeftIcon,
   DownloadIcon,
   ExternalLinkIcon,
@@ -18,7 +17,6 @@ import {
   MoreHorizontalIcon,
   PlayCircleIcon,
   RefreshCwIcon,
-  StarIcon,
   UserRoundIcon,
   VideoIcon,
   XIcon,
@@ -26,11 +24,10 @@ import {
 import NextImage from "next/image";
 import { useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { getAvatarStyle } from "../utils/avatar";
 import type { Conversation } from "../types";
 import { MessageContextMenu } from "./message-context-menu";
-import { getAvatarStyle } from "../utils/avatar";
 import { RepliedMessage, type ReplyTarget } from "./replied-message";
 
 export interface Message {
@@ -247,12 +244,29 @@ function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean
               : <MiniCircularProgress value={message.uploadProgress ?? 0} />}
           </button>
         ) : message.mediaUrl ? (
-          <a href={message.mediaUrl} download={filename} target="_blank" rel="noreferrer"
+          <button
+            type="button"
+            onClick={async (e) => {
+              e.stopPropagation();
+              const url = message.mediaUrl ?? "";
+              try {
+                const res = await fetch(url);
+                const blob = await res.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = objectUrl;
+                a.download = filename;
+                a.click();
+                URL.revokeObjectURL(objectUrl);
+              } catch {
+                window.open(url, "_blank");
+              }
+            }}
             className={cn("flex size-8 shrink-0 items-center justify-center rounded-full transition-colors",
               isUser ? "bg-primary-foreground/15 hover:bg-primary-foreground/25" : "bg-foreground/8 hover:bg-foreground/15")}
-            onClick={(e) => e.stopPropagation()}>
+          >
             <DownloadIcon className="size-3.5" />
-          </a>
+          </button>
         ) : null}
       </div>
       {uploading && !message.uploadFailed && (
@@ -346,7 +360,7 @@ function StickerBubble({ message, isUser }: { message: Message; isUser: boolean 
   );
 }
 
-function MessageContent({ message, isUser }: { message: Message; isUser: boolean }) {
+export function MessageContent({ message, isUser }: { message: Message; isUser: boolean }) {
   switch (message.mediaType) {
     case "image":    return <ImageBubble message={message} isUser={isUser} />;
     case "video":    return <VideoBubble message={message} isUser={isUser} />;
@@ -385,108 +399,21 @@ function MessageStatusIcon({ status, insideBubble }: { status?: Message["status"
 
 // ─── Desktop popover menu items ───────────────────────────────────────────────
 
-function BubbleMenuItems({
-  message,
-  onReply,
-  onClose,
-}: {
-  message: Message;
-  onReply: () => void;
-  onClose: () => void;
-}) {
-  const isMedia = !!message.mediaType && !["contacts", "location", "sticker"].includes(message.mediaType);
-
-  function handleReply() {
-    onClose();
-    setTimeout(onReply, 50);
-  }
-
-  function handleCopy() {
-    if (message.text) void navigator.clipboard.writeText(message.text);
-    onClose();
-  }
-
-  function handleDownload() {
-    if (message.mediaUrl) {
-      const a = document.createElement("a");
-      a.href = message.mediaUrl;
-      a.download = message.mediaFilename ?? "media";
-      a.click();
-    }
-    onClose();
-  }
-
-  const itemCls = "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] transition-colors hover:bg-muted active:bg-muted";
-
+function MessageActions({ onOpen }: { onOpen: () => void }) {
   return (
-    <div className="flex flex-col">
-      <button type="button" onClick={handleReply} className={itemCls}>
-        <CornerUpLeftIcon className="size-4 shrink-0 text-muted-foreground" />
-        Responder
-      </button>
-      {message.text && !message.mediaType && (
-        <button type="button" onClick={handleCopy} className={itemCls}>
-          <CopyIcon className="size-4 shrink-0 text-muted-foreground" />
-          Copiar
-        </button>
+    <button
+      type="button"
+      onClick={onOpen}
+      className={cn(
+        "hidden md:flex size-8 items-center justify-center rounded-full shrink-0",
+        "opacity-0 group-hover:opacity-100 transition-opacity duration-150",
+        "focus-visible:opacity-100 focus-visible:outline-none",
+        "bg-foreground/15 hover:bg-foreground/22",
       )}
-      <button type="button" onClick={onClose} className={itemCls}>
-        <StarIcon className="size-4 shrink-0 text-muted-foreground" />
-        Destacar
-      </button>
-      {isMedia && message.mediaUrl && (
-        <button type="button" onClick={handleDownload} className={itemCls}>
-          <DownloadIcon className="size-4 shrink-0 text-muted-foreground" />
-          Descargar
-        </button>
-      )}
-    </div>
-  );
-}
-
-const REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
-
-function MessageActions({ message, isUser, onReply, onReact }: { message: Message; isUser: boolean; onReply: () => void; onReact: (emoji: string) => void }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          onPointerDown={(e) => e.stopPropagation()}
-          className={cn(
-            "hidden md:flex size-8 items-center justify-center rounded-full shrink-0",
-            "opacity-0 transition-opacity duration-150 group-hover:opacity-100",
-            "focus-visible:opacity-100 focus-visible:outline-none",
-            isUser ? "bg-foreground/15 hover:bg-foreground/22" : "bg-muted hover:bg-muted/80",
-          )}
-          aria-label="Opciones del mensaje"
-        >
-          <MoreHorizontalIcon className="size-4 text-foreground/70" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent side={isUser ? "left" : "right"} align="center" sideOffset={6} className="w-56 p-1">
-        <div className="flex items-center justify-around px-1 py-1.5">
-          {REACTIONS.map((emoji) => (
-            <button
-              key={emoji}
-              type="button"
-              onClick={() => { onReact(emoji); setOpen(false); }}
-              className={cn(
-                "flex size-9 items-center justify-center rounded-full text-[20px]",
-                "transition-transform duration-100 hover:scale-125 active:scale-90",
-                message.reactions?.find((r) => r.emoji === emoji && r.byMe) && "bg-primary/10 ring-1 ring-primary/30",
-              )}
-            >
-              {emoji}
-            </button>
-          ))}
-        </div>
-        <div className="mx-2 mb-1 h-px bg-border/50" />
-        <BubbleMenuItems message={message} onReply={onReply} onClose={() => setOpen(false)} />
-      </PopoverContent>
-    </Popover>
+      aria-label="Opciones del mensaje"
+    >
+      <MoreHorizontalIcon className="size-4 text-foreground/70" />
+    </button>
   );
 }
 
@@ -704,7 +631,7 @@ export function MessageBubble({
                 )}
               </div>
 
-              <MessageActions message={message} isUser={isUser} onReply={handleReply} onReact={handleReact} />
+              <MessageActions onOpen={openMenu} />
             </div>
 
             {reactions.length > 0 && (

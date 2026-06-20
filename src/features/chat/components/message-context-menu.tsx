@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CornerUpLeftIcon, CopyIcon, DownloadIcon, PlusIcon, StarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MessageContent } from "./message-bubble";
 import type { Message } from "./message-bubble";
-import { RepliedMessage } from "./replied-message";
 
 const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
 const PAD = 10;
@@ -13,19 +13,6 @@ const EMOJI_ITEM_W = 44;
 const EMOJI_ROW_H = 52;
 const ACTION_W = 260;
 
-function mediaLabel(mediaType: string | null) {
-  switch (mediaType) {
-    case "image":    return "📷 Foto";
-    case "video":    return "🎬 Video";
-    case "audio":
-    case "voice":    return "🎤 Audio";
-    case "document": return "📄 Documento";
-    case "location": return "📍 Ubicación";
-    case "contacts": return "👤 Contacto";
-    case "sticker":  return "🎭 Sticker";
-    default:         return "";
-  }
-}
 
 interface MessageContextMenuProps {
   message: Message;
@@ -100,19 +87,26 @@ export function MessageContextMenu({
     onClose();
   }
 
-  function handleDownload() {
-    if (message.mediaUrl) {
+  async function handleDownload() {
+    onClose();
+    if (!message.mediaUrl) return;
+    try {
+      const res = await fetch(message.mediaUrl);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = message.mediaUrl;
+      a.href = objectUrl;
       a.download = message.mediaFilename ?? "media";
       a.click();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      window.open(message.mediaUrl, "_blank");
     }
-    onClose();
   }
 
   const actions: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean }[] = [
     { label: "Responder", icon: CornerUpLeftIcon, onClick: handleReply },
-    ...(!message.mediaType ? [{ label: "Copiar", icon: CopyIcon, onClick: handleCopy }] : []),
+    ...(!message.mediaType && message.text ? [{ label: "Copiar", icon: CopyIcon, onClick: handleCopy }] : []),
     { label: "Destacar", icon: StarIcon, onClick: onClose },
     ...(isMedia && message.mediaUrl ? [{ label: "Descargar", icon: DownloadIcon, onClick: handleDownload }] : []),
   ];
@@ -146,19 +140,17 @@ export function MessageContextMenu({
       >
         <div
           className={cn(
-            "h-full rounded-2xl px-4 py-2.5 text-sm",
+            "h-full rounded-2xl text-sm",
             isUser
               ? "rounded-br-sm bg-primary text-primary-foreground"
               : "rounded-bl-sm bg-muted text-foreground",
-            ["image", "video", "location", "contacts"].includes(message.mediaType ?? "") && "overflow-hidden p-0",
+            message.mediaType === "sticker" && "bg-transparent",
+            ["image", "video", "location", "contacts"].includes(message.mediaType ?? "")
+              ? "overflow-hidden p-0"
+              : message.mediaType !== "sticker" && "px-4 py-2.5",
           )}
         >
-          {message.replyTo && (
-            <RepliedMessage reply={message.replyTo} isUser={isUser} />
-          )}
-          <span className="leading-relaxed">
-            {message.text || mediaLabel(message.mediaType)}
-          </span>
+          <MessageContent message={message} isUser={isUser} />
         </div>
       </div>
 

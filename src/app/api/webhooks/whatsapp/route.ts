@@ -30,6 +30,7 @@ type MetaWebhookPayload = {
           button?: { text?: string; payload?: string };
           interactive?: { type?: string; button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
           context?: { from?: string; id?: string };
+          reaction?: { message_id?: string; emoji?: string };
         }>;
         statuses?: Array<{ id?: string; status?: string; timestamp?: string; recipient_id?: string }>;
       };
@@ -101,13 +102,32 @@ export async function POST(request: NextRequest) {
     for (const change of entry.changes ?? []) {
       if (change.field !== "messages") continue;
       const value = change.value;
+
+      // Handle delivery/read status updates
+      for (const s of value?.statuses ?? []) {
+        if (!s.id || !s.status) continue;
+        console.log("[webhook] STATUS UPDATE:", s.id, s.status);
+        const statusMap: Record<string, "SENT" | "DELIVERED" | "READ" | "FAILED"> = {
+          sent: "SENT",
+          delivered: "DELIVERED",
+          read: "READ",
+          failed: "FAILED",
+        };
+        const mapped = statusMap[s.status];
+        if (!mapped) continue;
+        const updated = await prisma.message.updateMany({
+          where: { externalId: s.id },
+          data: { status: mapped },
+        });
+        console.log("[webhook] STATUS ROWS UPDATED:", updated.count);
+      }
+
       if (!value?.messages?.length) continue;
 
       const phoneNumberId = value.metadata?.phone_number_id;
       if (!phoneNumberId) continue;
 
       for (const message of value.messages) {
-        // Skip status updates and non-message events
         if (!message.id) continue;
 
         const contact = value.contacts?.[0];
@@ -126,6 +146,33 @@ export async function POST(request: NextRequest) {
           timestamp: message.timestamp,
           type: message.type ?? "unknown",
         };
+
+        // Reactions are handled inline — find the target message and upsert/delete the reaction row
+        if (message.type === "reaction") {
+          const targetExternalId = message.reaction?.message_id;
+          const emoji = message.reaction?.emoji ?? "";
+          if (targetExternalId) {
+            const target = await prisma.message.findFirst({
+              where: { externalId: targetExternalId },
+              select: { id: true },
+            });
+            if (target) {
+              if (emoji) {
+                await prisma.messageReaction.upsert({
+                  where: { messageId_userId: { messageId: target.id, userId: from } },
+                  create: { messageId: target.id, userId: from, emoji },
+                  update: { emoji },
+                });
+              } else {
+                await prisma.messageReaction.deleteMany({
+                  where: { messageId: target.id, userId: from },
+                });
+              }
+              console.log("[webhook] REACTION", emoji || "(removed)", "on", targetExternalId);
+            }
+          }
+          continue;
+        }
 
         switch (message.type) {
           case "text":

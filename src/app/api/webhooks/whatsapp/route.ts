@@ -277,6 +277,7 @@ async function triggerMatchingWorkflows(
   const mimeType = whatsapp.mimeType as string | undefined;
   const mediaFilename = whatsapp.mediaFilename as string | undefined;
   const location = whatsapp.location as { latitude?: number; longitude?: number; name?: string; address?: string } | undefined;
+  const waContext = whatsapp.context as { from?: string; id?: string } | undefined;
   const timestamp = whatsapp.timestamp
     ? new Date(Number(whatsapp.timestamp) * 1000)
     : new Date();
@@ -330,6 +331,15 @@ async function triggerMatchingWorkflows(
         );
       }
 
+      let replyToId: string | null = null;
+      if (waContext?.id) {
+        const replied = await prisma.message.findFirst({
+          where: { conversationId: conversation.id, externalId: waContext.id },
+          select: { id: true },
+        });
+        if (replied) replyToId = replied.id;
+      }
+
       await prisma.message.create({
         data: {
           conversationId: conversation.id,
@@ -340,6 +350,7 @@ async function triggerMatchingWorkflows(
           mediaId,
           mediaUrl,
           mediaFilename: resolvedFilename,
+          replyToId,
           timestamp,
         },
       });

@@ -24,6 +24,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { compressImage } from "../lib/compress";
 import { CatalogPicker } from "./catalog-picker";
+import type { ReplyTarget } from "./replied-message";
+import { ReplyInputPreview } from "./reply-input-preview";
 import { TemplatePicker } from "./template-picker";
 
 export interface SendPayload {
@@ -31,6 +33,7 @@ export interface SendPayload {
   mediaUrl?: string;
   mediaType?: string;
   mediaFilename?: string;
+  replyTo?: ReplyTarget;
 }
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -38,6 +41,8 @@ const MAX_BYTES = 25 * 1024 * 1024;
 interface MessageInputProps {
   conversationId?: string;
   credentialId?: string | null;
+  replyTo?: ReplyTarget;
+  onCancelReply?: () => void;
   onSend?: (payload: SendPayload) => void;
   onSendMedia?: (file: File, caption: string) => void;
 }
@@ -61,7 +66,7 @@ function SubmitIcon() {
     : <MicIcon className="size-4" />;
 }
 
-export function MessageInput({ conversationId, credentialId, onSend, onSendMedia }: MessageInputProps) {
+export function MessageInput({ conversationId, credentialId, replyTo, onCancelReply, onSend, onSendMedia }: MessageInputProps) {
   const formRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -70,7 +75,8 @@ export function MessageInput({ conversationId, credentialId, onSend, onSendMedia
 
   function handleTextSubmit({ text }: { text: string }) {
     if (!text.trim()) return;
-    onSend?.({ text });
+    onSend?.({ text, replyTo });
+    onCancelReply?.();
     formRef.current?.querySelector("textarea")?.focus();
   }
 
@@ -105,7 +111,9 @@ export function MessageInput({ conversationId, credentialId, onSend, onSendMedia
   }
 
   return (
-    <div ref={formRef} className="px-4 py-8 md:py-4">
+    <div ref={formRef} className="pb-8 pt-1 md:py-4">
+      {replyTo && <ReplyInputPreview reply={replyTo} onCancel={() => onCancelReply?.()} />}
+      <div className="px-4">
       <input
         ref={fileInputRef}
         type="file"
@@ -183,6 +191,7 @@ export function MessageInput({ conversationId, credentialId, onSend, onSendMedia
           <PromptInputSubmit className="size-10 rounded-full"><SubmitIcon /></PromptInputSubmit>
         </PromptInputFooter>
       </PromptInput>
+      </div>
     </div>
   );
 }

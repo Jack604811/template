@@ -463,6 +463,10 @@ model Message {
   mediaUrl       String?
   mediaFilename  String?
   timestamp      DateTime     @default(now())
+  replyToId      String?
+  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        Message[]    @relation("MessageReplies")
+  deletedAt      DateTime?
 
   @@index([conversationId, timestamp])
 }

@@ -6,7 +6,10 @@ import type { Message } from "@/generated/prisma";
 import { useTRPC } from "@/trpc/client";
 import type { Conversation } from "../types";
 
-type CachedMessage = Omit<Message, "timestamp"> & { timestamp: Date };
+type CachedMessage = Omit<Message, "timestamp"> & {
+  timestamp: Date;
+  replyTo: { id: string; role: Message["role"]; content: string; mediaType: string | null; mediaUrl: string | null; mediaFilename: string | null } | null;
+};
 
 export function useConversationParticipant(
   conversation: Conversation | null,
@@ -57,6 +60,9 @@ export function useConversationParticipant(
       mediaId: null,
       mediaUrl: null,
       mediaFilename: null,
+      replyToId: null,
+      replyTo: null,
+      deletedAt: null,
       timestamp: new Date(),
     };
   }
@@ -71,7 +77,7 @@ export function useConversationParticipant(
 
   // Called from sendMessage.onSuccess — wires the real join message into the stable key map
   function confirmImplicitJoin(
-    realJoinMsg: CachedMessage | null,
+    realJoinMsg: { id: string } | null,
     joinOptimisticId: string | undefined,
   ) {
     if (realJoinMsg && joinOptimisticId) {
@@ -118,7 +124,7 @@ export function useConversationParticipant(
           queryClient.setQueryData(
             messagesQueryOptions.queryKey,
             (old: CachedMessage[] | undefined) =>
-              (old ?? []).map((m) => (m.id === context.joinOptimisticId ? result : m)),
+              (old ?? []).map((m) => (m.id === context.joinOptimisticId ? { ...result, replyTo: null } : m)),
           );
         } else {
           // Already a participant — remove optimistic entry
@@ -164,7 +170,7 @@ export function useConversationParticipant(
           messagesQueryOptions.queryKey,
           (old: CachedMessage[] | undefined) =>
             (old ?? []).map((m) =>
-              m.id === context.leaveOptimisticId ? result.leaveSystemMessage : m,
+              m.id === context.leaveOptimisticId ? { ...result.leaveSystemMessage, replyTo: null } : m,
             ),
         );
       },

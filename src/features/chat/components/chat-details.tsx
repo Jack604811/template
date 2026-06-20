@@ -120,16 +120,19 @@ function PanelContent({
   const [view, setView] = useState<"menu" | "multimedia">("menu");
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("media");
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const drawerTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (notesDrawerOpen) {
+      const t = setTimeout(() => drawerTextareaRef.current?.focus(), 150);
+      return () => clearTimeout(t);
+    }
+  }, [notesDrawerOpen]);
 
   useEffect(() => {
     setNotes(conversation.notes ?? "");
   }, [conversation.notes]);
 
-  // Reset to menu when conversation changes
-  useEffect(() => {
-    setView("menu");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conversation.id]);
 
   const conversationsQueryKey = trpc.chat.getConversations.queryOptions({ search: "" }).queryKey.slice(0, 1);
   const updateNotes = useMutation(
@@ -388,8 +391,7 @@ function PanelContent({
               <DrawerDescription className="sr-only">Editar notas del contacto</DrawerDescription>
               <div className="px-5 pt-2 pb-safe-or-6 flex flex-col gap-3">
                 <textarea
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
+                  ref={drawerTextareaRef}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   placeholder="Agregar notas sobre este contacto..."
@@ -515,7 +517,7 @@ export function ChatDetails({
         <DrawerContent className="mt-0! h-dvh! max-h-dvh! rounded-none! p-0">
           <DrawerTitle className="sr-only">Contact Info</DrawerTitle>
           <DrawerDescription className="sr-only">{conversation.name}</DrawerDescription>
-          <PanelContent
+          <PanelContent key={conversation.id}
             conversation={conversation}
             stableKeyMap={stableKeyMap}
             onClose={onClose}

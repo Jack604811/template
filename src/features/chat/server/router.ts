@@ -34,22 +34,25 @@ function buildWhatsAppPayload(
   mediaType?: string,
   mediaFilename?: string,
   caption?: string,
+  replyToExternalId?: string,
 ) {
+  const context = replyToExternalId ? { context: { message_id: replyToExternalId } } : {};
   if (!mediaUrl || !mediaType) {
-    return { messaging_product: "whatsapp", to, type: "text", text: { body: content } };
+    return { messaging_product: "whatsapp", to, type: "text", text: { body: content }, ...context };
   }
   if (mediaType === "image") {
-    return { messaging_product: "whatsapp", to, type: "image", image: { link: mediaUrl, ...(caption ? { caption } : {}) } };
+    return { messaging_product: "whatsapp", to, type: "image", image: { link: mediaUrl, ...(caption ? { caption } : {}) }, ...context };
   }
   if (mediaType === "video") {
-    return { messaging_product: "whatsapp", to, type: "video", video: { link: mediaUrl, ...(caption ? { caption } : {}) } };
+    return { messaging_product: "whatsapp", to, type: "video", video: { link: mediaUrl, ...(caption ? { caption } : {}) }, ...context };
   }
   if (mediaType === "audio") {
-    return { messaging_product: "whatsapp", to, type: "audio", audio: { link: mediaUrl } };
+    return { messaging_product: "whatsapp", to, type: "audio", audio: { link: mediaUrl }, ...context };
   }
   return {
     messaging_product: "whatsapp", to, type: "document",
     document: { link: mediaUrl, filename: mediaFilename ?? "file", ...(caption ? { caption } : {}) },
+    ...context,
   };
 }
 
@@ -94,6 +97,11 @@ export const chatRouter = createTRPCRouter({
         where: { conversationId: input.conversationId },
         orderBy: { timestamp: "desc" },
         take: 100,
+        include: {
+          replyTo: {
+            select: { id: true, role: true, content: true, mediaType: true, mediaUrl: true, mediaFilename: true },
+          },
+        },
       });
       return msgs.reverse();
     }),
@@ -105,6 +113,7 @@ export const chatRouter = createTRPCRouter({
       mediaUrl: z.string().optional(),
       mediaType: z.string().optional(),
       mediaFilename: z.string().optional(),
+      replyToId: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
       const userId = ctx.auth.user.id;
@@ -161,6 +170,15 @@ export const chatRouter = createTRPCRouter({
       if (!accessToken) throw new Error("Access token missing");
       if (!phoneNumberId) throw new Error("Phone number ID missing");
 
+      let replyToExternalId: string | undefined;
+      if (input.replyToId) {
+        const repliedMsg = await prisma.message.findUnique({
+          where: { id: input.replyToId },
+          select: { externalId: true },
+        });
+        replyToExternalId = repliedMsg?.externalId ?? undefined;
+      }
+
       const caption = input.content.trim() || undefined;
       const waPayload = buildWhatsAppPayload(
         conversation.externalId,
@@ -169,6 +187,7 @@ export const chatRouter = createTRPCRouter({
         input.mediaType,
         input.mediaFilename,
         caption,
+        replyToExternalId,
       );
 
       const res = await fetch(
@@ -206,7 +225,13 @@ export const chatRouter = createTRPCRouter({
             mediaType: input.mediaType ?? null,
             mediaUrl: input.mediaUrl ?? null,
             mediaFilename: input.mediaFilename ?? null,
+            replyToId: input.replyToId ?? null,
             timestamp: now,
+          },
+          include: {
+            replyTo: {
+              select: { id: true, role: true, content: true, mediaType: true, mediaUrl: true, mediaFilename: true },
+            },
           },
         }),
         prisma.conversation.update({
@@ -601,4 +626,5 @@ export const chatRouter = createTRPCRouter({
         where: { id: input.conversationId },
       });
     }),
+
 });

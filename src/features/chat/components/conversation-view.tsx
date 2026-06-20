@@ -30,12 +30,13 @@ import { mimeToMediaType } from "../lib/compress";
 import { uploadFileXHR } from "../lib/upload";
 import type { Conversation as ConversationType } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
-import type { Message } from "./message-bubble";
+import type { Message, ReplyTarget } from "./message-bubble";
 import { MessageBubble } from "./message-bubble";
 import type { SendPayload } from "./message-input";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
 import { SystemMessage } from "./system-message";
+import { DateSeparator, isSameDay } from "./date-separator";
 
 const CHAT_QUICK_REPLIES = [
   "Hola 👋 ¿En qué te podemos ayudar hoy?",
@@ -81,7 +82,12 @@ export function ConversationView({
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [uploadingEntries, setUploadingEntries] = useState<UploadingEntry[]>([]);
+  const [replyTo, setReplyTo] = useState<ReplyTarget | undefined>(undefined);
   const entriesRef = useRef<Map<string, UploadingEntry>>(new Map());
+  // Maps message id → reply target so optimistic + real messages render the quoted block
+  const replyToMapRef = useRef<Map<string, ReplyTarget>>(new Map());
+  // Captures the active replyTo at send time so onMutate (sync) can read it
+  const pendingReplyRef = useRef<ReplyTarget | undefined>(undefined);
   const { data: session } = authClient.useSession();
   const userName = session?.user?.name ?? session?.user?.email ?? "";
 
@@ -99,6 +105,9 @@ export function ConversationView({
 
   const sendMessage = useMutation(trpc.chat.sendMessage.mutationOptions({
     onMutate: async ({ content, mediaUrl, mediaType, mediaFilename, conversationId }) => {
+      // Capture and clear before any await — ref is set in handleSend and must not be cleared there
+      const capturedReply = pendingReplyRef.current;
+      pendingReplyRef.current = undefined;
       await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
       const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
       const optimisticId = `optimistic-${Date.now()}`;
@@ -106,6 +115,8 @@ export function ConversationView({
       const joinPrep = prepareImplicitJoin();
       const lastText = mediaType ? (content || `[${mediaType}]`) : content;
       const now = new Date();
+
+      if (capturedReply) replyToMapRef.current.set(optimisticId, capturedReply);
 
       queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) => [
         ...(old ?? []),
@@ -120,6 +131,9 @@ export function ConversationView({
           mediaId: null,
           mediaUrl: mediaUrl ?? null,
           mediaFilename: mediaFilename ?? null,
+          replyToId: null,
+          replyTo: null,
+          deletedAt: null,
           timestamp: now,
         },
       ]);
@@ -136,17 +150,22 @@ export function ConversationView({
             : old,
       );
 
-      return { previous, optimisticId, joinPrep };
+      return { previous, optimisticId, joinPrep, capturedReply };
     },
     onSuccess: ({ message, joinSystemMessage }, _vars, context) => {
       if (context?.optimisticId) stableKeyMap.current.set(message.id, context.optimisticId);
+      if (context?.capturedReply && context.optimisticId) {
+        replyToMapRef.current.set(message.id, context.capturedReply);
+        replyToMapRef.current.delete(context.optimisticId);
+      }
       confirmImplicitJoin(joinSystemMessage, context?.joinPrep?.joinOptimisticId);
       queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
         (old ?? [])
           .filter((m) => joinSystemMessage !== null || m.id !== context?.joinPrep?.joinOptimisticId)
           .map((m) => {
             if (m.id === context?.optimisticId) return message;
-            if (joinSystemMessage && m.id === context?.joinPrep?.joinOptimisticId) return joinSystemMessage;
+            if (joinSystemMessage && m.id === context?.joinPrep?.joinOptimisticId)
+              return { ...joinSystemMessage, replyTo: null };
             return m;
           }),
       );
@@ -155,6 +174,7 @@ export function ConversationView({
       if (context?.previous !== undefined) {
         queryClient.setQueryData(messagesQueryOptions.queryKey, context.previous);
       }
+      if (context?.optimisticId) replyToMapRef.current.delete(context.optimisticId);
     },
   }));
 
@@ -172,6 +192,20 @@ export function ConversationView({
       if (text === `${userName} se ha unido a la conversación`) text = "Te has unido a la conversación";
       else if (text === `${userName} ha abandonado la conversación`) text = "Has abandonado la conversación";
     }
+    let replyTo: import("./message-bubble").ReplyTarget | undefined;
+    if (m.replyTo) {
+      replyTo = {
+        id: m.replyTo.id,
+        role: m.replyTo.role === "USER" ? "contact" : "user",
+        senderName: m.replyTo.role === "USER" ? (conversation?.name ?? "Contacto") : (userName || "Tú"),
+        text: m.replyTo.content,
+        mediaType: m.replyTo.mediaType,
+        mediaUrl: m.replyTo.mediaUrl,
+        mediaFilename: m.replyTo.mediaFilename,
+      };
+    } else {
+      replyTo = replyToMapRef.current.get(m.id);
+    }
     return {
       id: m.id,
       role: (m.role === "USER" ? "contact" : m.role === "SYSTEM" ? "system" : "user") as "user" | "contact" | "system",
@@ -180,6 +214,7 @@ export function ConversationView({
       mediaUrl: m.mediaUrl,
       mediaFilename: m.mediaFilename,
       createdAt: m.timestamp,
+      replyTo,
     };
   });
 
@@ -282,16 +317,31 @@ export function ConversationView({
     );
   }
 
+  function handleReply(message: Message) {
+    setReplyTo({
+      id: message.id,
+      role: message.role as "user" | "contact",
+      senderName: message.role === "user" ? "Tú" : conversation?.name ?? "Contacto",
+      text: message.text,
+      mediaType: message.mediaType,
+      mediaUrl: message.mediaUrl,
+      mediaFilename: message.mediaFilename,
+    });
+  }
+
   function handleSend(payload: SendPayload) {
     if (!conversation) return;
     if (!payload.text.trim() && !payload.mediaUrl) return;
+    pendingReplyRef.current = payload.replyTo;
     sendMessage.mutate({
       conversationId: conversation.id,
       content: payload.text,
       mediaUrl: payload.mediaUrl,
       mediaType: payload.mediaType,
       mediaFilename: payload.mediaFilename,
+      replyToId: payload.replyTo?.id,
     });
+    setReplyTo(undefined);
   }
 
   return (
@@ -341,7 +391,7 @@ export function ConversationView({
       </div>
 
       {/* messages */}
-      <div className="overflow-hidden">
+      <div className="overflow-x-hidden overflow-y-hidden">
         <Conversation className="h-full">
           <ConversationContent className="gap-3 px-4 py-4">
             {allMessages.length === 0 ? (
@@ -365,16 +415,23 @@ export function ConversationView({
                 </div>
               </ConversationEmptyState>
             ) : (
-              allMessages.map((message) => {
+              allMessages.map((message, i) => {
                 const stableKey = stableKeyMap.current.get(message.id) ?? message.id;
-                return message.role === "system" ? (
-                  <SystemMessage key={stableKey} text={message.text} />
-                ) : (
-                  <MessageBubble
-                    key={stableKey}
-                    message={message as Parameters<typeof MessageBubble>[0]["message"]}
-                    conversation={conversation}
-                  />
+                const prev = allMessages[i - 1];
+                const showDate = !prev || !isSameDay(new Date(message.createdAt), new Date(prev.createdAt));
+                return (
+                  <div key={stableKey}>
+                    {showDate && <DateSeparator date={new Date(message.createdAt)} />}
+                    {message.role === "system" ? (
+                      <SystemMessage text={message.text} />
+                    ) : (
+                      <MessageBubble
+                        message={message as Parameters<typeof MessageBubble>[0]["message"]}
+                        conversation={conversation}
+                        onReply={handleReply}
+                      />
+                    )}
+                  </div>
                 );
               })
             )}
@@ -390,6 +447,8 @@ export function ConversationView({
           <MessageInput
             conversationId={conversation.id}
             credentialId={conversation.credentialId}
+            replyTo={replyTo}
+            onCancelReply={() => setReplyTo(undefined)}
             onSend={handleSend}
             onSendMedia={handleSendMedia}
           />

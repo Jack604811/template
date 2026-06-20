@@ -6,7 +6,10 @@ import type { Message } from "@/generated/prisma";
 import { useTRPC } from "@/trpc/client";
 import type { Conversation } from "../types";
 
-type CachedMessage = Omit<Message, "timestamp"> & { timestamp: Date };
+type CachedMessage = Omit<Message, "timestamp"> & {
+  timestamp: Date;
+  replyTo: { id: string; role: Message["role"]; content: string; mediaType: string | null; mediaUrl: string | null; mediaFilename: string | null } | null;
+};
 
 function makeSystemMsg(conversationId: string, content: string): CachedMessage {
   return {
@@ -19,6 +22,9 @@ function makeSystemMsg(conversationId: string, content: string): CachedMessage {
     mediaId: null,
     mediaUrl: null,
     mediaFilename: null,
+    replyToId: null,
+    replyTo: null,
+    deletedAt: null,
     timestamp: new Date(),
   };
 }

@@ -34,6 +34,7 @@ interface MessageContextMenuProps {
   anchorRect: DOMRect | null;
   onClose: () => void;
   onReply: () => void;
+  onReact: (emoji: string) => void;
 }
 
 export function MessageContextMenu({
@@ -43,6 +44,7 @@ export function MessageContextMenu({
   anchorRect,
   onClose,
   onReply,
+  onReact,
 }: MessageContextMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -176,8 +178,11 @@ export function MessageContextMenu({
           <button
             key={emoji}
             type="button"
-            onClick={onClose}
-            className="flex size-10 items-center justify-center rounded-full text-[22px] transition-transform duration-100 active:scale-90 hover:scale-115"
+            onClick={() => { onReact(emoji); onClose(); }}
+            className={cn(
+              "flex size-10 items-center justify-center rounded-full text-[22px] transition-transform duration-100 active:scale-90 hover:scale-115",
+              message.reactions?.find((r) => r.emoji === emoji && r.byMe) && "bg-primary/15 ring-2 ring-primary/30",
+            )}
           >
             {emoji}
           </button>

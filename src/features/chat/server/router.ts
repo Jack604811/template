@@ -93,6 +93,7 @@ export const chatRouter = createTRPCRouter({
         where: { id: input.conversationId, organizationId: ctx.organizationId },
       });
       if (!conversation) throw new Error("Conversation not found");
+      const userId = ctx.auth.user.id;
       const msgs = await prisma.message.findMany({
         where: { conversationId: input.conversationId },
         orderBy: { timestamp: "desc" },
@@ -103,7 +104,39 @@ export const chatRouter = createTRPCRouter({
           },
         },
       });
-      return msgs.reverse();
+      const rawReactions = await prisma.messageReaction.findMany({
+        where: { messageId: { in: msgs.map((m) => m.id) } },
+        select: { messageId: true, emoji: true, userId: true },
+      });
+      const reactionMap = new Map<string, { emoji: string; count: number; byMe: boolean }[]>();
+      for (const r of rawReactions) {
+        const list = reactionMap.get(r.messageId) ?? [];
+        const existing = list.find((x) => x.emoji === r.emoji);
+        if (existing) {
+          existing.count++;
+          if (r.userId === userId) existing.byMe = true;
+        } else {
+          list.push({ emoji: r.emoji, count: 1, byMe: r.userId === userId });
+          reactionMap.set(r.messageId, list);
+        }
+      }
+      return msgs.reverse().map((m) => ({
+        id: m.id,
+        conversationId: m.conversationId,
+        externalId: m.externalId,
+        role: m.role,
+        content: m.content,
+        mediaType: m.mediaType,
+        mediaId: m.mediaId,
+        mediaUrl: m.mediaUrl,
+        mediaFilename: m.mediaFilename,
+        timestamp: m.timestamp,
+        replyToId: m.replyToId,
+        replyTo: m.replyTo,
+        deletedAt: m.deletedAt,
+        status: m.status,
+        reactions: reactionMap.get(m.id) ?? [] as { emoji: string; count: number; byMe: boolean }[],
+      }));
     }),
 
   sendMessage: organizationProcedure
@@ -600,6 +633,26 @@ export const chatRouter = createTRPCRouter({
           },
         }),
       ]);
+    }),
+
+  toggleReaction: organizationProcedure
+    .input(z.object({ messageId: z.string(), emoji: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.auth.user.id;
+      const existing = await prisma.messageReaction.findUnique({
+        where: { messageId_userId: { messageId: input.messageId, userId } },
+      });
+      if (existing?.emoji === input.emoji) {
+        await prisma.messageReaction.delete({
+          where: { messageId_userId: { messageId: input.messageId, userId } },
+        });
+      } else {
+        await prisma.messageReaction.upsert({
+          where: { messageId_userId: { messageId: input.messageId, userId } },
+          create: { messageId: input.messageId, userId, emoji: input.emoji },
+          update: { emoji: input.emoji },
+        });
+      }
     }),
 
   deleteConversation: organizationProcedure

@@ -467,8 +467,22 @@ model Message {
   replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies        Message[]    @relation("MessageReplies")
   deletedAt      DateTime?
+  status         MessageStatus @default(SENT)
+  reactions      MessageReaction[]
 
   @@index([conversationId, timestamp])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId])
+  @@index([messageId])
 }
 
 enum ChannelType {
@@ -483,6 +497,14 @@ enum MessageRole {
   USER
   ASSISTANT
   SYSTEM
+}
+
+enum MessageStatus {
+  SENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
 }
 
 enum CredentialType {

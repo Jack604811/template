@@ -3,6 +3,8 @@
 import { useDrag } from "@use-gesture/react";
 import {
   ArchiveIcon,
+  CheckIcon,
+  CheckCheckIcon,
   CopyIcon,
   CornerUpLeftIcon,
   DownloadIcon,
@@ -39,7 +41,9 @@ export interface Message {
   mediaUrl: string | null;
   mediaFilename: string | null;
   createdAt: Date;
+  status?: "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
   replyTo?: ReplyTarget;
+  reactions?: { emoji: string; count: number; byMe: boolean }[];
   uploadProgress?: number;
   uploadFailed?: boolean;
   onCancelUpload?: () => void;
@@ -361,6 +365,24 @@ function MessageContent({ message, isUser }: { message: Message; isUser: boolean
 const SWIPE_THRESHOLD = 54;
 const SWIPE_MAX = 70;
 
+// ─── Message status icon ──────────────────────────────────────────────────────
+
+function MessageStatusIcon({ status, insideBubble }: { status?: Message["status"]; insideBubble?: boolean }) {
+  if (!status || status === "SENDING") {
+    return <CheckIcon className="size-3 opacity-40" />;
+  }
+  if (status === "FAILED") {
+    return <XIcon className="size-3 text-destructive" />;
+  }
+  if (status === "SENT") {
+    return <CheckIcon className="size-3" />;
+  }
+  const readColor = insideBubble ? "opacity-100 brightness-150" : "text-primary";
+  return (
+    <CheckCheckIcon className={cn("size-3", status === "READ" ? readColor : "")} />
+  );
+}
+
 // ─── Desktop popover menu items ───────────────────────────────────────────────
 
 function BubbleMenuItems({
@@ -422,7 +444,9 @@ function BubbleMenuItems({
   );
 }
 
-function MessageActions({ message, isUser, onReply }: { message: Message; isUser: boolean; onReply: () => void }) {
+const REACTIONS = ["❤️", "👍", "😂", "😮", "😢", "🙏"];
+
+function MessageActions({ message, isUser, onReply, onReact }: { message: Message; isUser: boolean; onReply: () => void; onReact: (emoji: string) => void }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -442,7 +466,24 @@ function MessageActions({ message, isUser, onReply }: { message: Message; isUser
           <MoreHorizontalIcon className="size-4 text-foreground/70" />
         </button>
       </PopoverTrigger>
-      <PopoverContent side={isUser ? "left" : "right"} align="center" sideOffset={6} className="w-48 p-1">
+      <PopoverContent side={isUser ? "left" : "right"} align="center" sideOffset={6} className="w-56 p-1">
+        <div className="flex items-center justify-around px-1 py-1.5">
+          {REACTIONS.map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={() => { onReact(emoji); setOpen(false); }}
+              className={cn(
+                "flex size-9 items-center justify-center rounded-full text-[20px]",
+                "transition-transform duration-100 hover:scale-125 active:scale-90",
+                message.reactions?.find((r) => r.emoji === emoji && r.byMe) && "bg-primary/10 ring-1 ring-primary/30",
+              )}
+            >
+              {emoji}
+            </button>
+          ))}
+        </div>
+        <div className="mx-2 mb-1 h-px bg-border/50" />
         <BubbleMenuItems message={message} onReply={onReply} onClose={() => setOpen(false)} />
       </PopoverContent>
     </Popover>
@@ -576,10 +617,12 @@ export function MessageBubble({
   message,
   conversation,
   onReply,
+  onReact,
 }: {
   message: Message;
   conversation: Conversation;
   onReply?: (message: Message) => void;
+  onReact?: (messageId: string, emoji: string) => void;
 }) {
   const isUser = message.role === "user";
   const type = message.mediaType ?? "";
@@ -589,9 +632,14 @@ export function MessageBubble({
   const [menuOpen, setMenuOpen] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const reactions = message.reactions?.filter((r) => r.count > 0) ?? [];
 
   function handleReply() {
     onReply?.(message);
+  }
+
+  function handleReact(emoji: string) {
+    onReact?.(message.id, emoji);
   }
 
   function openMenu() {
@@ -610,6 +658,7 @@ export function MessageBubble({
         anchorRect={anchorRect}
         onClose={() => setMenuOpen(false)}
         onReply={handleReply}
+        onReact={handleReact}
       />
 
       <SwipeableRow onReply={handleReply} onLongPress={openMenu}>
@@ -646,23 +695,49 @@ export function MessageBubble({
                 <MessageContent message={message} isUser={isUser} />
                 {!isTimeOutside && (
                   <span className={cn(
-                    "ml-2 inline-block align-bottom text-[10px] leading-none",
+                    "ml-2 inline-flex items-center gap-0.5 align-bottom text-[10px] leading-none",
                     isUser ? "text-primary-foreground/50" : "text-muted-foreground/60",
                   )}>
                     {formatTime(message.createdAt)}
+                    {isUser && <MessageStatusIcon status={message.status} insideBubble />}
                   </span>
                 )}
               </div>
 
-              <MessageActions message={message} isUser={isUser} onReply={handleReply} />
+              <MessageActions message={message} isUser={isUser} onReply={handleReply} onReact={handleReact} />
             </div>
+
+            {reactions.length > 0 && (
+              <div className={cn(
+                "mt-1 flex flex-wrap gap-1",
+                isUser ? "mr-1 justify-end" : "ml-9 justify-start",
+              )}>
+                {reactions.map((r) => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    onClick={() => handleReact(r.emoji)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] leading-none transition-colors",
+                      r.byMe
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border/60 bg-muted/60 text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span>{r.emoji}</span>
+                    {r.count > 1 && <span className="text-[11px] font-medium">{r.count}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
 
             {isTimeOutside && !isNoBubble && (
               <span className={cn(
-                "mt-0.5 text-[10px] text-muted-foreground/60",
+                "mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/60",
                 isUser ? "mr-1" : "ml-9",
               )}>
                 {formatTime(message.createdAt)}
+                {isUser && <MessageStatusIcon status={message.status} />}
               </span>
             )}
           </div>

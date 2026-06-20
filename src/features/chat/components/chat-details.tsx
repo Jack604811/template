@@ -5,14 +5,14 @@ import {
   ArrowLeftIcon,
   BanIcon,
   BellIcon,
-  CameraIcon,
+  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FileTextIcon,
   ImageIcon,
   LinkIcon,
-  LockIcon,
   LogInIcon,
+  SlidersHorizontalIcon,
   LogOutIcon,
   StarIcon,
   TagIcon,
@@ -414,7 +414,8 @@ function PanelContent({
           <div className="py-1">
             <InfoRow icon={<UsersIcon />} label="Equipo asignado" value="Ninguno" />
             <InfoRow icon={<TagIcon />} label="Etiquetas" />
-
+            <InfoRow icon={<SlidersHorizontalIcon />} label="Variables" />
+            <InfoRow icon={<CalendarIcon />} label="Reservas" />
             <InfoRow
               icon={<ImageIcon />}
               label="Multimedia y docs"
@@ -443,15 +444,12 @@ function PanelContent({
                 ))}
               </button>
             )}
-
-            <InfoRow icon={<StarIcon />} label="Mensajes destacados" value="Ninguno" />
           </div>
 
           <Separator />
 
           <div className="py-1">
-            <InfoRow icon={<CameraIcon />} label="Guardar en fotos" value="Por defecto" />
-            <InfoRow icon={<LockIcon />} label="Cifrado" />
+            <InfoRow icon={<StarIcon />} label="Mensajes destacados" value="Ninguno" />
             <InfoRow icon={<TimerIcon />} label="Mensajes temporales" value="Desactivado" />
             <InfoRow icon={<BellIcon />} label="Silenciar mensajes" />
           </div>

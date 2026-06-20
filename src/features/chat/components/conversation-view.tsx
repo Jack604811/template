@@ -134,7 +134,9 @@ export function ConversationView({
           replyToId: null,
           replyTo: null,
           deletedAt: null,
+          status: "SENDING" as const,
           timestamp: now,
+          reactions: [] as { emoji: string; count: number; byMe: boolean }[],
         },
       ]);
 
@@ -163,9 +165,9 @@ export function ConversationView({
         (old ?? [])
           .filter((m) => joinSystemMessage !== null || m.id !== context?.joinPrep?.joinOptimisticId)
           .map((m) => {
-            if (m.id === context?.optimisticId) return message;
+            if (m.id === context?.optimisticId) return { ...message, reactions: m.reactions };
             if (joinSystemMessage && m.id === context?.joinPrep?.joinOptimisticId)
-              return { ...joinSystemMessage, replyTo: null };
+              return { ...joinSystemMessage, replyTo: null, reactions: [] as { emoji: string; count: number; byMe: boolean }[] };
             return m;
           }),
       );
@@ -214,9 +216,40 @@ export function ConversationView({
       mediaUrl: m.mediaUrl,
       mediaFilename: m.mediaFilename,
       createdAt: m.timestamp,
+      status: m.status as Message["status"],
       replyTo,
+      reactions: ("reactions" in m ? m.reactions : []) as { emoji: string; count: number; byMe: boolean }[],
     };
   });
+
+  const toggleReaction = useMutation(trpc.chat.toggleReaction.mutationOptions({
+    onMutate: async ({ messageId, emoji }) => {
+      await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
+      const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
+      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
+        (old ?? []).map((m) => {
+          if (m.id !== messageId) return m;
+          const reactions = ("reactions" in m ? m.reactions : []) as { emoji: string; count: number; byMe: boolean }[];
+          const existing = reactions.find((r) => r.emoji === emoji);
+          const myOtherReaction = reactions.find((r) => r.byMe && r.emoji !== emoji);
+          let updated = reactions
+            .map((r) => {
+              if (r.emoji === emoji) return { ...r, count: r.byMe ? r.count - 1 : r.count + 1, byMe: !r.byMe };
+              if (r.emoji === myOtherReaction?.emoji) return { ...r, count: r.count - 1, byMe: false };
+              return r;
+            })
+            .filter((r) => r.count > 0);
+          if (!existing) updated = [...updated, { emoji, count: 1, byMe: true }];
+          return { ...m, reactions: updated };
+        }),
+      );
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(messagesQueryOptions.queryKey, context.previous);
+    },
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: messagesQueryOptions.queryKey }),
+  }));
 
   function updateEntry(id: string, patch: Partial<UploadingEntry>) {
     setUploadingEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -429,6 +462,7 @@ export function ConversationView({
                         message={message as Parameters<typeof MessageBubble>[0]["message"]}
                         conversation={conversation}
                         onReply={handleReply}
+                        onReact={(messageId, emoji) => toggleReaction.mutate({ messageId, emoji })}
                       />
                     )}
                   </div>

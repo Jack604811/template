@@ -10,18 +10,18 @@ datasource db {
 }
 
 model User {
-  id            String     @id
-  name          String
-  email         String     @unique
-  emailVerified Boolean    @default(false)
-  image         String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @default(now()) @updatedAt
+  id                       String     @id
+  name                     String
+  email                    String     @unique
+  emailVerified            Boolean    @default(false)
+  image                    String?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @default(now()) @updatedAt
   lastActiveOrganizationId String?
-  templates     Workflow[]
-  accounts      Account[]
-  memberships   Member[]
-  sessions      Session[]
+  templates                Workflow[]
+  accounts                 Account[]
+  memberships              Member[]
+  sessions                 Session[]
 
   @@map("user")
 }
@@ -83,6 +83,7 @@ model Organization {
   dateTimeFormat      String?              @default("24")
   timezone            String?              @default("America/New_York")
   weekStart           String?              @default("sunday")
+  conversations       Conversation[]
   credentials         Credential[]
   workflows           Workflow[]
   bookables           Bookable[]
@@ -93,7 +94,6 @@ model Organization {
   invitations         Invitation[]
   mcpServers          McpServer[]
   members             Member[]
-  conversations       Conversation[]
 
   @@map("organization")
 }
@@ -421,7 +421,6 @@ model BookingUpsell {
 model Conversation {
   id              String                    @id @default(cuid())
   organizationId  String
-  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   channel         ChannelType               @default(WHATSAPP)
   externalId      String
   contactName     String?
@@ -429,12 +428,13 @@ model Conversation {
   lastMessageText String?
   unreadCount     Int                       @default(0)
   credentialId    String?
-  blocked         Boolean                   @default(false)
-  notes           String?
-  messages        Message[]
-  participants    ConversationParticipant[]
   createdAt       DateTime                  @default(now())
   updatedAt       DateTime                  @updatedAt
+  blocked         Boolean                   @default(false)
+  notes           String?
+  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participants    ConversationParticipant[]
+  messages        Message[]
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, lastMessageAt(sort: Desc)])
@@ -443,31 +443,32 @@ model Conversation {
 model ConversationParticipant {
   id             String       @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   userId         String
   userName       String
   joinedAt       DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@unique([conversationId, userId])
 }
 
 model Message {
-  id             String       @id @default(cuid())
+  id             String            @id @default(cuid())
   conversationId String
-  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   externalId     String?
   role           MessageRole
   content        String
   mediaType      String?
+  timestamp      DateTime          @default(now())
+  mediaFilename  String?
   mediaId        String?
   mediaUrl       String?
-  mediaFilename  String?
-  timestamp      DateTime     @default(now())
   replyToId      String?
-  replyTo        Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies        Message[]    @relation("MessageReplies")
   deletedAt      DateTime?
-  status         MessageStatus @default(SENT)
+  status         MessageStatus     @default(SENT)
+  starred        Boolean           @default(false)
+  conversation   Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  replyTo        Message?          @relation("MessageReplies", fields: [replyToId], references: [id])
+  replies        Message[]         @relation("MessageReplies")
   reactions      MessageReaction[]
 
   @@index([conversationId, timestamp])
@@ -476,10 +477,10 @@ model Message {
 model MessageReaction {
   id        String   @id @default(cuid())
   messageId String
-  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   userId    String
   emoji     String
   createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId])
   @@index([messageId])

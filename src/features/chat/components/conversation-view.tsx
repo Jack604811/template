@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeftIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 import {
   Conversation,
   ConversationContent,
@@ -26,17 +26,18 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { useTRPC } from "@/trpc/client";
 import { useConversationParticipant } from "../hooks/use-conversation-participant";
+import { useMessageActions } from "../hooks/use-message-actions";
 import { mimeToMediaType } from "../lib/compress";
 import { uploadFileXHR } from "../lib/upload";
 import type { Conversation as ConversationType } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
+import { DateSeparator, isSameDay } from "./date-separator";
 import type { Message, ReplyTarget } from "./message-bubble";
 import { MessageBubble } from "./message-bubble";
 import type { SendPayload } from "./message-input";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
 import { SystemMessage } from "./system-message";
-import { DateSeparator, isSameDay } from "./date-separator";
 
 const CHAT_QUICK_REPLIES = [
   "Hola 👋 ¿En qué te podemos ayudar hoy?",
@@ -51,7 +52,9 @@ const CHAT_QUICK_REPLIES = [
 
 function ConnectedQuickReplies() {
   const { textInput } = usePromptInputController();
-  return <QuickReplies replies={CHAT_QUICK_REPLIES} onSelect={textInput.setInput} />;
+  return (
+    <QuickReplies replies={CHAT_QUICK_REPLIES} onSelect={textInput.setInput} />
+  );
 }
 
 interface UploadingEntry {
@@ -70,6 +73,8 @@ interface ConversationViewProps {
   stableKeyMap: RefObject<Map<string, string>>;
   onToggleInfo: () => void;
   onBack?: () => void;
+  scrollToMessageId?: string | null;
+  externalReplyTo?: ReplyTarget | null;
 }
 
 export function ConversationView({
@@ -77,12 +82,23 @@ export function ConversationView({
   stableKeyMap,
   onToggleInfo,
   onBack,
+  scrollToMessageId,
+  externalReplyTo,
 }: ConversationViewProps) {
   const isMobile = useIsMobile();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
-  const [uploadingEntries, setUploadingEntries] = useState<UploadingEntry[]>([]);
   const [replyTo, setReplyTo] = useState<ReplyTarget | undefined>(undefined);
+  const { handleStar, handleReact, handleReply } = useMessageActions(
+    conversation?.id ?? "",
+    {
+      conversationName: conversation?.name,
+      onReply: setReplyTo,
+    },
+  );
+  const [uploadingEntries, setUploadingEntries] = useState<UploadingEntry[]>(
+    [],
+  );
   const entriesRef = useRef<Map<string, UploadingEntry>>(new Map());
   // Maps message id → reply target so optimistic + real messages render the quoted block
   const replyToMapRef = useRef<Map<string, ReplyTarget>>(new Map());
@@ -91,94 +107,152 @@ export function ConversationView({
   const { data: session } = authClient.useSession();
   const userName = session?.user?.name ?? session?.user?.email ?? "";
 
-  const {
-    messagesQueryOptions,
-    prepareImplicitJoin,
-    confirmImplicitJoin,
-  } = useConversationParticipant(conversation, stableKeyMap);
+  useEffect(() => {
+    if (!externalReplyTo) return;
+    setReplyTo(externalReplyTo);
+  }, [externalReplyTo]);
+
+  useEffect(() => {
+    if (!scrollToMessageId) return;
+    const el = document.querySelector(
+      `[data-message-id="${scrollToMessageId}"]`,
+    );
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [scrollToMessageId]);
+
+  const { messagesQueryOptions, prepareImplicitJoin, confirmImplicitJoin } =
+    useConversationParticipant(conversation, stableKeyMap);
 
   const { data: rawMessages = [] } = useQuery({
     ...messagesQueryOptions,
     enabled: !!conversation,
-    refetchInterval: () => (conversation && queryClient.isMutating() === 0 ? 1500 : false),
+    refetchInterval: () =>
+      conversation && queryClient.isMutating() === 0 ? 1500 : false,
   });
 
-  const sendMessage = useMutation(trpc.chat.sendMessage.mutationOptions({
-    onMutate: async ({ content, mediaUrl, mediaType, mediaFilename, conversationId }) => {
-      // Capture and clear before any await — ref is set in handleSend and must not be cleared there
-      const capturedReply = pendingReplyRef.current;
-      pendingReplyRef.current = undefined;
-      await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
-      const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
-      const optimisticId = `optimistic-${Date.now()}`;
-      stableKeyMap.current.set(optimisticId, optimisticId);
-      const joinPrep = prepareImplicitJoin();
-      const lastText = mediaType ? (content || `[${mediaType}]`) : content;
-      const now = new Date();
+  const sendMessage = useMutation(
+    trpc.chat.sendMessage.mutationOptions({
+      onMutate: async ({
+        content,
+        mediaUrl,
+        mediaType,
+        mediaFilename,
+        conversationId,
+      }) => {
+        // Capture and clear before any await — ref is set in handleSend and must not be cleared there
+        const capturedReply = pendingReplyRef.current;
+        pendingReplyRef.current = undefined;
+        await queryClient.cancelQueries({
+          queryKey: messagesQueryOptions.queryKey,
+        });
+        const previous = queryClient.getQueryData(
+          messagesQueryOptions.queryKey,
+        );
+        const optimisticId = `optimistic-${Date.now()}`;
+        stableKeyMap.current.set(optimisticId, optimisticId);
+        const joinPrep = prepareImplicitJoin();
+        const lastText = mediaType ? content || `[${mediaType}]` : content;
+        const now = new Date();
 
-      if (capturedReply) replyToMapRef.current.set(optimisticId, capturedReply);
+        if (capturedReply)
+          replyToMapRef.current.set(optimisticId, capturedReply);
 
-      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) => [
-        ...(old ?? []),
-        ...(joinPrep ? [joinPrep.msg] : []),
-        {
-          id: optimisticId,
-          conversationId,
-          externalId: null,
-          role: "ASSISTANT" as const,
-          content: lastText,
-          mediaType: mediaType ?? null,
-          mediaId: null,
-          mediaUrl: mediaUrl ?? null,
-          mediaFilename: mediaFilename ?? null,
-          replyToId: null,
-          replyTo: null,
-          deletedAt: null,
-          status: "SENDING" as const,
-          timestamp: now,
-          reactions: [] as { emoji: string; count: number; byMe: boolean }[],
-        },
-      ]);
+        queryClient.setQueryData(
+          messagesQueryOptions.queryKey,
+          (old: typeof rawMessages | undefined) => [
+            ...(old ?? []),
+            ...(joinPrep ? [joinPrep.msg] : []),
+            {
+              id: optimisticId,
+              conversationId,
+              externalId: null,
+              role: "ASSISTANT" as const,
+              content: lastText,
+              mediaType: mediaType ?? null,
+              mediaId: null,
+              mediaUrl: mediaUrl ?? null,
+              mediaFilename: mediaFilename ?? null,
+              replyToId: null,
+              replyTo: null,
+              deletedAt: null,
+              status: "SENDING" as const,
+              timestamp: now,
+              starred: false,
+              reactions: [] as {
+                emoji: string;
+                count: number;
+                byMe: boolean;
+              }[],
+            },
+          ],
+        );
 
-      queryClient.setQueriesData(
-        { queryKey: [["chat", "getConversations"]] },
-        (old: unknown) =>
-          Array.isArray(old)
-            ? old.map((c: Record<string, unknown>) =>
-                c.id === conversationId
-                  ? { ...c, lastMessageText: lastText, lastMessageAt: now }
-                  : c,
+        queryClient.setQueriesData(
+          { queryKey: [["chat", "getConversations"]] },
+          (old: unknown) =>
+            Array.isArray(old)
+              ? old.map((c: Record<string, unknown>) =>
+                  c.id === conversationId
+                    ? { ...c, lastMessageText: lastText, lastMessageAt: now }
+                    : c,
+                )
+              : old,
+        );
+
+        return { previous, optimisticId, joinPrep, capturedReply };
+      },
+      onSuccess: ({ message, joinSystemMessage }, _vars, context) => {
+        if (context?.optimisticId)
+          stableKeyMap.current.set(message.id, context.optimisticId);
+        if (context?.capturedReply && context.optimisticId) {
+          replyToMapRef.current.set(message.id, context.capturedReply);
+          replyToMapRef.current.delete(context.optimisticId);
+        }
+        confirmImplicitJoin(
+          joinSystemMessage,
+          context?.joinPrep?.joinOptimisticId,
+        );
+        queryClient.setQueryData(
+          messagesQueryOptions.queryKey,
+          (old: typeof rawMessages | undefined) =>
+            (old ?? [])
+              .filter(
+                (m) =>
+                  joinSystemMessage !== null ||
+                  m.id !== context?.joinPrep?.joinOptimisticId,
               )
-            : old,
-      );
-
-      return { previous, optimisticId, joinPrep, capturedReply };
-    },
-    onSuccess: ({ message, joinSystemMessage }, _vars, context) => {
-      if (context?.optimisticId) stableKeyMap.current.set(message.id, context.optimisticId);
-      if (context?.capturedReply && context.optimisticId) {
-        replyToMapRef.current.set(message.id, context.capturedReply);
-        replyToMapRef.current.delete(context.optimisticId);
-      }
-      confirmImplicitJoin(joinSystemMessage, context?.joinPrep?.joinOptimisticId);
-      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
-        (old ?? [])
-          .filter((m) => joinSystemMessage !== null || m.id !== context?.joinPrep?.joinOptimisticId)
-          .map((m) => {
-            if (m.id === context?.optimisticId) return { ...message, reactions: m.reactions };
-            if (joinSystemMessage && m.id === context?.joinPrep?.joinOptimisticId)
-              return { ...joinSystemMessage, replyTo: null, reactions: [] as { emoji: string; count: number; byMe: boolean }[] };
-            return m;
-          }),
-      );
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous !== undefined) {
-        queryClient.setQueryData(messagesQueryOptions.queryKey, context.previous);
-      }
-      if (context?.optimisticId) replyToMapRef.current.delete(context.optimisticId);
-    },
-  }));
+              .map((m) => {
+                if (m.id === context?.optimisticId)
+                  return { ...message, reactions: m.reactions };
+                if (
+                  joinSystemMessage &&
+                  m.id === context?.joinPrep?.joinOptimisticId
+                )
+                  return {
+                    ...joinSystemMessage,
+                    replyTo: null,
+                    reactions: [] as {
+                      emoji: string;
+                      count: number;
+                      byMe: boolean;
+                    }[],
+                  };
+                return m;
+              }),
+        );
+      },
+      onError: (_err, _vars, context) => {
+        if (context?.previous !== undefined) {
+          queryClient.setQueryData(
+            messagesQueryOptions.queryKey,
+            context.previous,
+          );
+        }
+        if (context?.optimisticId)
+          replyToMapRef.current.delete(context.optimisticId);
+      },
+    }),
+  );
 
   useEffect(() => {
     return () => {
@@ -191,15 +265,20 @@ export function ConversationView({
   const messages = rawMessages.map((m) => {
     let text = m.content;
     if (m.role === "SYSTEM" && userName) {
-      if (text === `${userName} se ha unido a la conversación`) text = "Te has unido a la conversación";
-      else if (text === `${userName} ha abandonado la conversación`) text = "Has abandonado la conversación";
+      if (text === `${userName} se ha unido a la conversación`)
+        text = "Te has unido a la conversación";
+      else if (text === `${userName} ha abandonado la conversación`)
+        text = "Has abandonado la conversación";
     }
     let replyTo: import("./message-bubble").ReplyTarget | undefined;
     if (m.replyTo) {
       replyTo = {
         id: m.replyTo.id,
         role: m.replyTo.role === "USER" ? "contact" : "user",
-        senderName: m.replyTo.role === "USER" ? (conversation?.name ?? "Contacto") : (userName || "Tú"),
+        senderName:
+          m.replyTo.role === "USER"
+            ? (conversation?.name ?? "Contacto")
+            : userName || "Tú",
         text: m.replyTo.content,
         mediaType: m.replyTo.mediaType,
         mediaUrl: m.replyTo.mediaUrl,
@@ -210,7 +289,11 @@ export function ConversationView({
     }
     return {
       id: m.id,
-      role: (m.role === "USER" ? "contact" : m.role === "SYSTEM" ? "system" : "user") as "user" | "contact" | "system",
+      role: (m.role === "USER"
+        ? "contact"
+        : m.role === "SYSTEM"
+          ? "system"
+          : "user") as "user" | "contact" | "system",
       text,
       mediaType: m.mediaType,
       mediaUrl: m.mediaUrl,
@@ -218,41 +301,19 @@ export function ConversationView({
       createdAt: m.timestamp,
       status: m.status as Message["status"],
       replyTo,
-      reactions: ("reactions" in m ? m.reactions : []) as { emoji: string; count: number; byMe: boolean }[],
+      reactions: ("reactions" in m ? m.reactions : []) as {
+        emoji: string;
+        count: number;
+        byMe: boolean;
+      }[],
+      starred: "starred" in m ? (m.starred as boolean) : false,
     };
   });
 
-  const toggleReaction = useMutation(trpc.chat.toggleReaction.mutationOptions({
-    onMutate: async ({ messageId, emoji }) => {
-      await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
-      const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
-      queryClient.setQueryData(messagesQueryOptions.queryKey, (old: typeof rawMessages | undefined) =>
-        (old ?? []).map((m) => {
-          if (m.id !== messageId) return m;
-          const reactions = ("reactions" in m ? m.reactions : []) as { emoji: string; count: number; byMe: boolean }[];
-          const existing = reactions.find((r) => r.emoji === emoji);
-          const myOtherReaction = reactions.find((r) => r.byMe && r.emoji !== emoji);
-          let updated = reactions
-            .map((r) => {
-              if (r.emoji === emoji) return { ...r, count: r.byMe ? r.count - 1 : r.count + 1, byMe: !r.byMe };
-              if (r.emoji === myOtherReaction?.emoji) return { ...r, count: r.count - 1, byMe: false };
-              return r;
-            })
-            .filter((r) => r.count > 0);
-          if (!existing) updated = [...updated, { emoji, count: 1, byMe: true }];
-          return { ...m, reactions: updated };
-        }),
-      );
-      return { previous };
-    },
-    onError: (_err, _vars, context) => {
-      if (context?.previous !== undefined) queryClient.setQueryData(messagesQueryOptions.queryKey, context.previous);
-    },
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: messagesQueryOptions.queryKey }),
-  }));
-
   function updateEntry(id: string, patch: Partial<UploadingEntry>) {
-    setUploadingEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    setUploadingEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+    );
     const existing = entriesRef.current.get(id);
     if (existing) entriesRef.current.set(id, { ...existing, ...patch });
   }
@@ -296,7 +357,14 @@ export function ConversationView({
     const mediaType = mimeToMediaType(file.type);
     const abortController = new AbortController();
     const entry: UploadingEntry = {
-      id, file, caption, mediaType, blobUrl, progress: 0, failed: false, abortController,
+      id,
+      file,
+      caption,
+      mediaType,
+      blobUrl,
+      progress: 0,
+      failed: false,
+      abortController,
     };
     entriesRef.current.set(id, entry);
     setUploadingEntries((prev) => [...prev, entry]);
@@ -312,7 +380,12 @@ export function ConversationView({
     const entry = entriesRef.current.get(id);
     if (!entry) return;
     const newController = new AbortController();
-    const updated = { ...entry, abortController: newController, progress: 0, failed: false };
+    const updated = {
+      ...entry,
+      abortController: newController,
+      progress: 0,
+      failed: false,
+    };
     entriesRef.current.set(id, updated);
     setUploadingEntries((prev) => prev.map((e) => (e.id === id ? updated : e)));
     runUpload(updated, conversation.id);
@@ -343,23 +416,13 @@ export function ConversationView({
               <MessageSquareIcon />
             </EmptyMedia>
             <EmptyTitle>Tus mensajes</EmptyTitle>
-            <EmptyDescription>Selecciona una conversación para empezar.</EmptyDescription>
+            <EmptyDescription>
+              Selecciona una conversación para empezar.
+            </EmptyDescription>
           </EmptyHeader>
         </Empty>
       </div>
     );
-  }
-
-  function handleReply(message: Message) {
-    setReplyTo({
-      id: message.id,
-      role: message.role as "user" | "contact",
-      senderName: message.role === "user" ? "Tú" : conversation?.name ?? "Contacto",
-      text: message.text,
-      mediaType: message.mediaType,
-      mediaUrl: message.mediaUrl,
-      mediaFilename: message.mediaFilename,
-    });
   }
 
   function handleSend(payload: SendPayload) {
@@ -407,7 +470,9 @@ export function ConversationView({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold leading-none">{conversation.name}</p>
+            <p className="truncate text-sm font-semibold leading-none">
+              {conversation.name}
+            </p>
             <p className="mt-0.5 truncate text-[11px] capitalize text-muted-foreground">
               {conversation.channel}
             </p>
@@ -439,29 +504,51 @@ export function ConversationView({
                     </AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="text-[17px] font-semibold">{conversation.name}</p>
-                    <p className="mt-0.5 text-sm capitalize text-muted-foreground">{conversation.channel}</p>
+                    <p className="text-[17px] font-semibold">
+                      {conversation.name}
+                    </p>
+                    <p className="mt-0.5 text-sm capitalize text-muted-foreground">
+                      {conversation.channel}
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm" className="mt-1 rounded-full px-5" onClick={onToggleInfo}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-1 rounded-full px-5"
+                    onClick={onToggleInfo}
+                  >
                     Ver perfil
                   </Button>
                 </div>
               </ConversationEmptyState>
             ) : (
               allMessages.map((message, i) => {
-                const stableKey = stableKeyMap.current.get(message.id) ?? message.id;
+                const stableKey =
+                  stableKeyMap.current.get(message.id) ?? message.id;
                 const prev = allMessages[i - 1];
-                const showDate = !prev || !isSameDay(new Date(message.createdAt), new Date(prev.createdAt));
+                const showDate =
+                  !prev ||
+                  !isSameDay(
+                    new Date(message.createdAt),
+                    new Date(prev.createdAt),
+                  );
                 return (
-                  <div key={stableKey}>
-                    {showDate && <DateSeparator date={new Date(message.createdAt)} />}
+                  <div key={stableKey} data-message-id={message.id}>
+                    {showDate && (
+                      <DateSeparator date={new Date(message.createdAt)} />
+                    )}
                     {message.role === "system" ? (
                       <SystemMessage text={message.text} />
                     ) : (
                       <MessageBubble
-                        message={message as Parameters<typeof MessageBubble>[0]["message"]}
+                        message={
+                          message as Parameters<
+                            typeof MessageBubble
+                          >[0]["message"]
+                        }
                         onReply={handleReply}
-                        onReact={(messageId, emoji) => toggleReaction.mutate({ messageId, emoji })}
+                        onReact={handleReact}
+                        onStar={handleStar}
                       />
                     )}
                   </div>

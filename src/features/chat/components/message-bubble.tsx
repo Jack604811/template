@@ -38,6 +38,7 @@ export interface Message {
   status?: "SENDING" | "SENT" | "DELIVERED" | "READ" | "FAILED";
   replyTo?: ReplyTarget;
   reactions?: { emoji: string; count: number; byMe: boolean }[];
+  starred?: boolean;
   uploadProgress?: number;
   uploadFailed?: boolean;
   onCancelUpload?: () => void;
@@ -541,10 +542,16 @@ export function MessageBubble({
   message,
   onReply,
   onReact,
+  onStar,
+  hideActions = false,
+  bubbleMaxWidth = "max-w-[75%]",
 }: {
   message: Message;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
+  onStar?: (messageId: string, starred: boolean) => void;
+  hideActions?: boolean;
+  bubbleMaxWidth?: string;
 }) {
   const isUser = message.role === "user";
   const type = message.mediaType ?? "";
@@ -581,6 +588,7 @@ export function MessageBubble({
         onClose={() => setMenuOpen(false)}
         onReply={handleReply}
         onReact={handleReact}
+        onStar={() => onStar?.(message.id, !message.starred)}
       />
 
       <SwipeableRow onReply={handleReply} onLongPress={openMenu}>
@@ -590,7 +598,7 @@ export function MessageBubble({
               <div
                 ref={bubbleRef}
                 className={cn(
-                  "relative text-sm max-w-[80vw] md:max-w-[65vw]",
+                  cn("relative text-sm", bubbleMaxWidth),
                   !isNoBubble && "rounded-2xl",
                   isNoPadding && "overflow-hidden p-0",
                   !isNoPadding && !isNoBubble && "px-4 py-2.5",

@@ -29,6 +29,7 @@ function makeSystemMsg(conversationId: string, content: string): CachedMessage {
     deletedAt: null,
     status: "SENT" as const,
     timestamp: new Date(),
+    starred: false,
     reactions: [],
   };
 }

@@ -67,6 +67,7 @@ export function useConversationParticipant(
       deletedAt: null,
       status: "SENT" as const,
       timestamp: new Date(),
+      starred: false,
       reactions: [],
     };
   }

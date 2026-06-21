@@ -23,6 +23,7 @@ interface MessageContextMenuProps {
   onClose: () => void;
   onReply: () => void;
   onReact: (emoji: string) => void;
+  onStar: () => void;
 }
 
 export function MessageContextMenu({
@@ -33,6 +34,7 @@ export function MessageContextMenu({
   onClose,
   onReply,
   onReact,
+  onStar,
 }: MessageContextMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
@@ -105,10 +107,10 @@ export function MessageContextMenu({
     }
   }
 
-  const actions: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean }[] = [
+  const actions: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean; active?: boolean }[] = [
     { label: "Responder", icon: CornerUpLeftIcon, onClick: handleReply },
     ...(!message.mediaType && message.text ? [{ label: "Copiar", icon: CopyIcon, onClick: handleCopy }] : []),
-    { label: "Destacar", icon: StarIcon, onClick: onClose },
+    { label: message.starred ? "Quitar destacado" : "Destacar", icon: StarIcon, active: message.starred, onClick: () => { onStar(); onClose(); } },
     ...(isMedia && message.mediaUrl ? [{ label: "Descargar", icon: DownloadIcon, onClick: handleDownload }] : []),
   ];
 
@@ -219,7 +221,7 @@ export function MessageContextMenu({
             )}
           >
             <span>{action.label}</span>
-            <action.icon className={cn("size-[18px]", action.danger ? "text-destructive/70" : "text-muted-foreground")} />
+            <action.icon className={cn("size-[18px]", action.danger ? "text-destructive/70" : action.active ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground")} />
           </button>
         ))}
       </div>

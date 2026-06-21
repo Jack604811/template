@@ -10,6 +10,7 @@ import type { ChatFilter, Conversation } from "../types";
 import { ChatDetails } from "./chat-details";
 import { ConversationList } from "./conversation-list";
 import { ConversationView } from "./conversation-view";
+import type { ReplyTarget } from "./replied-message";
 
 const MEDIA_LABELS: Record<string, string> = {
   "[image]": "Imagen",
@@ -40,8 +41,17 @@ export function ChatPage() {
   const trpc = useTRPC();
   const [params, setParams] = useQueryStates(chatParams);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [scrollToMessageId, setScrollToMessageId] = useState<string | null>(
+    null,
+  );
+  const [pendingReply, setPendingReply] = useState<ReplyTarget | null>(null);
   const isMobile = useIsMobile();
   const stableKeyMap = useRef<Map<string, string>>(new Map());
+
+  function handleNavigateToMessage(messageId: string) {
+    setScrollToMessageId(messageId);
+    setTimeout(() => setScrollToMessageId(null), 1000);
+  }
 
   const { data: rawConversations = [] } = useQuery({
     ...trpc.chat.getConversations.queryOptions({
@@ -68,7 +78,8 @@ export function ChatPage() {
     };
   });
 
-  const selectedConversation = conversations.find((c) => c.id === params.id) ?? null;
+  const selectedConversation =
+    conversations.find((c) => c.id === params.id) ?? null;
 
   const markAsRead = useMutation(trpc.chat.markAsRead.mutationOptions());
 
@@ -93,6 +104,8 @@ export function ChatPage() {
             stableKeyMap={stableKeyMap}
             onToggleInfo={() => setInfoOpen((v) => !v)}
             onBack={() => setParams({ id: null })}
+            scrollToMessageId={scrollToMessageId}
+            externalReplyTo={pendingReply}
           />
           <ChatDetails
             conversation={selectedConversation}
@@ -100,6 +113,11 @@ export function ChatPage() {
             open={infoOpen}
             onClose={() => setInfoOpen(false)}
             onDeleteSuccess={handleDeleteSuccess}
+            onNavigateToMessage={handleNavigateToMessage}
+            onReplyToMessage={(r) => {
+              setPendingReply(r);
+              setTimeout(() => setPendingReply(null), 100);
+            }}
           />
         </div>
       );
@@ -134,12 +152,19 @@ export function ChatPage() {
         />
       </div>
 
-      <div className={cn("flex min-w-0 flex-1 overflow-hidden", infoOpen && "hidden xl:flex")}>
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 overflow-hidden",
+          infoOpen && "hidden xl:flex",
+        )}
+      >
         <ConversationView
           key={params.id ?? "empty"}
           conversation={selectedConversation}
           stableKeyMap={stableKeyMap}
           onToggleInfo={() => setInfoOpen((v) => !v)}
+          scrollToMessageId={scrollToMessageId}
+          externalReplyTo={pendingReply}
         />
       </div>
 
@@ -151,6 +176,11 @@ export function ChatPage() {
             open
             onClose={() => setInfoOpen(false)}
             onDeleteSuccess={handleDeleteSuccess}
+            onNavigateToMessage={handleNavigateToMessage}
+            onReplyToMessage={(r) => {
+              setPendingReply(r);
+              setTimeout(() => setPendingReply(null), 100);
+            }}
           />
         </div>
       )}

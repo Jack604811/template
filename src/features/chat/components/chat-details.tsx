@@ -5,14 +5,12 @@ import {
   ArrowLeftIcon,
   BanIcon,
   BellIcon,
-  CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FileTextIcon,
   ImageIcon,
   LinkIcon,
   LogInIcon,
-  SlidersHorizontalIcon,
   LogOutIcon,
   StarIcon,
   TagIcon,
@@ -40,8 +38,10 @@ import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
 import { useContactBlock } from "../hooks/use-contact-block";
 import { useConversationParticipant } from "../hooks/use-conversation-participant";
+import { useMessageActions } from "../hooks/use-message-actions";
 import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
+import { type Message as BubbleMessage, MessageBubble } from "./message-bubble";
 
 type MediaFilter = "media" | "docs" | "links";
 
@@ -62,7 +62,14 @@ interface InfoRowProps {
   children?: React.ReactNode;
 }
 
-function InfoRow({ icon, label, value, destructive = false, onClick, children }: InfoRowProps) {
+function InfoRow({
+  icon,
+  label,
+  value,
+  destructive = false,
+  onClick,
+  children,
+}: InfoRowProps) {
   return (
     <button
       type="button"
@@ -75,7 +82,9 @@ function InfoRow({ icon, label, value, destructive = false, onClick, children }:
       <div
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-2xl [&>svg]:size-4",
-          destructive ? "bg-destructive/10 text-destructive" : "bg-muted/30 text-muted-foreground",
+          destructive
+            ? "bg-destructive/10 text-destructive"
+            : "bg-muted/30 text-muted-foreground",
         )}
       >
         {icon}
@@ -94,6 +103,8 @@ interface ChatDetailsProps {
   open: boolean;
   onClose: () => void;
   onDeleteSuccess: (id: string) => void;
+  onNavigateToMessage?: (messageId: string) => void;
+  onReplyToMessage?: (reply: import("./replied-message").ReplyTarget) => void;
 }
 
 function PanelContent({
@@ -101,23 +112,40 @@ function PanelContent({
   stableKeyMap,
   onClose,
   onDeleteSuccess,
+  onNavigateToMessage,
+  onReplyToMessage,
   mobile = false,
 }: {
   conversation: Conversation;
   stableKeyMap: RefObject<Map<string, string>>;
   onClose: () => void;
   onDeleteSuccess: (id: string) => void;
+  onNavigateToMessage?: (messageId: string) => void;
+  onReplyToMessage?: (reply: import("./replied-message").ReplyTarget) => void;
   mobile?: boolean;
 }) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
+  const { handleStar, handleReact, handleReply } = useMessageActions(
+    conversation.id,
+    {
+      conversationName: conversation.name,
+      onReply: (reply) => {
+        onReplyToMessage?.(reply);
+        if (mobile) onClose();
+      },
+    },
+  );
 
-  const { isPending: isBlockPending, toggle: toggleBlock } = useContactBlock(conversation, stableKeyMap);
+  const { isPending: isBlockPending, toggle: toggleBlock } = useContactBlock(
+    conversation,
+    stableKeyMap,
+  );
   const [localBlocked, setLocalBlocked] = useState(conversation.blocked);
   const [notes, setNotes] = useState(conversation.notes ?? "");
   const [notesDrawerOpen, setNotesDrawerOpen] = useState(false);
   const [draft, setDraft] = useState(notes);
-  const [view, setView] = useState<"menu" | "multimedia">("menu");
+  const [view, setView] = useState<"menu" | "multimedia" | "starred">("menu");
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("media");
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const drawerTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -133,8 +161,9 @@ function PanelContent({
     setNotes(conversation.notes ?? "");
   }, [conversation.notes]);
 
-
-  const conversationsQueryKey = trpc.chat.getConversations.queryOptions({ search: "" }).queryKey.slice(0, 1);
+  const conversationsQueryKey = trpc.chat.getConversations
+    .queryOptions({ search: "" })
+    .queryKey.slice(0, 1);
   const updateNotes = useMutation(
     trpc.chat.updateNotes.mutationOptions({
       onSuccess: () => {
@@ -143,9 +172,10 @@ function PanelContent({
     }),
   );
 
-  const { data: rawMessages = [] } = useQuery(
-    trpc.chat.getMessages.queryOptions({ conversationId: conversation.id }),
-  );
+  const messagesQueryOptions = trpc.chat.getMessages.queryOptions({
+    conversationId: conversation.id,
+  });
+  const { data: rawMessages = [] } = useQuery(messagesQueryOptions);
 
   function saveNotes(value: string) {
     setNotes(value);
@@ -165,24 +195,36 @@ function PanelContent({
     setNotesDrawerOpen(true);
   }
 
-  const { hasJoined, joinConversation, leaveConversation } = useConversationParticipant(
-    conversation,
-    stableKeyMap,
+  const { hasJoined, joinConversation, leaveConversation } =
+    useConversationParticipant(conversation, stableKeyMap);
+
+  const deleteConversation = useMutation(
+    trpc.chat.deleteConversation.mutationOptions({
+      onSuccess: () => onDeleteSuccess(conversation.id),
+    }),
   );
 
-  const deleteConversation = useMutation(trpc.chat.deleteConversation.mutationOptions({
-    onSuccess: () => onDeleteSuccess(conversation.id),
-  }));
-
-  const mediaItems = rawMessages.filter(
-    (m) => ["image", "video"].includes(m.mediaType ?? "") && m.mediaUrl,
-  ).reverse();
-  const docItems = rawMessages.filter(
-    (m) => ["document", "audio", "voice"].includes(m.mediaType ?? "") && m.mediaUrl,
-  ).reverse();
-  const linkItems = rawMessages.flatMap((m) =>
-    !m.mediaUrl ? (m.content.match(URL_RE) ?? []).map((url, i) => ({ id: `${m.id}-${i}`, url })) : [],
-  ).reverse();
+  const starredItems = rawMessages.filter((m) => m.starred).reverse();
+  const mediaItems = rawMessages
+    .filter((m) => ["image", "video"].includes(m.mediaType ?? "") && m.mediaUrl)
+    .reverse();
+  const docItems = rawMessages
+    .filter(
+      (m) =>
+        ["document", "audio", "voice"].includes(m.mediaType ?? "") &&
+        m.mediaUrl,
+    )
+    .reverse();
+  const linkItems = rawMessages
+    .flatMap((m) =>
+      !m.mediaUrl
+        ? (m.content.match(URL_RE) ?? []).map((url, i) => ({
+            id: `${m.id}-${i}`,
+            url,
+          }))
+        : [],
+    )
+    .reverse();
 
   const previewMedia = mediaItems.slice(0, 3);
 
@@ -198,7 +240,9 @@ function PanelContent({
         </AvatarFallback>
       </Avatar>
       <p className="mt-2 text-[17px] font-semibold">{conversation.name}</p>
-      <p className="text-sm capitalize text-muted-foreground">{conversation.channel}</p>
+      <p className="text-sm capitalize text-muted-foreground">
+        {conversation.channel}
+      </p>
     </div>
   );
 
@@ -206,7 +250,7 @@ function PanelContent({
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex h-14 shrink-0 items-center justify-between px-2">
-        {view === "multimedia" ? (
+        {view === "multimedia" || view === "starred" ? (
           <button
             type="button"
             onClick={() => setView("menu")}
@@ -234,6 +278,99 @@ function PanelContent({
         </button>
       </div>
 
+      {/* Starred messages view */}
+      {view === "starred" ? (
+        <ScrollArea className="min-h-0 flex-1">
+          {avatarSection}
+          <Separator />
+          {starredItems.length > 0 ? (
+            starredItems.map((m) => {
+              const senderName =
+                m.role === "USER" ? (conversation.name ?? "Contacto") : "Tú";
+              const isUser = m.role !== "USER";
+              const dt = new Date(m.timestamp);
+              const dateStr = dt.toLocaleDateString("es", {
+                day: "numeric",
+                month: "short",
+              });
+              const timeStr = dt.toLocaleTimeString("es", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              });
+              const bubbleMsg: BubbleMessage = {
+                id: m.id,
+                role:
+                  m.role === "USER"
+                    ? "contact"
+                    : m.role === "SYSTEM"
+                      ? "system"
+                      : "user",
+                text: m.content,
+                mediaType: m.mediaType,
+                mediaUrl: m.mediaUrl,
+                mediaFilename: m.mediaFilename,
+                createdAt: m.timestamp,
+                status: m.status as BubbleMessage["status"],
+                reactions: m.reactions,
+                starred: m.starred,
+                replyTo: m.replyTo
+                  ? {
+                      id: m.replyTo.id,
+                      role: m.replyTo.role === "USER" ? "contact" : "user",
+                      senderName:
+                        m.replyTo.role === "USER"
+                          ? (conversation.name ?? "Contacto")
+                          : "Tú",
+                      text: m.replyTo.content,
+                      mediaType: m.replyTo.mediaType,
+                      mediaUrl: m.replyTo.mediaUrl,
+                      mediaFilename: m.replyTo.mediaFilename,
+                    }
+                  : undefined,
+              };
+              return (
+                <div key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onNavigateToMessage?.(m.id);
+                      if (mobile) onClose();
+                    }}
+                    className="flex w-full items-center justify-between px-4 pt-3 pb-1 transition-colors hover:bg-muted/40"
+                  >
+                    <span
+                      className={cn(
+                        "text-[12px] font-semibold",
+                        isUser ? "text-primary" : "text-muted-foreground",
+                      )}
+                    >
+                      {senderName}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {dateStr} · {timeStr}
+                    </span>
+                  </button>
+                  <div className="px-4">
+                    <MessageBubble
+                      message={bubbleMsg}
+                      hideActions
+                      bubbleMaxWidth="max-w-[70%]"
+                      onStar={handleStar}
+                      onReact={handleReact}
+                      onReply={handleReply}
+                    />
+                  </div>
+                  <Separator className="mt-2" />
+                </div>
+              );
+            })
+          ) : (
+            <MediaEmptyState icon={<StarIcon />} label="mensajes destacados" />
+          )}
+        </ScrollArea>
+      ) : null}
+
       {/* Multimedia full view */}
       {view === "multimedia" ? (
         <ScrollArea className="min-h-0 flex-1">
@@ -249,8 +386,8 @@ function PanelContent({
               />
             </div>
 
-            {mediaFilter === "media" && (
-              mediaItems.length > 0 ? (
+            {mediaFilter === "media" &&
+              (mediaItems.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1 px-4">
                   {mediaItems.map((m) => (
                     <a
@@ -273,18 +410,25 @@ function PanelContent({
                           </div>
                         </>
                       ) : (
-                        <Image src={m.mediaUrl ?? ""} alt="" fill className="object-cover" />
+                        <Image
+                          src={m.mediaUrl ?? ""}
+                          alt=""
+                          fill
+                          className="object-cover"
+                        />
                       )}
                     </a>
                   ))}
                 </div>
               ) : (
-                <MediaEmptyState icon={<ImageIcon />} label="media compartida" />
-              )
-            )}
+                <MediaEmptyState
+                  icon={<ImageIcon />}
+                  label="media compartida"
+                />
+              ))}
 
-            {mediaFilter === "docs" && (
-              docItems.length > 0 ? (
+            {mediaFilter === "docs" &&
+              (docItems.length > 0 ? (
                 <div className="flex flex-col gap-2 px-4">
                   {docItems.map((m) => (
                     <a
@@ -305,11 +449,10 @@ function PanelContent({
                 </div>
               ) : (
                 <MediaEmptyState icon={<FileTextIcon />} label="documentos" />
-              )
-            )}
+              ))}
 
-            {mediaFilter === "links" && (
-              linkItems.length > 0 ? (
+            {mediaFilter === "links" &&
+              (linkItems.length > 0 ? (
                 <div className="flex flex-col gap-2 px-4">
                   {linkItems.map((l) => (
                     <a
@@ -322,18 +465,21 @@ function PanelContent({
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted/50 text-muted-foreground">
                         <LinkIcon className="size-4" />
                       </div>
-                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">{l.url}</span>
+                      <span className="min-w-0 flex-1 truncate text-sm text-foreground">
+                        {l.url}
+                      </span>
                     </a>
                   ))}
                 </div>
               ) : (
                 <MediaEmptyState icon={<LinkIcon />} label="links" />
-              )
-            )}
+              ))}
           </div>
         </ScrollArea>
-      ) : (
-        /* Main menu view */
+      ) : null}
+
+      {/* Main menu view */}
+      {view === "menu" && (
         <ScrollArea className="min-h-0 flex-1">
           {avatarSection}
 
@@ -350,9 +496,13 @@ function PanelContent({
                 className="w-full rounded-2xl border border-border/60 bg-muted/30 px-4 py-3 text-left min-h-[80px] items-start flex flex-col justify-start"
               >
                 {notes ? (
-                  <span className="text-[15px] text-foreground leading-snug">{notes}</span>
+                  <span className="text-[15px] text-foreground leading-snug">
+                    {notes}
+                  </span>
                 ) : (
-                  <span className="text-[15px] text-muted-foreground/50 italic">Agregar notas sobre este contacto...</span>
+                  <span className="text-[15px] text-muted-foreground/50 italic">
+                    Agregar notas sobre este contacto...
+                  </span>
                 )}
               </button>
             ) : (
@@ -367,7 +517,10 @@ function PanelContent({
             )}
           </div>
 
-          <Drawer open={notesDrawerOpen} onOpenChange={(v) => !v && setNotesDrawerOpen(false)}>
+          <Drawer
+            open={notesDrawerOpen}
+            onOpenChange={(v) => !v && setNotesDrawerOpen(false)}
+          >
             <DrawerContent>
               <div className="flex items-center justify-between px-5 pt-4 pb-3">
                 <DrawerClose asChild>
@@ -378,7 +531,9 @@ function PanelContent({
                     <ChevronLeftIcon className="size-5" />
                   </button>
                 </DrawerClose>
-                <DrawerTitle className="text-[15px] font-semibold">Notas</DrawerTitle>
+                <DrawerTitle className="text-[15px] font-semibold">
+                  Notas
+                </DrawerTitle>
                 <DrawerClose asChild>
                   <button
                     type="button"
@@ -388,7 +543,9 @@ function PanelContent({
                   </button>
                 </DrawerClose>
               </div>
-              <DrawerDescription className="sr-only">Editar notas del contacto</DrawerDescription>
+              <DrawerDescription className="sr-only">
+                Editar notas del contacto
+              </DrawerDescription>
               <div className="px-5 pt-2 pb-safe-or-6 flex flex-col gap-3">
                 <textarea
                   ref={drawerTextareaRef}
@@ -399,7 +556,10 @@ function PanelContent({
                 />
                 <button
                   type="button"
-                  onClick={() => { saveNotes(draft); setNotesDrawerOpen(false); }}
+                  onClick={() => {
+                    saveNotes(draft);
+                    setNotesDrawerOpen(false);
+                  }}
                   disabled={updateNotes.isPending}
                   className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground text-[15px] font-semibold transition-opacity disabled:opacity-50"
                 >
@@ -412,33 +572,60 @@ function PanelContent({
           <Separator />
 
           <div className="py-1">
-            <InfoRow icon={<UsersIcon />} label="Equipo asignado" value="Ninguno" />
+            <InfoRow
+              icon={<UsersIcon />}
+              label="Equipo asignado"
+              value="Ninguno"
+            />
             <InfoRow icon={<TagIcon />} label="Etiquetas" />
-            <InfoRow icon={<SlidersHorizontalIcon />} label="Variables" />
-            <InfoRow icon={<CalendarIcon />} label="Reservas" />
+            <InfoRow
+              icon={<StarIcon />}
+              label="Mensajes destacados"
+              value={starredItems.length > 0 ? String(starredItems.length) : "Ninguno"}
+              onClick={() => setView("starred")}
+            />
             <InfoRow
               icon={<ImageIcon />}
               label="Multimedia y docs"
-              onClick={() => { setMediaFilter("media"); setView("multimedia"); }}
+              onClick={() => {
+                setMediaFilter("media");
+                setView("multimedia");
+              }}
             />
 
             {previewMedia.length > 0 && (
               <button
                 type="button"
-                onClick={() => { setMediaFilter("media"); setView("multimedia"); }}
+                onClick={() => {
+                  setMediaFilter("media");
+                  setView("multimedia");
+                }}
                 className="grid w-full grid-cols-3 gap-1 px-4 pb-3"
               >
                 {previewMedia.map((m) => (
-                  <div key={m.id} className="relative aspect-square overflow-hidden rounded-xl bg-muted/40">
+                  <div
+                    key={m.id}
+                    className="relative aspect-square overflow-hidden rounded-xl bg-muted/40"
+                  >
                     {m.mediaType === "video" ? (
                       <>
-                        <video src={m.mediaUrl ?? ""} className="size-full object-cover" muted preload="metadata" />
+                        <video
+                          src={m.mediaUrl ?? ""}
+                          className="size-full object-cover"
+                          muted
+                          preload="metadata"
+                        />
                         <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                           <VideoIcon className="size-5 text-white drop-shadow" />
                         </div>
                       </>
                     ) : (
-                      <Image src={m.mediaUrl ?? ""} alt="" fill className="object-cover" />
+                      <Image
+                        src={m.mediaUrl ?? ""}
+                        alt=""
+                        fill
+                        className="object-cover"
+                      />
                     )}
                   </div>
                 ))}
@@ -449,8 +636,11 @@ function PanelContent({
           <Separator />
 
           <div className="py-1">
-            <InfoRow icon={<StarIcon />} label="Mensajes destacados" value="Ninguno" />
-            <InfoRow icon={<TimerIcon />} label="Mensajes temporales" value="Desactivado" />
+            <InfoRow
+              icon={<TimerIcon />}
+              label="Mensajes temporales"
+              value="Desactivado"
+            />
             <InfoRow icon={<BellIcon />} label="Silenciar mensajes" />
           </div>
 
@@ -461,28 +651,38 @@ function PanelContent({
               <InfoRow
                 icon={<LogOutIcon />}
                 label="Abandonar la conversación"
-                onClick={() => leaveConversation.mutate({ conversationId: conversation.id })}
+                onClick={() =>
+                  leaveConversation.mutate({ conversationId: conversation.id })
+                }
               />
             ) : (
               <InfoRow
                 icon={<LogInIcon />}
                 label="Unirte a la conversación"
-                onClick={() => joinConversation.mutate({ conversationId: conversation.id })}
+                onClick={() =>
+                  joinConversation.mutate({ conversationId: conversation.id })
+                }
               />
             )}
             <InfoRow
               icon={<BanIcon />}
               label={localBlocked ? "Desbloquear" : "Bloquear"}
-              onClick={isBlockPending ? undefined : () => {
-                setLocalBlocked((v) => !v);
-                toggleBlock();
-              }}
+              onClick={
+                isBlockPending
+                  ? undefined
+                  : () => {
+                      setLocalBlocked((v) => !v);
+                      toggleBlock();
+                    }
+              }
             />
             <InfoRow
               icon={<TrashIcon />}
               label="Eliminar chat"
               destructive
-              onClick={() => deleteConversation.mutate({ conversationId: conversation.id })}
+              onClick={() =>
+                deleteConversation.mutate({ conversationId: conversation.id })
+              }
             />
           </div>
         </ScrollArea>
@@ -491,7 +691,13 @@ function PanelContent({
   );
 }
 
-function MediaEmptyState({ icon, label }: { icon: React.ReactNode; label: string }) {
+function MediaEmptyState({
+  icon,
+  label,
+}: {
+  icon: React.ReactNode;
+  label: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-2 py-10 text-muted-foreground/40">
       <div className="[&>svg]:size-8">{icon}</div>
@@ -506,6 +712,8 @@ export function ChatDetails({
   open,
   onClose,
   onDeleteSuccess,
+  onNavigateToMessage,
+  onReplyToMessage,
 }: ChatDetailsProps) {
   const isMobile = useIsMobile();
 
@@ -514,12 +722,17 @@ export function ChatDetails({
       <Drawer open={open} onOpenChange={(v) => !v && onClose()}>
         <DrawerContent className="mt-0! h-dvh! max-h-dvh! rounded-none! p-0">
           <DrawerTitle className="sr-only">Contact Info</DrawerTitle>
-          <DrawerDescription className="sr-only">{conversation.name}</DrawerDescription>
-          <PanelContent key={conversation.id}
+          <DrawerDescription className="sr-only">
+            {conversation.name}
+          </DrawerDescription>
+          <PanelContent
+            key={conversation.id}
             conversation={conversation}
             stableKeyMap={stableKeyMap}
             onClose={onClose}
             onDeleteSuccess={onDeleteSuccess}
+            onNavigateToMessage={onNavigateToMessage}
+            onReplyToMessage={onReplyToMessage}
             mobile
           />
         </DrawerContent>
@@ -536,6 +749,8 @@ export function ChatDetails({
         stableKeyMap={stableKeyMap}
         onClose={onClose}
         onDeleteSuccess={onDeleteSuccess}
+        onNavigateToMessage={onNavigateToMessage}
+        onReplyToMessage={onReplyToMessage}
       />
     </div>
   );

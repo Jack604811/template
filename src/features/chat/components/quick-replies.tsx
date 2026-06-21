@@ -13,7 +13,7 @@ export function QuickReplies({ replies, onSelect }: QuickRepliesProps) {
           key={reply}
           type="button"
           onClick={() => onSelect(reply)}
-          className="inline-flex h-8 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          className="inline-flex h-8 shrink-0 items-center rounded-full bg-muted px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted/70"
         >
           {reply}
         </button>

@@ -135,6 +135,7 @@ export const chatRouter = createTRPCRouter({
         replyTo: m.replyTo,
         deletedAt: m.deletedAt,
         status: m.status,
+        starred: m.starred,
         reactions: reactionMap.get(m.id) ?? [] as { emoji: string; count: number; byMe: boolean }[],
       }));
     }),
@@ -710,6 +711,20 @@ export const chatRouter = createTRPCRouter({
           }),
         });
       }
+    }),
+
+  toggleStar: organizationProcedure
+    .input(z.object({ messageId: z.string(), starred: z.boolean() }))
+    .mutation(async ({ ctx, input }) => {
+      const result = await prisma.message.updateMany({
+        where: {
+          id: input.messageId,
+          conversation: { organizationId: ctx.organizationId },
+        },
+        data: { starred: input.starred },
+      });
+      if (result.count === 0) throw new Error("Message not found");
+      return { starred: input.starred };
     }),
 
   deleteConversation: organizationProcedure

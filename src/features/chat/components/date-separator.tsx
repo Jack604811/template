@@ -32,7 +32,7 @@ function formatDate(date: Date): string {
 export function DateSeparator({ date }: { date: Date }) {
   return (
     <div className="flex items-center justify-center py-3">
-      <span className="rounded-full bg-muted/80 px-3 py-1 text-[11px] font-medium capitalize text-muted-foreground shadow-sm backdrop-blur-sm">
+      <span className="rounded-full bg-black text-white px-3 py-1 text-[11px] font-medium capitalize shadow-sm dark:bg-white dark:text-black">
         {formatDate(date)}
       </span>
     </div>

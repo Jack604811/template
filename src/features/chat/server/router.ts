@@ -37,6 +37,57 @@ function buildWhatsAppPayload(
   replyToExternalId?: string,
 ) {
   const context = replyToExternalId ? { context: { message_id: replyToExternalId } } : {};
+
+  if (mediaType === "interactive_carousel") {
+    type CarouselCard = {
+      title?: string; description?: string; imageUrl?: string;
+      buttonText?: string; buttonUrl?: string;
+      quickReplies?: { id: string; title: string }[];
+    };
+    let cards: CarouselCard[] = [];
+    try {
+      const parsed = JSON.parse(mediaFilename ?? "{}") as { cards?: CarouselCard[] };
+      cards = parsed.cards ?? [];
+    } catch {}
+    return {
+      messaging_product: "whatsapp", to, type: "interactive",
+      interactive: {
+        type: "carousel",
+        body: { text: content },
+        action: {
+          cards: cards.map((card, i) => ({
+            card_index: i,
+            type: "cta_url",
+            header: {
+              type: "image",
+              image: { link: card.imageUrl ?? "" },
+            },
+            body: {
+              text: [card.title ? `*${card.title}*` : "", card.description ?? ""]
+                .filter(Boolean)
+                .join("\n\n"),
+            },
+            action: card.quickReplies?.length
+              ? {
+                  buttons: card.quickReplies.map((qr) => ({
+                    type: "quick_reply",
+                    quick_reply: { id: qr.id, title: qr.title },
+                  })),
+                }
+              : {
+                  name: "cta_url",
+                  parameters: {
+                    display_text: card.buttonText ?? "Open",
+                    url: card.buttonUrl ?? "",
+                  },
+                },
+          })),
+        },
+      },
+      ...context,
+    };
+  }
+
   if (!mediaUrl || !mediaType) {
     return { messaging_product: "whatsapp", to, type: "text", text: { body: content }, ...context };
   }
@@ -48,6 +99,29 @@ function buildWhatsAppPayload(
   }
   if (mediaType === "audio") {
     return { messaging_product: "whatsapp", to, type: "audio", audio: { link: mediaUrl }, ...context };
+  }
+  if (mediaType === "interactive_cta_url") {
+    let displayText = "Open";
+    let footer: string | undefined;
+    let headerImageUrl: string | undefined;
+    try {
+      const parsed = JSON.parse(mediaFilename ?? "{}") as {
+        displayText?: string;
+        footer?: string;
+        headerImageUrl?: string;
+      };
+      displayText = parsed.displayText ?? "Open";
+      footer = parsed.footer;
+      headerImageUrl = parsed.headerImageUrl;
+    } catch {}
+    const interactive: Record<string, unknown> = {
+      type: "cta_url",
+      body: { text: content },
+      action: { name: "cta_url", parameters: { display_text: displayText, url: mediaUrl } },
+    };
+    if (headerImageUrl) interactive.header = { type: "image", image: { link: headerImageUrl } };
+    if (footer) interactive.footer = { text: footer };
+    return { messaging_product: "whatsapp", to, type: "interactive", interactive, ...context };
   }
   return {
     messaging_product: "whatsapp", to, type: "document",
@@ -238,7 +312,9 @@ export const chatRouter = createTRPCRouter({
 
       if (!res.ok) {
         const err = await res.text();
-        throw new Error(`WhatsApp API error: ${err.slice(0, 200)}`);
+        console.error("[sendMessage] WhatsApp API error:", res.status, err);
+        console.error("[sendMessage] Payload:", JSON.stringify(waPayload));
+        throw new Error(`WhatsApp API error ${res.status}: ${err.slice(0, 400)}`);
       }
 
       const json = (await res.json()) as { messages?: Array<{ id: string }> };

@@ -346,6 +346,49 @@ function ContactBubble({ isUser }: { isUser: boolean }) {
   );
 }
 
+function CtaUrlBubble({ message }: { message: Message; isUser: boolean }) {
+  let displayText = "Open";
+  let footer: string | undefined;
+  let headerImageUrl: string | undefined;
+  try {
+    const parsed = JSON.parse(message.mediaFilename ?? "{}") as {
+      displayText?: string;
+      footer?: string;
+      headerImageUrl?: string;
+    };
+    displayText = parsed.displayText ?? "Open";
+    footer = parsed.footer;
+    headerImageUrl = parsed.headerImageUrl;
+  } catch {}
+
+  const buttonUrl = message.mediaUrl ?? "";
+  const bodyText = message.text && message.text !== "[interactive_cta_url]" ? message.text : "";
+
+  return (
+    <div className="w-64 bg-card text-card-foreground">
+      {headerImageUrl && (
+        <NextImage src={headerImageUrl} alt="" width={256} height={160} className="block h-40 w-full object-cover" unoptimized />
+      )}
+      <div className="px-3 pb-2 pt-2.5 space-y-0.5">
+        {bodyText && <p className="text-[13px] leading-snug text-foreground">{bodyText}</p>}
+        {footer && <p className="text-[11px] text-muted-foreground">{footer}</p>}
+      </div>
+      {buttonUrl && (
+        <a
+          href={buttonUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-center gap-1.5 border-t border-border/50 py-2.5 text-[13px] font-medium text-primary transition-colors hover:bg-muted/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ExternalLinkIcon className="size-3.5 shrink-0" />
+          {displayText}
+        </a>
+      )}
+    </div>
+  );
+}
+
 function StickerBubble({ message, isUser }: { message: Message; isUser: boolean }) {
   if (message.mediaUrl) {
     return <NextImage src={message.mediaUrl} alt="sticker" width={96} height={96} className="size-24 object-contain" unoptimized />;
@@ -358,6 +401,70 @@ function StickerBubble({ message, isUser }: { message: Message; isUser: boolean 
   );
 }
 
+// ─── Carousel ────────────────────────────────────────────────────────────────
+
+type CarouselCard = {
+  title?: string;
+  description?: string;
+  imageUrl?: string;
+  buttonText?: string;
+  buttonUrl?: string;
+  quickReplies?: { id: string; title: string }[];
+};
+
+function CarouselBubble({ message }: { message: Message; isUser: boolean }) {
+  let cards: CarouselCard[] = [];
+  try {
+    const parsed = JSON.parse(message.mediaFilename ?? "{}") as { cards?: CarouselCard[] };
+    cards = parsed.cards ?? [];
+  } catch {}
+
+  return (
+    <div className="w-72 overflow-hidden rounded-2xl bg-card">
+        <div className="flex gap-2 overflow-x-auto px-3 pb-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {cards.map((card, i) => (
+            <div key={`${card.title ?? ""}-${i}`} className="w-64 shrink-0 overflow-hidden rounded-xl border border-border/40 bg-background">
+              {card.imageUrl && (
+                <NextImage src={card.imageUrl} alt="" width={256} height={160} className="block h-40 w-full object-cover" unoptimized />
+              )}
+              <div className="px-3 pb-2 pt-2.5 space-y-0.5">
+                {card.title && (
+                  <p className="text-[13px] font-semibold leading-tight text-foreground">{card.title}</p>
+                )}
+                {card.description && (
+                  <p className="text-[11px] leading-snug text-muted-foreground">{card.description}</p>
+                )}
+              </div>
+              {card.quickReplies && card.quickReplies.length > 0 ? (
+                <div className="border-t border-border/40">
+                  {card.quickReplies.map((qr) => (
+                    <div
+                      key={qr.id}
+                      className="flex items-center justify-center border-b border-border/40 py-2 text-[13px] font-medium text-primary last:border-b-0"
+                    >
+                      {qr.title}
+                    </div>
+                  ))}
+                </div>
+              ) : card.buttonUrl ? (
+                <a
+                  href={card.buttonUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-1.5 border-t border-border/50 py-2.5 text-[13px] font-medium text-primary transition-colors hover:bg-muted/40"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ExternalLinkIcon className="size-3.5 shrink-0" />
+                  {card.buttonText ?? "Open"}
+                </a>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+  );
+}
+
 export function MessageContent({ message, isUser }: { message: Message; isUser: boolean }) {
   switch (message.mediaType) {
     case "image":    return <ImageBubble message={message} isUser={isUser} />;
@@ -367,8 +474,15 @@ export function MessageContent({ message, isUser }: { message: Message; isUser: 
     case "document": return <DocumentBubble message={message} isUser={isUser} />;
     case "location": return <LocationBubble message={message} isUser={isUser} />;
     case "contacts": return <ContactBubble isUser={isUser} />;
-    case "sticker":  return <StickerBubble message={message} isUser={isUser} />;
-    default:         return <span className="leading-relaxed">{message.text}</span>;
+    case "sticker":              return <StickerBubble message={message} isUser={isUser} />;
+    case "interactive_cta_url":  return <CtaUrlBubble message={message} isUser={isUser} />;
+    case "interactive_carousel": return <CarouselBubble message={message} isUser={isUser} />;
+    case "button":
+    case "interactive": {
+      const isPlaceholder = /^\[.*?\]$/.test(message.text?.trim() ?? "");
+      return <span className="leading-relaxed">{isPlaceholder ? "Button reply" : message.text}</span>;
+    }
+    default:                     return <span className="leading-relaxed">{message.text}</span>;
   }
 }
 
@@ -543,28 +657,30 @@ export function MessageBubble({
   onReply,
   onReact,
   onStar,
+  onReplyClick,
   hideActions = false,
-  bubbleMaxWidth = "max-w-[75%]",
 }: {
   message: Message;
   onReply?: (message: Message) => void;
   onReact?: (messageId: string, emoji: string) => void;
   onStar?: (messageId: string, starred: boolean) => void;
+  onReplyClick?: (replyId: string) => void;
   hideActions?: boolean;
-  bubbleMaxWidth?: string;
 }) {
   const isUser = message.role === "user";
   const type = message.mediaType ?? "";
-  const isNoPadding = ["image", "video", "location", "contacts"].includes(type);
-  const isNoBubble = type === "sticker";
+  const isNoPadding = ["image", "video", "location", "contacts", "interactive_cta_url"].includes(type);
+  const isNoBubble = type === "sticker" || type === "interactive_carousel";
   const isTimeOutside = type !== "sticker";
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuAsText, setMenuAsText] = useState(false);
   const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null);
   const bubbleRef = useRef<HTMLDivElement>(null);
+  const headerBubbleRef = useRef<HTMLDivElement>(null);
   const reactions = message.reactions?.filter((r) => r.count > 0) ?? [];
 
   function handleReply() {
-    onReply?.(message);
+    onReply?.(menuAsText ? { ...message, mediaType: null } : message);
   }
 
   function handleReact(emoji: string) {
@@ -575,30 +691,79 @@ export function MessageBubble({
     if (bubbleRef.current) {
       setAnchorRect(bubbleRef.current.getBoundingClientRect());
     }
+    setMenuAsText(false);
     setMenuOpen(true);
   }
+
+  function openMenuFromHeader() {
+    if (headerBubbleRef.current) {
+      setAnchorRect(headerBubbleRef.current.getBoundingClientRect());
+    }
+    setMenuAsText(true);
+    setMenuOpen(true);
+  }
+
+  const contextMessage = menuAsText ? { ...message, mediaType: null } : message;
 
   return (
     <>
       <MessageContextMenu
-        message={message}
+        message={contextMessage}
         isUser={isUser}
         open={menuOpen}
         anchorRect={anchorRect}
-        onClose={() => setMenuOpen(false)}
+        onClose={() => { setMenuOpen(false); setMenuAsText(false); }}
         onReply={handleReply}
         onReact={handleReact}
         onStar={() => onStar?.(message.id, !message.starred)}
       />
 
-      <SwipeableRow onReply={handleReply} onLongPress={openMenu}>
+      <SwipeableRow onReply={handleReply} onLongPress={type === "interactive_carousel" ? openMenuFromHeader : openMenu}>
         {(_swipeProgress) => (
-          <div className={cn("flex flex-col", isUser ? "items-end" : "items-start")}>
+          <div className={cn("flex flex-col gap-1.5", isUser ? "items-end" : "items-start")}>
+            {type === "interactive_carousel" && message.text && message.text !== "[interactive_carousel]" && (
+              <div className={cn("group flex items-center gap-1.5", isUser ? "flex-row-reverse" : "flex-row")}>
+                <div
+                  ref={headerBubbleRef}
+                  className={cn(
+                    "rounded-2xl px-4 py-2.5 text-sm",
+                    isUser ? "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm bg-muted text-foreground",
+                  )}
+                >
+                  <span className="leading-relaxed">{message.text}</span>
+                </div>
+                <MessageActions onOpen={openMenuFromHeader} />
+              </div>
+            )}
+            {type === "interactive_carousel" && reactions.length > 0 && (
+              <div className={cn(
+                "mt-1 flex flex-wrap gap-1",
+                isUser ? "mr-1 justify-end" : "justify-start",
+              )}>
+                {reactions.map((r) => (
+                  <button
+                    key={r.emoji}
+                    type="button"
+                    onClick={() => handleReact(r.emoji)}
+                    className={cn(
+                      "flex items-center gap-1 rounded-full border px-2 py-0.5 text-[13px] leading-none transition-colors",
+                      r.byMe
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border/60 bg-muted/60 text-foreground hover:bg-muted",
+                    )}
+                  >
+                    <span>{r.emoji}</span>
+                    {r.count > 1 && <span className="text-[11px] font-medium">{r.count}</span>}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className={cn("group flex items-center gap-1.5", isUser ? "flex-row-reverse" : "flex-row")}>
               <div
                 ref={bubbleRef}
                 className={cn(
-                  cn("relative text-sm", bubbleMaxWidth),
+                  "relative w-fit text-sm",
+                  (!type || type === "button" || type === "interactive") && "max-w-[280px]",
                   !isNoBubble && "rounded-2xl",
                   isNoPadding && "overflow-hidden p-0",
                   !isNoPadding && !isNoBubble && "px-4 py-2.5",
@@ -609,12 +774,19 @@ export function MessageBubble({
                 )}
               >
                 {message.replyTo && (
-                  <RepliedMessage reply={message.replyTo} isUser={isUser} />
+                  <RepliedMessage
+                    reply={message.replyTo}
+                    isUser={isUser}
+                    payload={message.mediaType === "button" ? (() => {
+                      try { return (JSON.parse(message.mediaFilename ?? "{}") as { payload?: string }).payload; } catch { return undefined; }
+                    })() : undefined}
+                    onClick={onReplyClick && message.replyTo ? () => onReplyClick(message.replyTo?.id ?? "") : undefined}
+                  />
                 )}
                 <MessageContent message={message} isUser={isUser} />
                 {!isTimeOutside && (
                   <span className={cn(
-                    "ml-2 inline-flex items-center gap-0.5 align-bottom text-[10px] leading-none",
+                    "ml-8 inline-flex items-center gap-0.5 align-bottom text-[10px] leading-none",
                     isUser ? "text-primary-foreground/50" : "text-muted-foreground/60",
                   )}>
                     {formatTime(message.createdAt)}
@@ -623,10 +795,10 @@ export function MessageBubble({
                 )}
               </div>
 
-              <MessageActions onOpen={openMenu} />
+              {type !== "interactive_carousel" && <MessageActions onOpen={openMenu} />}
             </div>
 
-            {reactions.length > 0 && (
+            {reactions.length > 0 && type !== "interactive_carousel" && (
               <div className={cn(
                 "mt-1 flex flex-wrap gap-1",
                 isUser ? "mr-1 justify-end" : "justify-start",

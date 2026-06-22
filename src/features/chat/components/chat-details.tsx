@@ -331,36 +331,27 @@ function PanelContent({
               };
               return (
                 <div key={m.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onNavigateToMessage?.(m.id);
-                      if (mobile) onClose();
-                    }}
-                    className="flex w-full items-center justify-between px-4 pt-3 pb-1 transition-colors hover:bg-muted/40"
-                  >
-                    <span
-                      className={cn(
-                        "text-[12px] font-semibold",
-                        isUser ? "text-primary" : "text-muted-foreground",
-                      )}
-                    >
+                  <div className="flex items-center justify-between px-4 pt-3 pb-1">
+                    <span className={cn("text-[12px] font-semibold", isUser ? "text-primary" : "text-muted-foreground")}>
                       {senderName}
                     </span>
                     <span className="text-[11px] text-muted-foreground">
                       {dateStr} · {timeStr}
                     </span>
-                  </button>
-                  <div className="px-4">
+                  </div>
+                  <button
+                    type="button"
+                    className="w-full px-4 text-left"
+                    onClick={() => { onNavigateToMessage?.(m.id); if (mobile) onClose(); }}
+                  >
                     <MessageBubble
                       message={bubbleMsg}
                       hideActions
-                      bubbleMaxWidth="max-w-[70%]"
                       onStar={handleStar}
                       onReact={handleReact}
                       onReply={handleReply}
                     />
-                  </div>
+                  </button>
                   <Separator className="mt-2" />
                 </div>
               );

@@ -65,20 +65,6 @@ export function MessageContextMenu({
     ? Math.max(PAD, anchorRect.right - emojiRowW)
     : Math.max(PAD, Math.min(anchorRect.left, vw - emojiRowW - PAD));
 
-  // ─── Action list ─────────────────────────────────────────────────────────────
-  const isMedia = !!message.mediaType && !["contacts", "location", "sticker"].includes(message.mediaType);
-  const actionCount = 2 + (!message.mediaType ? 1 : 0) + (isMedia && !!message.mediaUrl ? 1 : 0);
-  const estimatedActionH = actionCount * 52 + 2;
-
-  let actionTop = anchorRect.bottom + 8;
-  if (actionTop + estimatedActionH > vh - PAD) {
-    actionTop = Math.max(PAD, anchorRect.top - estimatedActionH - 8);
-  }
-
-  const actionLeft = isUser
-    ? Math.max(PAD, anchorRect.right - ACTION_W)
-    : Math.max(PAD, Math.min(anchorRect.left, vw - ACTION_W - PAD));
-
   // ─── Handlers ─────────────────────────────────────────────────────────────────
   function handleReply() {
     onClose();
@@ -107,12 +93,31 @@ export function MessageContextMenu({
     }
   }
 
-  const actions: { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean; active?: boolean }[] = [
-    { label: "Responder", icon: CornerUpLeftIcon, onClick: handleReply },
-    ...(!message.mediaType && message.text ? [{ label: "Copiar", icon: CopyIcon, onClick: handleCopy }] : []),
-    { label: message.starred ? "Quitar destacado" : "Destacar", icon: StarIcon, active: message.starred, onClick: () => { onStar(); onClose(); } },
-    ...(isMedia && message.mediaUrl ? [{ label: "Descargar", icon: DownloadIcon, onClick: handleDownload }] : []),
-  ];
+  // ─── Action list ─────────────────────────────────────────────────────────────
+  type Action = { label: string; icon: React.ElementType; onClick: () => void; danger?: boolean; active?: boolean };
+  const isMedia = !!message.mediaType && !["contacts", "location", "sticker"].includes(message.mediaType);
+  const actions: Action[] = [];
+  if (message.mediaType !== "interactive_carousel") {
+    actions.push({ label: "Responder", icon: CornerUpLeftIcon, onClick: handleReply });
+  }
+  if (!message.mediaType && message.text) {
+    actions.push({ label: "Copiar", icon: CopyIcon, onClick: handleCopy });
+  }
+  actions.push({ label: message.starred ? "Quitar destacado" : "Destacar", icon: StarIcon, active: message.starred, onClick: () => { onStar(); onClose(); } });
+  if (isMedia && message.mediaUrl) {
+    actions.push({ label: "Descargar", icon: DownloadIcon, onClick: handleDownload });
+  }
+
+  const estimatedActionH = actions.length * 52 + 2;
+
+  let actionTop = anchorRect.bottom + 8;
+  if (actionTop + estimatedActionH > vh - PAD) {
+    actionTop = Math.max(PAD, anchorRect.top - estimatedActionH - 8);
+  }
+
+  const actionLeft = isUser
+    ? Math.max(PAD, anchorRect.right - ACTION_W)
+    : Math.max(PAD, Math.min(anchorRect.left, vw - ACTION_W - PAD));
 
   const ease = "cubic-bezier(0.4,0,0.2,1)";
   const dur = "0.2s";
@@ -147,13 +152,21 @@ export function MessageContextMenu({
             isUser
               ? "rounded-br-sm bg-primary text-primary-foreground"
               : "rounded-bl-sm bg-muted text-foreground",
-            message.mediaType === "sticker" && "bg-transparent",
-            ["image", "video", "location", "contacts"].includes(message.mediaType ?? "")
+            (message.mediaType === "sticker" || message.mediaType === "interactive_carousel") && "bg-transparent",
+            ["image", "video", "location", "contacts", "interactive_cta_url"].includes(message.mediaType ?? "")
               ? "overflow-hidden p-0"
-              : message.mediaType !== "sticker" && "px-4 py-2.5",
+              : (message.mediaType !== "sticker" && message.mediaType !== "interactive_carousel") && "px-4 py-2.5",
           )}
         >
-          {message.replyTo && <RepliedMessage reply={message.replyTo} isUser={isUser} />}
+          {message.replyTo && (
+            <RepliedMessage
+              reply={message.replyTo}
+              isUser={isUser}
+              payload={message.mediaType === "button" ? (() => {
+                try { return (JSON.parse(message.mediaFilename ?? "{}") as { payload?: string }).payload; } catch { return undefined; }
+              })() : undefined}
+            />
+          )}
           <MessageContent message={message} isUser={isUser} />
         </div>
       </div>

@@ -316,10 +316,20 @@ async function triggerMatchingWorkflows(
   const messageId = whatsapp.messageId as string;
   const msgType = whatsapp.type as string;
   const caption = whatsapp.caption as string | undefined;
+  const waButton = whatsapp.button as { text?: string; payload?: string } | undefined;
+  const waInteractive = whatsapp.interactive as { type?: string; button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } } | undefined;
+  const interactiveReplyId = waInteractive?.button_reply?.id ?? waInteractive?.list_reply?.id;
+  const interactiveReplyTitle = waInteractive?.button_reply?.title ?? waInteractive?.list_reply?.title;
+  const isButtonReply = msgType === "button" || (msgType === "interactive" && !!interactiveReplyTitle);
+  const buttonPayloadId = msgType === "button" ? waButton?.payload : interactiveReplyId;
   const content = msgType === "text"
     ? (whatsapp.text as string)
+    : msgType === "button"
+    ? (waButton?.text ?? "[button]")
+    : interactiveReplyTitle
+    ? interactiveReplyTitle
     : (caption ?? `[${msgType}]`);
-  const mediaType = msgType !== "text" ? msgType : null;
+  const mediaType = msgType === "text" ? null : isButtonReply ? "button" : msgType;
   const mediaId = whatsapp.mediaId as string | undefined;
   const mimeType = whatsapp.mimeType as string | undefined;
   const mediaFilename = whatsapp.mediaFilename as string | undefined;
@@ -396,7 +406,9 @@ async function triggerMatchingWorkflows(
           mediaType,
           mediaId,
           mediaUrl,
-          mediaFilename: resolvedFilename,
+          mediaFilename: buttonPayloadId
+            ? JSON.stringify({ payload: buttonPayloadId })
+            : resolvedFilename,
           replyToId,
           timestamp,
         },

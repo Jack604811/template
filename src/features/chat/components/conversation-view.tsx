@@ -39,21 +39,104 @@ import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
 import { SystemMessage } from "./system-message";
 
-const CHAT_QUICK_REPLIES = [
-  "Hola 👋 ¿En qué te podemos ayudar hoy?",
-  "Claro, dame un momento para revisarlo.",
-  "¿Me puedes compartir tu número de pedido?",
-  "Ya quedó registrado, en breve te confirmamos.",
-  "Disculpa la demora, lo estamos gestionando.",
-  "Te paso con un especialista ahora mismo.",
-  "¿A qué correo o número te enviamos la confirmación?",
-  "¡Listo! Quedó resuelto. Que tengas un excelente día 😊",
-];
 
-function ConnectedQuickReplies() {
+function ConnectedQuickReplies({ onSendPayload }: { onSendPayload: (payload: SendPayload) => void }) {
   const { textInput } = usePromptInputController();
   return (
-    <QuickReplies replies={CHAT_QUICK_REPLIES} onSelect={textInput.setInput} />
+    <QuickReplies
+      replies={[]}
+      onSelect={textInput.setInput}
+      actions={[
+        {
+          label: "⊞ QR Carousel",
+          onSelect: () =>
+            onSendPayload({
+              text: "Here are our latest arrivals, each under $25:",
+              mediaType: "interactive_carousel",
+              mediaFilename: JSON.stringify({
+                cards: [
+                  {
+                    title: "Blue Echeveria",
+                    description: "A rosette-shaped succulent with powdery blue leaves.",
+                    imageUrl: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&q=80",
+                    quickReplies: [
+                      { id: "learn-blue-echeveria", title: "Learn more" },
+                      { id: "fav-blue-echeveria", title: "Add to favorites" },
+                    ],
+                  },
+                  {
+                    title: "Zebra Haworthia",
+                    description: "Striking white stripes on deep green leaves.",
+                    imageUrl: "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=400&q=80",
+                    quickReplies: [
+                      { id: "learn-zebra-haworthia", title: "Learn more" },
+                      { id: "fav-zebra-haworthia", title: "Add to favorites" },
+                    ],
+                  },
+                  {
+                    title: "Panda Plant",
+                    description: "Soft, fuzzy leaves with chocolate-brown edges.",
+                    imageUrl: "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?w=400&q=80",
+                    quickReplies: [
+                      { id: "learn-panda-plant", title: "Learn more" },
+                      { id: "fav-panda-plant", title: "Add to favorites" },
+                    ],
+                  },
+                ],
+              }),
+            }),
+        },
+        {
+          label: "⊞ Carousel",
+          onSelect: () =>
+            onSendPayload({
+              text: "Here are our latest arrivals, each under $25:",
+              mediaType: "interactive_carousel",
+              mediaFilename: JSON.stringify({
+                cards: [
+                  {
+                    title: "Blue Echeveria",
+                    description: "A rosette-shaped succulent with powdery blue leaves.",
+                    imageUrl: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&q=80",
+                    buttonText: "Buy now",
+                    buttonUrl: "https://example.com/blue-echeveria",
+                  },
+                  {
+                    title: "Zebra Haworthia",
+                    description: "Striking white stripes on deep green leaves.",
+                    imageUrl: "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=400&q=80",
+                    buttonText: "Buy now",
+                    buttonUrl: "https://example.com/zebra-haworthia",
+                  },
+                  {
+                    title: "Panda Plant",
+                    description: "Soft, fuzzy leaves with chocolate-brown edges.",
+                    imageUrl: "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?w=400&q=80",
+                    buttonText: "Buy now",
+                    buttonUrl: "https://example.com/panda-plant",
+                  },
+                ],
+              }),
+            }),
+        },
+        {
+          label: "↗ CTA URL",
+          onSelect: () =>
+            onSendPayload({
+              text: "Tap the button below to see available dates.",
+              mediaType: "interactive_cta_url",
+              mediaUrl:
+                "https://www.luckyshrub.com?clickID=kqDGWd24Q5TRwoEQTICY7W1JKoXvaZOXWAS7h1P76s0R7Paec4",
+              mediaFilename: JSON.stringify({
+                displayText: "See Dates",
+                footer: "Dates subject to change.",
+                headerImageUrl:
+                  "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&q=80",
+              }),
+            }),
+        },
+      ]}
+    />
   );
 }
 
@@ -549,6 +632,10 @@ export function ConversationView({
                         onReply={handleReply}
                         onReact={handleReact}
                         onStar={handleStar}
+                        onReplyClick={(replyId) => {
+                          const el = document.querySelector(`[data-message-id="${replyId}"]`);
+                          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
                       />
                     )}
                   </div>
@@ -563,7 +650,7 @@ export function ConversationView({
       {/* input */}
       <div>
         <PromptInputProvider>
-          <ConnectedQuickReplies />
+          <ConnectedQuickReplies onSendPayload={handleSend} />
           <MessageInput
             conversationId={conversation.id}
             credentialId={conversation.credentialId}

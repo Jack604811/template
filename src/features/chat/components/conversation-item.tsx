@@ -33,14 +33,14 @@ export function ConversationItem({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
+        "flex w-full items-start gap-3 px-4 py-3 text-left transition-colors",
         selected ? "bg-muted" : "hover:bg-muted/50",
       )}
     >
       <div className="relative shrink-0">
-        <Avatar className="size-10">
+        <Avatar className="size-12">
           <AvatarFallback
-            className="text-[15px] font-semibold text-white"
+            className="text-[17px] font-semibold text-white"
             style={getAvatarStyle(name)}
           >
             {initials}
@@ -54,7 +54,7 @@ export function ConversationItem({
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[15px] font-semibold text-foreground">{name}</p>
+            <p className="truncate text-[16px] font-semibold text-foreground">{name}</p>
           </div>
           <span className="shrink-0 text-[11px] text-muted-foreground">
             {timeAgo(lastMessageAt)}

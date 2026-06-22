@@ -1,6 +1,7 @@
 "use client";
 
-import { FileIcon, ImageIcon, MicIcon, VideoIcon } from "lucide-react";
+import { CameraIcon, FileIcon, ImageIcon, MicIcon, VideoIcon } from "lucide-react";
+import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 
 export interface ReplyTarget {
@@ -13,17 +14,39 @@ export interface ReplyTarget {
   mediaFilename: string | null;
 }
 
-function mediaLabel(mediaType: string | null, mediaFilename: string | null): string {
+type ReplyPreview = { label: string; subtitle?: string; thumbUrl?: string };
+
+function getReplyPreview(mediaType: string | null, mediaFilename: string | null, text: string, payload?: string): ReplyPreview {
   switch (mediaType) {
-    case "image":    return "Foto";
-    case "video":    return "Video";
+    case "image":    return { label: "Foto" };
+    case "video":    return { label: "Video" };
     case "audio":
-    case "voice":    return "Mensaje de voz";
-    case "document": return mediaFilename ?? "Documento";
-    case "sticker":  return "Sticker";
-    case "location": return "Ubicación";
-    case "contacts": return "Contacto";
-    default:         return "";
+    case "voice":    return { label: "Mensaje de voz" };
+    case "document": return { label: mediaFilename ?? "Documento" };
+    case "sticker":  return { label: "Sticker" };
+    case "location": return { label: "Ubicación" };
+    case "contacts": return { label: "Contacto" };
+    case "interactive_cta_url": return { label: text || "Enlace" };
+    case "interactive_carousel": {
+      try {
+        const parsed = JSON.parse(mediaFilename ?? "{}") as {
+          cards?: { title?: string; description?: string; imageUrl?: string; quickReplies?: { id: string }[]; buttonText?: string; buttonUrl?: string }[];
+        };
+        let card = parsed.cards?.[0];
+        if (payload && parsed.cards) {
+          const matched = parsed.cards.find((c) => c.quickReplies?.some((qr) => qr.id === payload));
+          if (matched) card = matched;
+        }
+        return {
+          label: card?.title ?? "Carrusel",
+          subtitle: card?.description,
+          thumbUrl: card?.imageUrl,
+        };
+      } catch {
+        return { label: "Carrusel" };
+      }
+    }
+    default: return { label: text || "" };
   }
 }
 
@@ -33,6 +56,9 @@ function MediaIcon({ mediaType }: { mediaType: string }) {
     case "video":    return <VideoIcon className="size-3 shrink-0" />;
     case "audio":
     case "voice":    return <MicIcon className="size-3 shrink-0" />;
+    case "interactive_carousel": return <CameraIcon className="size-3 shrink-0" />;
+    case "button":
+    case "interactive": return null;
     default:         return <FileIcon className="size-3 shrink-0" />;
   }
 }
@@ -40,56 +66,60 @@ function MediaIcon({ mediaType }: { mediaType: string }) {
 interface RepliedMessageProps {
   reply: ReplyTarget;
   isUser: boolean;
+  payload?: string;
   onClick?: () => void;
 }
 
-export function RepliedMessage({ reply, isUser, onClick }: RepliedMessageProps) {
+export function RepliedMessage({ reply, isUser, payload, onClick }: RepliedMessageProps) {
   const hasMedia = !!reply.mediaType;
-  const label = hasMedia ? mediaLabel(reply.mediaType, reply.mediaFilename) : reply.text;
-  const isMediaWithThumb = (reply.mediaType === "image" || reply.mediaType === "video") && reply.mediaUrl;
+  const { label, subtitle, thumbUrl: previewThumb } = getReplyPreview(reply.mediaType, reply.mediaFilename, reply.text, payload);
+  const imageThumb = (reply.mediaType === "image" || reply.mediaType === "video") ? reply.mediaUrl : null;
+  const thumbUrl = imageThumb ?? previewThumb ?? null;
 
+  const Comp = onClick ? "button" : "div";
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Comp
+      {...(onClick ? { type: "button" as const, onClick } : {})}
       className={cn(
-        "mb-1.5 flex w-full min-w-0 items-stretch gap-2 overflow-hidden rounded-xl text-left transition-opacity hover:opacity-80",
+        "mb-1.5 flex w-full min-w-0 items-stretch gap-2 overflow-hidden rounded-xl text-left",
+        onClick && "transition-opacity hover:opacity-80",
         isUser ? "bg-black/15" : "bg-foreground/8",
       )}
     >
       {/* Accent bar */}
-      <div className={cn(
-        "w-[3px] shrink-0 rounded-full",
-        isUser ? "bg-primary-foreground/70" : "bg-primary",
-      )} />
+      <div className={cn("w-[3px] shrink-0 rounded-full", isUser ? "bg-primary-foreground/70" : "bg-primary")} />
 
       {/* Content */}
-      <div className="min-w-0 flex-1 py-2 pr-2">
+      <div className="min-w-0 flex-1 py-2.5 pr-2 flex flex-col justify-between gap-3">
         <div className={cn(
           "flex items-center gap-1 text-[12px] leading-snug",
           isUser ? "text-primary-foreground/60" : "text-muted-foreground",
         )}>
-          {hasMedia && <MediaIcon mediaType={reply.mediaType!} />}
-          <span className="truncate">{label || ""}</span>
+          {hasMedia && reply.mediaType && <MediaIcon mediaType={reply.mediaType} />}
+          <span className="truncate font-medium">{label}</span>
         </div>
+        {subtitle && (
+          <p className={cn(
+            "line-clamp-2 text-[11px] leading-snug",
+            isUser ? "text-primary-foreground/50" : "text-muted-foreground/70",
+          )}>
+            {subtitle}
+          </p>
+        )}
       </div>
 
-      {/* Thumbnail for image/video */}
-      {isMediaWithThumb && (
-        <div className="relative size-12 shrink-0 overflow-hidden rounded-r-xl">
+      {/* Thumbnail */}
+      {thumbUrl && (
+        <div className="relative w-14 shrink-0 self-stretch overflow-hidden rounded-r-xl">
           {reply.mediaType === "video" ? (
-            <video
-              src={reply.mediaUrl!}
-              className="size-full object-cover"
-              muted
-              preload="metadata"
-            />
+            <video src={thumbUrl} className="size-full object-cover" muted preload="metadata">
+              <track kind="captions" />
+            </video>
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={reply.mediaUrl!} alt="" className="size-full object-cover" />
+            <NextImage src={thumbUrl} alt="" width={56} height={56} className="size-full object-cover" unoptimized />
           )}
         </div>
       )}
-    </button>
+    </Comp>
   );
 }

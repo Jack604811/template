@@ -19,6 +19,7 @@
     "hooks": "@/hooks"
   },
   "registries": {
-    "@blocks": "https://blocks.so/r/{name}.json"
+    "@blocks": "https://blocks.so/r/{name}.json",
+    "@aicanvas": "https://aicanvas.me/r/{name}.json"
   }
 }

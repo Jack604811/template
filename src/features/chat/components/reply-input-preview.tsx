@@ -4,7 +4,7 @@ import { FileIcon, ImageIcon, MicIcon, VideoIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { ReplyTarget } from "./replied-message";
 
-function mediaLabel(mediaType: string | null, mediaFilename: string | null): string {
+function mediaLabel(mediaType: string | null, mediaFilename: string | null, text: string): string {
   switch (mediaType) {
     case "image":    return "Foto";
     case "video":    return "Video";
@@ -14,6 +14,10 @@ function mediaLabel(mediaType: string | null, mediaFilename: string | null): str
     case "sticker":  return "Sticker";
     case "location": return "Ubicación";
     case "contacts": return "Contacto";
+    case "button":
+    case "interactive":
+    case "interactive_carousel":
+    case "interactive_cta_url": return text;
     default:         return "";
   }
 }
@@ -24,6 +28,10 @@ function MediaIcon({ mediaType }: { mediaType: string }) {
     case "video":    return <VideoIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     case "audio":
     case "voice":    return <MicIcon className="size-3.5 shrink-0 text-muted-foreground" />;
+    case "button":
+    case "interactive":
+    case "interactive_carousel":
+    case "interactive_cta_url": return null;
     default:         return <FileIcon className="size-3.5 shrink-0 text-muted-foreground" />;
   }
 }
@@ -36,7 +44,7 @@ interface ReplyInputPreviewProps {
 export function ReplyInputPreview({ reply, onCancel }: ReplyInputPreviewProps) {
   const hasMedia = !!reply.mediaType;
   const isMediaWithThumb = (reply.mediaType === "image" || reply.mediaType === "video") && reply.mediaUrl;
-  const label = hasMedia ? mediaLabel(reply.mediaType, reply.mediaFilename) : reply.text;
+  const label = hasMedia ? mediaLabel(reply.mediaType, reply.mediaFilename, reply.text) : reply.text;
 
   return (
     <div className={cn(

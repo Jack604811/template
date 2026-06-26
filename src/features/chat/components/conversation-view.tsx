@@ -206,7 +206,7 @@ export function ConversationView({
   const { messagesQueryOptions, prepareImplicitJoin, confirmImplicitJoin } =
     useConversationParticipant(conversation, stableKeyMap);
 
-  const { data: rawMessages = [] } = useQuery({
+  const { data: rawMessages = [], isSuccess: messagesReady } = useQuery({
     ...messagesQueryOptions,
     enabled: !!conversation,
     refetchInterval: () =>
@@ -573,7 +573,7 @@ export function ConversationView({
 
       {/* messages */}
       <div className="overflow-x-hidden overflow-y-hidden">
-        <Conversation className="h-full">
+        {messagesReady && <Conversation key={conversation.id} className="h-full">
           <ConversationContent className="gap-3 px-4 py-4">
             {allMessages.length === 0 ? (
               <ConversationEmptyState>
@@ -644,7 +644,7 @@ export function ConversationView({
             )}
           </ConversationContent>
           <ConversationScrollButton />
-        </Conversation>
+        </Conversation>}
       </div>
 
       {/* input */}

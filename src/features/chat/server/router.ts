@@ -155,6 +155,7 @@ export const chatRouter = createTRPCRouter({
             : {}),
           ...(joined ? { participants: { some: { userId: ctx.auth.user.id } } } : {}),
         },
+        include: { tags: { select: { tagId: true } } },
         orderBy: { lastMessageAt: "desc" },
         take: 100,
       });
@@ -801,6 +802,108 @@ export const chatRouter = createTRPCRouter({
       });
       if (result.count === 0) throw new Error("Message not found");
       return { starred: input.starred };
+    }),
+
+  getTags: organizationProcedure.query(async ({ ctx }) => {
+    await prisma.conversationTag.updateMany({
+      where: { organizationId: ctx.organizationId, createdById: null },
+      data: { createdById: ctx.auth.user.id },
+    });
+    return prisma.conversationTag.findMany({
+      where: { organizationId: ctx.organizationId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: { _count: { select: { conversations: true } } },
+    });
+  }),
+
+  createTag: organizationProcedure
+    .input(z.object({ name: z.string().min(1).max(50), color: z.string().min(1) }))
+    .mutation(async ({ ctx, input }) => {
+      const last = await prisma.conversationTag.findFirst({
+        where: { organizationId: ctx.organizationId },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      });
+      return prisma.conversationTag.create({
+        data: {
+          organizationId: ctx.organizationId,
+          name: input.name,
+          color: input.color,
+          sortOrder: (last?.sortOrder ?? -1) + 1,
+          createdById: ctx.auth.user.id,
+        },
+        include: { createdBy: { select: { name: true, email: true } } },
+      });
+    }),
+
+  updateTag: organizationProcedure
+    .input(z.object({ tagId: z.string(), name: z.string().min(1).max(50).optional(), color: z.string().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      const { tagId, ...data } = input;
+      return prisma.conversationTag.updateMany({
+        where: { id: tagId, organizationId: ctx.organizationId },
+        data,
+      });
+    }),
+
+  deleteTag: organizationProcedure
+    .input(z.object({ tagId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.conversationTag.deleteMany({
+        where: { id: input.tagId, organizationId: ctx.organizationId },
+      });
+    }),
+
+  reorderTags: organizationProcedure
+    .input(z.object({ ids: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.$transaction(
+        input.ids.map((id, index) =>
+          prisma.conversationTag.updateMany({
+            where: { id, organizationId: ctx.organizationId },
+            data: { sortOrder: index },
+          }),
+        ),
+      );
+    }),
+
+  getConversationTags: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const assignments = await prisma.conversationTagAssignment.findMany({
+        where: {
+          conversationId: input.conversationId,
+          conversation: { organizationId: ctx.organizationId },
+        },
+        include: { tag: true },
+      });
+      return assignments.map((a) => a.tag);
+    }),
+
+  addTagToConversation: organizationProcedure
+    .input(z.object({ conversationId: z.string(), tagId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const tag = await prisma.conversationTag.findFirst({
+        where: { id: input.tagId, organizationId: ctx.organizationId },
+      });
+      if (!tag) throw new Error("Tag not found");
+      await prisma.conversationTagAssignment.upsert({
+        where: { conversationId_tagId: { conversationId: input.conversationId, tagId: input.tagId } },
+        create: { conversationId: input.conversationId, tagId: input.tagId },
+        update: {},
+      });
+    }),
+
+  removeTagFromConversation: organizationProcedure
+    .input(z.object({ conversationId: z.string(), tagId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.conversationTagAssignment.deleteMany({
+        where: {
+          conversationId: input.conversationId,
+          tagId: input.tagId,
+          conversation: { organizationId: ctx.organizationId },
+        },
+      });
     }),
 
   deleteConversation: organizationProcedure

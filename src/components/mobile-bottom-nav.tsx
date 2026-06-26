@@ -1,6 +1,6 @@
 "use client";
 
-import { Briefcase, CalendarDots, ChatCircle, Gear, House } from "@phosphor-icons/react";
+import { CalendarDots, ChatCircle, Database, Gear, House } from "@phosphor-icons/react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -10,11 +10,11 @@ const TABS = [
   { title: "Home",     icon: House,         url: "/",         color: "#3A86FF" },
   { title: "Reservas", icon: CalendarDots,  url: "/bookings", color: "#FF7B54" },
   { title: "Chat",     icon: ChatCircle,    url: "/chat",     color: "#06D6A0" },
-  { title: "Services", icon: Briefcase,     url: "/services", color: "#FF5C8A" },
+  { title: "CMS",      icon: Database,       url: "/cms",      color: "#FF5C8A" },
   { title: "Ajustes",  icon: Gear,          url: "/settings", color: "#B388FF" },
 ];
 
-const MAIN_PATHS = new Set(["/", "/bookings", "/chat", "/services", "/settings"]);
+const MAIN_PATHS = new Set(["/", "/bookings", "/chat", "/cms", "/settings"]);
 
 function MobileBottomNavInner() {
   const pathname = usePathname();

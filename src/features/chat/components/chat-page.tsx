@@ -35,6 +35,7 @@ const chatParams = {
   id: parseAsString,
   filter: parseAsString.withDefault("all"),
   search: parseAsString.withDefault(""),
+  tagId: parseAsString,
 };
 
 export function ChatPage() {
@@ -52,6 +53,15 @@ export function ChatPage() {
     setScrollToMessageId(messageId);
     setTimeout(() => setScrollToMessageId(null), 1000);
   }
+
+  const { data: rawOrgTags = [] } = useQuery(trpc.chat.getTags.queryOptions());
+  const orgTags = rawOrgTags.map((t) => ({
+    id: t.id,
+    name: t.name,
+    color: t.color,
+    createdAt: t.createdAt,
+    conversationCount: t._count.conversations,
+  }));
 
   const { data: rawConversations = [] } = useQuery({
     ...trpc.chat.getConversations.queryOptions({
@@ -75,6 +85,7 @@ export function ChatPage() {
       blocked: c.blocked,
       notes: c.notes,
       credentialId: c.credentialId,
+      tagIds: c.tags.map((t) => t.tagId),
     };
   });
 
@@ -130,9 +141,12 @@ export function ChatPage() {
           selectedId={params.id}
           filter={params.filter as ChatFilter}
           search={params.search}
+          tagId={params.tagId ?? null}
+          tags={orgTags}
           onSelect={handleSelect}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
+          onTagChange={(tagId) => setParams({ tagId })}
         />
       </div>
     );
@@ -146,9 +160,12 @@ export function ChatPage() {
           selectedId={params.id}
           filter={params.filter as ChatFilter}
           search={params.search}
+          tagId={params.tagId ?? null}
+          tags={orgTags}
           onSelect={handleSelect}
           onFilterChange={(filter) => setParams({ filter })}
           onSearchChange={(search) => setParams({ search })}
+          onTagChange={(tagId) => setParams({ tagId })}
         />
       </div>
 

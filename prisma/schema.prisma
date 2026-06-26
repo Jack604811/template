@@ -22,6 +22,7 @@ model User {
   accounts                 Account[]
   memberships              Member[]
   sessions                 Session[]
+  conversationTags         ConversationTag[]
 
   @@map("user")
 }
@@ -84,6 +85,7 @@ model Organization {
   timezone            String?              @default("America/New_York")
   weekStart           String?              @default("sunday")
   conversations       Conversation[]
+  conversationTags    ConversationTag[]
   credentials         Credential[]
   workflows           Workflow[]
   bookables           Bookable[]
@@ -432,9 +434,10 @@ model Conversation {
   updatedAt       DateTime                  @updatedAt
   blocked         Boolean                   @default(false)
   notes           String?
-  organization    Organization              @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   participants    ConversationParticipant[]
   messages        Message[]
+  tags            ConversationTagAssignment[]
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, lastMessageAt(sort: Desc)])
@@ -484,6 +487,32 @@ model MessageReaction {
 
   @@unique([messageId, userId])
   @@index([messageId])
+}
+
+model ConversationTag {
+  id             String                      @id @default(cuid())
+  organizationId String
+  name           String
+  color          String
+  sortOrder      Int                         @default(0)
+  createdById    String?
+  createdAt      DateTime                    @default(now())
+  organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User?                       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  conversations  ConversationTagAssignment[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+model ConversationTagAssignment {
+  conversationId String
+  tagId          String
+  assignedAt     DateTime        @default(now())
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag            ConversationTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, tagId])
 }
 
 enum ChannelType {

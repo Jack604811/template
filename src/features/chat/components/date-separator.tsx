@@ -6,7 +6,7 @@ export function isSameDay(a: Date, b: Date) {
   );
 }
 
-function formatDate(date: Date): string {
+export function formatDate(date: Date): string {
   const now = new Date();
   if (isSameDay(date, now)) return "Hoy";
 

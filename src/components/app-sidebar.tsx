@@ -4,7 +4,7 @@ import {
   BotIcon,
   CalendarDaysIcon,
   CreditCardIcon,
-  FolderOpenIcon,
+  DatabaseIcon,
   HomeIcon,
   LogOutIcon,
   MessageCircleIcon,
@@ -13,7 +13,7 @@ import {
   StarIcon,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect } from "react";
 import {
   Sidebar,
@@ -39,7 +39,7 @@ const menuItems = [
       { title: "Reservas", icon: CalendarDaysIcon, url: "/bookings" },
       { title: "Chats", icon: MessageCircleIcon, url: "/chat" },
       { title: "Agentes", icon: BotIcon, url: "/agents" },
-      { title: "Services", icon: FolderOpenIcon, url: "/services" },
+      { title: "CMS", icon: DatabaseIcon, url: "/cms" },
       { title: "Integraciones", icon: PlugZapIcon, url: "/integrations" },
       { title: "Settings", icon: SettingsIcon, url: "/settings" },
     ],
@@ -49,13 +49,14 @@ const menuItems = [
 export const AppSidebar = () => {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { hasActiveSubscription, isLoading } = useHasActiveSubscription();
   const { saveCurrentRoute, getLastVisited, getBaseRoute, resetRouteHistory } =
     useNavigationHistory();
 
   useEffect(() => {
-    saveCurrentRoute();
-  }, [pathname, saveCurrentRoute]);
+    saveCurrentRoute(searchParams.toString());
+  }, [saveCurrentRoute, searchParams]);
 
   const handleSidebarClick = useCallback(
     (baseUrl: string, e: React.MouseEvent<HTMLAnchorElement>) => {

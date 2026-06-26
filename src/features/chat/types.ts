@@ -5,7 +5,7 @@ export type ConversationChannel =
   | "tiktok"
   | "discord";
 
-export type ChatFilter = "all" | "unread" | "joined" | "groups";
+export type ChatFilter = "all" | "unread" | "joined";
 
 export interface Conversation {
   id: string;
@@ -19,4 +19,5 @@ export interface Conversation {
   credentialId?: string | null;
   blocked: boolean;
   notes?: string | null;
+  tagIds: string[];
 }

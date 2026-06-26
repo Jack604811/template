@@ -13,7 +13,6 @@ import {
   LogInIcon,
   LogOutIcon,
   StarIcon,
-  TagIcon,
   TimerIcon,
   TrashIcon,
   UsersIcon,
@@ -42,6 +41,8 @@ import { useMessageActions } from "../hooks/use-message-actions";
 import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
 import { type Message as BubbleMessage, MessageBubble } from "./message-bubble";
+import { DeleteItem } from "@/components/ui/delete-item";
+import { ConversationTags } from "./conversation-tags";
 
 type MediaFilter = "media" | "docs" | "links";
 
@@ -146,6 +147,7 @@ function PanelContent({
   const [notesDrawerOpen, setNotesDrawerOpen] = useState(false);
   const [draft, setDraft] = useState(notes);
   const [view, setView] = useState<"menu" | "multimedia" | "starred">("menu");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("media");
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const drawerTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -568,7 +570,7 @@ function PanelContent({
               label="Equipo asignado"
               value="Ninguno"
             />
-            <InfoRow icon={<TagIcon />} label="Etiquetas" />
+            <ConversationTags conversationId={conversation.id} />
             <InfoRow
               icon={<StarIcon />}
               label="Mensajes destacados"
@@ -671,9 +673,14 @@ function PanelContent({
               icon={<TrashIcon />}
               label="Eliminar chat"
               destructive
-              onClick={() =>
-                deleteConversation.mutate({ conversationId: conversation.id })
-              }
+              onClick={() => setDeleteConfirmOpen(true)}
+            />
+            <DeleteItem
+              open={deleteConfirmOpen}
+              onOpenChange={setDeleteConfirmOpen}
+              onConfirm={() => deleteConversation.mutate({ conversationId: conversation.id })}
+              title="Eliminar chat"
+              description="¿Estás seguro de que quieres eliminar esta conversación? Esta acción no se puede deshacer."
             />
           </div>
         </ScrollArea>

@@ -25,16 +25,18 @@ export function useNavigationHistory() {
     return path;
   }, []);
 
-  // Save current route as last visited for its base route
-  const saveCurrentRoute = useCallback(() => {
+  // Save current route as last visited for its base route.
+  // Pass the serialized search string (searchParams.toString()) to capture query params.
+  const saveCurrentRoute = useCallback((search?: string) => {
     if (!pathname || typeof window === "undefined") return;
 
     const baseRoute = getBaseRoute(pathname);
-    
-    // Only save if it's a sub-route (has an ID)
-    if (pathname !== baseRoute) {
+    const fullUrl = pathname + (search ? `?${search}` : "");
+
+    // Save if it's a sub-route (path segment) OR has meaningful query params
+    if (fullUrl !== baseRoute) {
       const history = getHistory();
-      history[baseRoute] = pathname;
+      history[baseRoute] = fullUrl;
       sessionStorage.setItem(STORAGE_KEY, JSON.stringify(history));
     }
   }, [pathname, getBaseRoute]);

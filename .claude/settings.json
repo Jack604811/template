@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npx biome *)",
-      "Bash(bun install *)",
-      "Bash(npx prisma *)"
-    ]
-  }
-}

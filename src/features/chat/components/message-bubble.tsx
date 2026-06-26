@@ -13,8 +13,9 @@ import {
   FileTextIcon,
   ImageIcon,
   MapPinIcon,
-  MicIcon,
   MoreHorizontalIcon,
+  PauseIcon,
+  PlayIcon,
   PlayCircleIcon,
   RefreshCwIcon,
   UserRoundIcon,
@@ -22,7 +23,15 @@ import {
   XIcon,
 } from "lucide-react";
 import NextImage from "next/image";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type AudioSpeed,
+  AUDIO_SPEEDS,
+  formatAudioTime,
+  getStoredAudioSpeed,
+  storeAudioSpeed,
+} from "@/components/ui/audio-player";
+import { StaticWaveform } from "@/components/ui/waveform";
 import { cn } from "@/lib/utils";
 import { MessageContextMenu } from "./message-context-menu";
 import { RepliedMessage, type ReplyTarget } from "./replied-message";
@@ -104,6 +113,198 @@ function UploadOverlay({ progress, failed, onCancel, onRetry }: {
   );
 }
 
+// ─── Global audio singleton for bubbles ──────────────────────────────────────
+// One audio element + pub/sub system so ALL instances of the same bubble
+// (chat, starred panel, search results, etc.) stay in sync automatically.
+
+type PlayEvent = { activeId: string | null; playing: boolean };
+type PlayListener = (e: PlayEvent) => void;
+type SpeedListener = (speed: AudioSpeed) => void;
+
+const _playListeners = new Set<PlayListener>();
+const _speedListeners = new Set<SpeedListener>();
+let _bubbleActiveId: string | null = null;
+let _bubbleAudio: HTMLAudioElement | null = null;
+
+function getBubbleAudio(): HTMLAudioElement {
+  if (!_bubbleAudio) _bubbleAudio = new Audio();
+  return _bubbleAudio;
+}
+
+function notifyPlay(activeId: string | null, playing: boolean) {
+  _bubbleActiveId = activeId;
+  _playListeners.forEach((fn) => { fn({ activeId, playing }); });
+}
+
+function notifySpeed(speed: AudioSpeed) {
+  _speedListeners.forEach((fn) => { fn(speed); });
+}
+
+function subscribePlay(fn: PlayListener): () => void {
+  _playListeners.add(fn);
+  return () => { _playListeners.delete(fn); };
+}
+
+function subscribeSpeed(fn: SpeedListener): () => void {
+  _speedListeners.add(fn);
+  return () => { _speedListeners.delete(fn); };
+}
+
+// ─── useAudioBubble ───────────────────────────────────────────────────────────
+
+// Fallback bars seeded from message ID so each bubble has a consistent shape
+// before the real audio is analyzed.
+function seedBars(seed: string, count: number): number[] {
+  let h = 0;
+  for (const c of seed) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return Array.from({ length: count }, () => {
+    h = (Math.imul(1664525, h) + 1013904223) | 0;
+    return ((h >>> 0) % 8) + 1;
+  });
+}
+
+function useWaveformBars(src: string | null, seed: string, barCount = 50): number[] {
+  const [bars, setBars] = useState<number[]>(() => seedBars(seed, barCount));
+
+  useEffect(() => {
+    if (!src) return;
+    let cancelled = false;
+    let ctx: AudioContext | null = null;
+    const safeSrc: string = src;
+
+    async function analyze() {
+      try {
+        const res = await fetch(safeSrc);
+        const buffer = await res.arrayBuffer();
+        ctx = new AudioContext();
+        const decoded = await ctx.decodeAudioData(buffer);
+        if (cancelled) return;
+
+        const data = decoded.getChannelData(0);
+        const step = Math.floor(data.length / barCount);
+        const raw = Array.from({ length: barCount }, (_, i) => {
+          let sum = 0;
+          const start = i * step;
+          for (let j = start; j < start + step; j++) sum += Math.abs(data[j]);
+          return sum / step;
+        });
+
+        const max = Math.max(...raw, 0.0001);
+        setBars(raw.map((v) => Math.max(1, Math.round((v / max) * 8) + 1)));
+      } catch {
+        // keep seed bars on error
+      } finally {
+        void ctx?.close();
+      }
+    }
+
+    void analyze();
+    return () => { cancelled = true; };
+  }, [src, barCount]);
+
+  return bars;
+}
+
+function useAudioBubble(src: string | null, bubbleId: string) {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [speed, setSpeed] = useState<AudioSpeed>(getStoredAudioSpeed);
+  // Refs let event callbacks read current values without stale closures
+  const isPlayingRef = useRef(false);
+  const speedRef = useRef(speed);
+  speedRef.current = speed;
+
+  // Audio element event listeners (always attached, guard by bubbleId)
+  useEffect(() => {
+    const audio = getBubbleAudio();
+
+    const onTime = () => {
+      if (_bubbleActiveId !== bubbleId) return;
+      setCurrentTime(audio.currentTime);
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+    };
+    const onDur = () => {
+      if (_bubbleActiveId === bubbleId) setDuration(Number.isFinite(audio.duration) ? audio.duration : 0);
+    };
+    const onEnded = () => {
+      if (!isPlayingRef.current) return;
+      notifyPlay(null, false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener("timeupdate", onTime);
+    audio.addEventListener("durationchange", onDur);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.removeEventListener("timeupdate", onTime);
+      audio.removeEventListener("durationchange", onDur);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, [bubbleId]);
+
+  // Subscribe to play/pause events — keeps ALL instances of this bubble in sync
+  useEffect(() => {
+    return subscribePlay(({ activeId, playing }) => {
+      const mine = activeId === bubbleId;
+      const next = mine && playing;
+      if (isPlayingRef.current !== next) {
+        isPlayingRef.current = next;
+        setIsPlaying(next);
+      }
+      // Reset position when a different bubble becomes active
+      if (!mine && activeId !== null) setCurrentTime(0);
+    });
+  }, [bubbleId]);
+
+  // Subscribe to speed changes — keeps ALL instances of this bubble in sync
+  useEffect(() => {
+    return subscribeSpeed((next) => {
+      speedRef.current = next;
+      setSpeed(next);
+    });
+  }, []);
+
+  const toggle = useCallback(() => {
+    if (!src) return;
+    const audio = getBubbleAudio();
+    if (_bubbleActiveId === bubbleId && isPlayingRef.current) {
+      // Notify first so isPlayingRef is false before audio.pause() fires the pause event
+      notifyPlay(bubbleId, false);
+      audio.pause();
+    } else {
+      if (audio.src !== src) {
+        audio.src = src;
+        audio.currentTime = 0;
+        setCurrentTime(0);
+        setDuration(0);
+      }
+      audio.playbackRate = speedRef.current;
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+      notifyPlay(bubbleId, true);
+      void audio.play();
+    }
+  }, [src, bubbleId]);
+
+  const seek = useCallback((progress: number) => {
+    if (_bubbleActiveId !== bubbleId) return;
+    const audio = getBubbleAudio();
+    if (audio.duration) audio.currentTime = progress * audio.duration;
+  }, [bubbleId]);
+
+  const cycleSpeed = useCallback(() => {
+    const idx = AUDIO_SPEEDS.indexOf(speedRef.current);
+    const next = AUDIO_SPEEDS[(idx + 1) % AUDIO_SPEEDS.length];
+    storeAudioSpeed(next);
+    if (_bubbleActiveId === bubbleId) getBubbleAudio().playbackRate = next;
+    notifySpeed(next);
+  }, [bubbleId]);
+
+  const progress = duration > 0 ? currentTime / duration : 0;
+
+  return { isPlaying, progress, currentTime, duration, speed, toggle, seek, cycleSpeed };
+}
+
 // ─── Content bubbles ─────────────────────────────────────────────────────────
 
 function formatTime(date: Date) {
@@ -111,27 +312,63 @@ function formatTime(date: Date) {
 }
 
 function AudioBubble({ message, isUser }: { message: Message; isUser: boolean }) {
-  const bars = [3, 5, 8, 5, 9, 6, 4, 7, 5, 8, 4, 6, 9, 5, 3, 7, 8, 5, 4, 6, 8, 5, 3];
+  const bars = useWaveformBars(message.mediaUrl ?? null, message.id);
+  const player = useAudioBubble(message.mediaUrl ?? null, message.id);
+
+  const timeLabel = player.isPlaying && player.duration > 0
+    ? formatAudioTime(player.currentTime)
+    : formatAudioTime(player.duration);
+
   return (
-    <div className="flex flex-col gap-1.5 py-0.5">
-      <div className="flex items-center gap-2">
-        <div className={cn("flex size-8 shrink-0 items-center justify-center rounded-full",
-          isUser ? "bg-primary-foreground/20" : "bg-foreground/10")}>
-          <MicIcon className="size-4" />
-        </div>
-        <div className="flex h-8 items-end gap-px">
-          {bars.map((h, i) => (
-            <div key={`bar-${i}-${h}`}
-              className={cn("w-[3px] rounded-full", isUser ? "bg-primary-foreground/70" : "bg-foreground/30")}
-              style={{ height: `${(h / 9) * 100}%` }} />
-          ))}
-        </div>
-      </div>
-      {message.mediaUrl && (
-        <audio controls src={message.mediaUrl} className="h-8 w-full min-w-[200px]">
-          <track kind="captions" />
-        </audio>
-      )}
+    <div className="flex w-64 items-center gap-2 py-0.5">
+      {/* Play / Pause */}
+      <button
+        type="button"
+        onClick={player.toggle}
+        disabled={!message.mediaUrl}
+        className={cn(
+          "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+          isUser
+            ? "bg-primary-foreground/20 hover:bg-primary-foreground/30 text-primary-foreground"
+            : "bg-foreground/10 hover:bg-foreground/18 text-foreground",
+          !message.mediaUrl && "opacity-40 cursor-not-allowed",
+        )}
+        aria-label={player.isPlaying ? "Pause" : "Play"}
+      >
+        {player.isPlaying
+          ? <PauseIcon className="size-4" fill="currentColor" />
+          : <PlayIcon className="size-4 translate-x-px" fill="currentColor" />}
+      </button>
+
+      {/* Waveform */}
+      <StaticWaveform
+        bars={bars}
+        progress={player.progress}
+        isUser={isUser}
+        onSeek={message.mediaUrl ? player.seek : undefined}
+        className="min-w-0 flex-1"
+      />
+
+      {/* Duration */}
+      <span className={cn(
+        "shrink-0 text-[10px] tabular-nums leading-none",
+        isUser ? "text-primary-foreground/50" : "text-muted-foreground/70",
+      )}>
+        {timeLabel}
+      </span>
+
+      {/* Speed */}
+      <button
+        type="button"
+        onClick={player.cycleSpeed}
+        className={cn(
+          "shrink-0 text-[11px] font-bold tabular-nums transition-colors select-none",
+          isUser ? "text-primary-foreground/80" : "text-foreground/70",
+        )}
+        aria-label={`Speed ${player.speed}x, tap to change`}
+      >
+        {player.speed}x
+      </button>
     </div>
   );
 }
@@ -346,34 +583,41 @@ function ContactBubble({ isUser }: { isUser: boolean }) {
   );
 }
 
-function CtaUrlBubble({ message }: { message: Message; isUser: boolean }) {
-  let displayText = "Open";
-  let footer: string | undefined;
-  let headerImageUrl: string | undefined;
-  try {
-    const parsed = JSON.parse(message.mediaFilename ?? "{}") as {
-      displayText?: string;
-      footer?: string;
-      headerImageUrl?: string;
-    };
-    displayText = parsed.displayText ?? "Open";
-    footer = parsed.footer;
-    headerImageUrl = parsed.headerImageUrl;
-  } catch {}
+// ─── Shared interactive card ──────────────────────────────────────────────────
 
-  const buttonUrl = message.mediaUrl ?? "";
-  const bodyText = message.text && message.text !== "[interactive_cta_url]" ? message.text : "";
+type InteractiveCardProps = {
+  imageUrl?: string;
+  title?: string;
+  description?: string;
+  footer?: string;
+  buttonUrl?: string;
+  buttonText?: string;
+  quickReplies?: { id: string; title: string }[];
+};
 
+function InteractiveCard({ imageUrl, title, description, footer, buttonUrl, buttonText, quickReplies }: InteractiveCardProps) {
   return (
-    <div className="w-64 bg-card text-card-foreground">
-      {headerImageUrl && (
-        <NextImage src={headerImageUrl} alt="" width={256} height={160} className="block h-40 w-full object-cover" unoptimized />
+    <div className="w-64 overflow-hidden rounded-xl border border-border/40 bg-card text-card-foreground">
+      {imageUrl && (
+        <NextImage src={imageUrl} alt="" width={256} height={160} className="block h-40 w-full object-cover" unoptimized />
       )}
-      <div className="px-3 pb-2 pt-2.5 space-y-0.5">
-        {bodyText && <p className="text-[13px] leading-snug text-foreground">{bodyText}</p>}
+      <div className="space-y-0.5 px-3 pb-2 pt-2.5">
+        {title && <p className="text-[13px] font-semibold leading-tight text-foreground">{title}</p>}
+        {description && <p className="text-[13px] leading-snug text-foreground">{description}</p>}
         {footer && <p className="text-[11px] text-muted-foreground">{footer}</p>}
       </div>
-      {buttonUrl && (
+      {quickReplies && quickReplies.length > 0 ? (
+        <div className="border-t border-border/40">
+          {quickReplies.map((qr) => (
+            <div
+              key={qr.id}
+              className="flex items-center justify-center border-b border-border/40 py-2 text-[13px] font-medium text-primary last:border-b-0"
+            >
+              {qr.title}
+            </div>
+          ))}
+        </div>
+      ) : buttonUrl ? (
         <a
           href={buttonUrl}
           target="_blank"
@@ -382,10 +626,38 @@ function CtaUrlBubble({ message }: { message: Message; isUser: boolean }) {
           onClick={(e) => e.stopPropagation()}
         >
           <ExternalLinkIcon className="size-3.5 shrink-0" />
-          {displayText}
+          {buttonText ?? "Open"}
         </a>
-      )}
+      ) : null}
     </div>
+  );
+}
+
+function CtaUrlBubble({ message }: { message: Message; isUser: boolean }) {
+  let buttonText = "Open";
+  let footer: string | undefined;
+  let headerImageUrl: string | undefined;
+  try {
+    const parsed = JSON.parse(message.mediaFilename ?? "{}") as {
+      displayText?: string;
+      footer?: string;
+      headerImageUrl?: string;
+    };
+    buttonText = parsed.displayText ?? "Open";
+    footer = parsed.footer;
+    headerImageUrl = parsed.headerImageUrl;
+  } catch {}
+
+  const bodyText = message.text && message.text !== "[interactive_cta_url]" ? message.text : undefined;
+
+  return (
+    <InteractiveCard
+      imageUrl={headerImageUrl}
+      description={bodyText}
+      footer={footer}
+      buttonUrl={message.mediaUrl ?? undefined}
+      buttonText={buttonText}
+    />
   );
 }
 
@@ -420,48 +692,22 @@ function CarouselBubble({ message }: { message: Message; isUser: boolean }) {
   } catch {}
 
   return (
-    <div className="w-72 overflow-hidden rounded-2xl bg-card">
-        <div className="flex gap-2 overflow-x-auto px-3 pb-3 pt-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {cards.map((card, i) => (
-            <div key={`${card.title ?? ""}-${i}`} className="w-64 shrink-0 overflow-hidden rounded-xl border border-border/40 bg-background">
-              {card.imageUrl && (
-                <NextImage src={card.imageUrl} alt="" width={256} height={160} className="block h-40 w-full object-cover" unoptimized />
-              )}
-              <div className="px-3 pb-2 pt-2.5 space-y-0.5">
-                {card.title && (
-                  <p className="text-[13px] font-semibold leading-tight text-foreground">{card.title}</p>
-                )}
-                {card.description && (
-                  <p className="text-[11px] leading-snug text-muted-foreground">{card.description}</p>
-                )}
-              </div>
-              {card.quickReplies && card.quickReplies.length > 0 ? (
-                <div className="border-t border-border/40">
-                  {card.quickReplies.map((qr) => (
-                    <div
-                      key={qr.id}
-                      className="flex items-center justify-center border-b border-border/40 py-2 text-[13px] font-medium text-primary last:border-b-0"
-                    >
-                      {qr.title}
-                    </div>
-                  ))}
-                </div>
-              ) : card.buttonUrl ? (
-                <a
-                  href={card.buttonUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center justify-center gap-1.5 border-t border-border/50 py-2.5 text-[13px] font-medium text-primary transition-colors hover:bg-muted/40"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <ExternalLinkIcon className="size-3.5 shrink-0" />
-                  {card.buttonText ?? "Open"}
-                </a>
-              ) : null}
-            </div>
-          ))}
-        </div>
+    <div className="w-full overflow-hidden">
+      <div className="flex gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {cards.map((card, i) => (
+          <div key={`${card.title ?? ""}-${i}`} className="shrink-0">
+            <InteractiveCard
+              imageUrl={card.imageUrl}
+              title={card.title}
+              description={card.description}
+              buttonUrl={card.buttonUrl}
+              buttonText={card.buttonText}
+              quickReplies={card.quickReplies}
+            />
+          </div>
+        ))}
       </div>
+    </div>
   );
 }
 
@@ -732,7 +978,7 @@ export function MessageBubble({
                 >
                   <span className="leading-relaxed">{message.text}</span>
                 </div>
-                <MessageActions onOpen={openMenuFromHeader} />
+                {!hideActions && <MessageActions onOpen={openMenuFromHeader} />}
               </div>
             )}
             {type === "interactive_carousel" && reactions.length > 0 && (
@@ -763,7 +1009,7 @@ export function MessageBubble({
                 ref={bubbleRef}
                 className={cn(
                   "relative w-fit text-sm",
-                  (!type || type === "button" || type === "interactive") && "max-w-[280px]",
+                  (!type || type === "button" || type === "interactive" || type === "interactive_carousel") && "max-w-[316px] mt-2",
                   !isNoBubble && "rounded-2xl",
                   isNoPadding && "overflow-hidden p-0",
                   !isNoPadding && !isNoBubble && "px-4 py-2.5",
@@ -795,7 +1041,7 @@ export function MessageBubble({
                 )}
               </div>
 
-              {type !== "interactive_carousel" && <MessageActions onOpen={openMenu} />}
+              {type !== "interactive_carousel" && !hideActions && <MessageActions onOpen={openMenu} />}
             </div>
 
             {reactions.length > 0 && type !== "interactive_carousel" && (
@@ -822,7 +1068,7 @@ export function MessageBubble({
               </div>
             )}
 
-            {isTimeOutside && !isNoBubble && (
+            {isTimeOutside && (!isNoBubble || type === "interactive_carousel") && (
               <span className={cn(
                 "mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-muted-foreground/60",
                 isUser ? "mr-1" : "",

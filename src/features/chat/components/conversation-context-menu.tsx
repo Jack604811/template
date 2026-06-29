@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  BellDotIcon,
   EllipsisVerticalIcon,
   LogOutIcon,
   TagIcon,
@@ -14,6 +15,7 @@ import { DeleteItem } from "@/components/ui/delete-item";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useTRPC } from "@/trpc/client";
 import { useConversationParticipant } from "../hooks/use-conversation-participant";
+import { useMarkAsUnread } from "../hooks/use-mark-as-unread";
 import type { Conversation } from "../types";
 import { type Tag, TagDialog } from "./conversation-list";
 
@@ -23,6 +25,7 @@ interface ConversationContextMenuProps {
   onToggleInfo: () => void;
   isInfoOpen?: boolean;
   onDeleted?: () => void;
+  onMarkedUnread?: () => void;
 }
 
 export function ConversationContextMenu({
@@ -31,6 +34,7 @@ export function ConversationContextMenu({
   onToggleInfo,
   isInfoOpen = false,
   onDeleted,
+  onMarkedUnread,
 }: ConversationContextMenuProps) {
   const trpc = useTRPC();
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
@@ -46,6 +50,8 @@ export function ConversationContextMenu({
   }));
 
   const { hasJoined, joinConversation, leaveConversation } = useConversationParticipant(conversation, stableKeyMap);
+
+  const markAsUnread = useMarkAsUnread(conversation.id, onMarkedUnread);
 
   const deleteConversation = useMutation(
     trpc.chat.deleteConversation.mutationOptions({
@@ -80,6 +86,14 @@ export function ConversationContextMenu({
             <button type="button" onClick={() => setTagDialogOpen(true)} className={menuItemClass}>
               <TagIcon className="size-4 shrink-0 text-muted-foreground" />
               Etiquetas
+            </button>
+            <button
+              type="button"
+              onClick={() => markAsUnread.mutate({ conversationId: conversation.id })}
+              className={menuItemClass}
+            >
+              <BellDotIcon className="size-4 shrink-0 text-muted-foreground" />
+              Marcar como no leído
             </button>
             <button
               type="button"

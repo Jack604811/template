@@ -622,6 +622,15 @@ export const chatRouter = createTRPCRouter({
       });
     }),
 
+  markAsUnread: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.conversation.updateMany({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+        data: { unreadCount: 1 },
+      });
+    }),
+
   updateNotes: organizationProcedure
     .input(z.object({ conversationId: z.string(), notes: z.string() }))
     .mutation(async ({ ctx, input }) => {

@@ -116,6 +116,7 @@ export function ChatPage() {
             onToggleInfo={() => setInfoOpen((v) => !v)}
             isInfoOpen={infoOpen}
             onBack={() => setParams({ id: null })}
+            onMarkedUnread={() => setParams({ id: null })}
             scrollToMessageId={scrollToMessageId}
             externalReplyTo={pendingReply}
           />
@@ -182,6 +183,7 @@ export function ChatPage() {
           stableKeyMap={stableKeyMap}
           onToggleInfo={() => setInfoOpen((v) => !v)}
           isInfoOpen={infoOpen}
+          onMarkedUnread={() => setParams({ id: null })}
           scrollToMessageId={scrollToMessageId}
           externalReplyTo={pendingReply}
         />

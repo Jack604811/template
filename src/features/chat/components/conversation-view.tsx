@@ -158,6 +158,7 @@ interface ConversationViewProps {
   onToggleInfo: () => void;
   isInfoOpen?: boolean;
   onBack?: () => void;
+  onMarkedUnread?: () => void;
   scrollToMessageId?: string | null;
   externalReplyTo?: ReplyTarget | null;
 }
@@ -168,6 +169,7 @@ export function ConversationView({
   onToggleInfo,
   isInfoOpen = false,
   onBack,
+  onMarkedUnread,
   scrollToMessageId,
   externalReplyTo,
 }: ConversationViewProps) {
@@ -570,6 +572,7 @@ export function ConversationView({
           onToggleInfo={onToggleInfo}
           isInfoOpen={isInfoOpen}
           onDeleted={onBack}
+          onMarkedUnread={onMarkedUnread}
         />
       </div>
 

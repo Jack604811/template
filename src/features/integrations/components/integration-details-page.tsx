@@ -278,7 +278,13 @@ function AccountRow({
   isDeleting: boolean;
 }) {
   return (
-    <div className={`flex items-center gap-4 py-4 transition-opacity ${isDeleting ? "pointer-events-none opacity-40" : ""}`}>
+    <div className={`relative flex items-center gap-4 py-4 transition-opacity hover:bg-muted/40 ${isDeleting ? "pointer-events-none opacity-40" : ""}`}>
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`Editar ${credential.name}`}
+        className="absolute inset-0 z-[1]"
+      />
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted/50 text-[13px] font-semibold text-muted-foreground">
         {index + 1}
       </div>
@@ -289,7 +295,7 @@ function AccountRow({
           {formatDistanceToNow(new Date(credential.createdAt), { addSuffix: true, locale: es })}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="relative z-10 flex shrink-0 items-center gap-2">
         <span className="hidden sm:inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
           Activo

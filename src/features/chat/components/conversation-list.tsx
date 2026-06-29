@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlusIcon, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -41,7 +41,7 @@ const TAG_COLORS = [
   "#64748B", "#78716C",
 ];
 
-interface Tag {
+export interface Tag {
   id: string;
   name: string;
   color: string;
@@ -62,17 +62,50 @@ interface ConversationListProps {
   onTagChange: (tagId: string | null) => void;
 }
 
+function AssignTagRow({
+  tag,
+  action,
+  onAction,
+}: {
+  tag: TagItem;
+  action: "add" | "remove";
+  onAction: () => void;
+}) {
+  return (
+    <div className="group flex items-center gap-3 py-3">
+      <span className="size-10 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+      <div className="flex-1 min-w-0">
+        <p className="truncate text-sm font-medium">{tag.name}</p>
+        <p className="text-[11px] text-muted-foreground">
+          {tag.conversationCount === 1 ? "1 conversación" : `${tag.conversationCount} conversaciones`}
+        </p>
+      </div>
+      <Button
+        size="sm"
+        variant={action === "remove" ? "outline" : "default"}
+        className={action === "remove" ? "shrink-0 text-destructive border-destructive/40 hover:bg-destructive/10 hover:text-destructive" : "shrink-0"}
+        onClick={onAction}
+      >
+        {action === "remove" ? "Quitar" : "Agregar"}
+      </Button>
+    </div>
+  );
+}
+
 // ─── Tag management dialog ────────────────────────────────────────────────────
 
-function TagDialog({
+export function TagDialog({
   open,
   onOpenChange,
   tags,
+  conversationId,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   tags: Tag[];
+  conversationId?: string;
 }) {
+  const isAssignMode = !!conversationId;
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [isCreating, setIsCreating] = useState(false);
@@ -81,14 +114,27 @@ function TagDialog({
   const [tagSearch, setTagSearch] = useState("");
   const [pendingTag, setPendingTag] = useState<TagItem | null>(null);
 
-  const invalidate = () =>
+  const invalidateOrgTags = () =>
     queryClient.invalidateQueries({ queryKey: trpc.chat.getTags.queryKey() });
+  const invalidateConvTags = () =>
+    conversationId
+      ? queryClient.invalidateQueries({ queryKey: trpc.chat.getConversationTags.queryKey({ conversationId }) })
+      : Promise.resolve();
+
+  const { data: assignedTags = [] } = useQuery({
+    ...trpc.chat.getConversationTags.queryOptions({ conversationId: conversationId ?? "" }),
+    enabled: isAssignMode && open,
+  });
+  const assignedIds = new Set(assignedTags.map((t) => t.id));
 
   const createTag = useMutation(
     trpc.chat.createTag.mutationOptions({
-      onSuccess: async () => {
-        await invalidate();
+      onSuccess: async (created) => {
+        await invalidateOrgTags();
         setPendingTag(null);
+        if (isAssignMode && conversationId) {
+          addTag.mutate({ conversationId, tagId: created.id });
+        }
       },
       onError: () => setPendingTag(null),
     }),
@@ -113,20 +159,18 @@ function TagDialog({
         if (ctx?.previous)
           queryClient.setQueryData(trpc.chat.getTags.queryKey(), ctx.previous);
       },
-      onSettled: () => void invalidate(),
+      onSettled: () => void invalidateOrgTags(),
     }),
   );
 
   const deleteTag = useMutation(
-    trpc.chat.deleteTag.mutationOptions({ onSuccess: () => void invalidate() }),
+    trpc.chat.deleteTag.mutationOptions({ onSuccess: () => void invalidateOrgTags() }),
   );
 
   const reorderTags = useMutation(
     trpc.chat.reorderTags.mutationOptions({
       onMutate: async ({ ids }) => {
-        await queryClient.cancelQueries({
-          queryKey: trpc.chat.getTags.queryKey(),
-        });
+        await queryClient.cancelQueries({ queryKey: trpc.chat.getTags.queryKey() });
         const previous = queryClient.getQueryData(trpc.chat.getTags.queryKey());
         queryClient.setQueryData(trpc.chat.getTags.queryKey(), (old) => {
           if (!old) return old;
@@ -140,7 +184,54 @@ function TagDialog({
         if (ctx?.previous)
           queryClient.setQueryData(trpc.chat.getTags.queryKey(), ctx.previous);
       },
-      onSettled: () => void invalidate(),
+      onSettled: () => void invalidateOrgTags(),
+    }),
+  );
+
+  const convTagsKey = conversationId
+    ? trpc.chat.getConversationTags.queryKey({ conversationId })
+    : null;
+
+  const addTag = useMutation(
+    trpc.chat.addTagToConversation.mutationOptions({
+      onMutate: async ({ tagId }) => {
+        if (!convTagsKey) return;
+        await queryClient.cancelQueries({ queryKey: convTagsKey });
+        const previous = queryClient.getQueryData(convTagsKey);
+        const tagToAdd = tags.find((t) => t.id === tagId);
+        if (tagToAdd) {
+          queryClient.setQueryData(convTagsKey, (old: typeof previous) =>
+            old
+              ? [...old, { id: tagToAdd.id, name: tagToAdd.name, color: tagToAdd.color, createdAt: tagToAdd.createdAt, organizationId: "", sortOrder: 0, createdById: null }]
+              : old,
+          );
+        }
+        return { previous };
+      },
+      onError: (_err, _vars, ctx) => {
+        if (convTagsKey && ctx?.previous)
+          queryClient.setQueryData(convTagsKey, ctx.previous);
+      },
+      onSettled: () => void invalidateConvTags(),
+    }),
+  );
+
+  const removeTag = useMutation(
+    trpc.chat.removeTagFromConversation.mutationOptions({
+      onMutate: async ({ tagId }) => {
+        if (!convTagsKey) return;
+        await queryClient.cancelQueries({ queryKey: convTagsKey });
+        const previous = queryClient.getQueryData(convTagsKey);
+        queryClient.setQueryData(convTagsKey, (old: typeof previous) =>
+          old ? old.filter((t) => t.id !== tagId) : old,
+        );
+        return { previous };
+      },
+      onError: (_err, _vars, ctx) => {
+        if (convTagsKey && ctx?.previous)
+          queryClient.setQueryData(convTagsKey, ctx.previous);
+      },
+      onSettled: () => void invalidateConvTags(),
     }),
   );
 
@@ -174,13 +265,29 @@ function TagDialog({
     if (next) setNewColor(next);
   }
 
+  function toggleTag(tagId: string) {
+    if (!conversationId) return;
+    if (assignedIds.has(tagId)) {
+      removeTag.mutate({ conversationId, tagId });
+    } else {
+      addTag.mutate({ conversationId, tagId });
+    }
+  }
+
+  const filteredTags = tags.filter((t) =>
+    t.name.toLowerCase().includes(tagSearch.toLowerCase()) &&
+    t.name.toLowerCase() !== (pendingTag?.name.toLowerCase() ?? ""),
+  );
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle>Etiquetas</DialogTitle>
           <DialogDescription>
-            Crea y gestiona las etiquetas de tu organización.
+            {isAssignMode
+              ? "Agrega o quita etiquetas de esta conversación."
+              : "Crea y gestiona las etiquetas de tu organización."}
           </DialogDescription>
         </DialogHeader>
 
@@ -195,10 +302,7 @@ function TagDialog({
               variant="outline"
               size="icon-sm"
               className="shrink-0 rounded-full"
-              onClick={() => {
-                setIsCreating(true);
-                setTagSearch("");
-              }}
+              onClick={() => { setIsCreating(true); setTagSearch(""); }}
             >
               <PlusIcon className="size-3.5" />
             </Button>
@@ -222,10 +326,7 @@ function TagDialog({
                 onChange={(e) => setNewName(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCreate();
-                  if (e.key === "Escape") {
-                    setIsCreating(false);
-                    setNewName("");
-                  }
+                  if (e.key === "Escape") { setIsCreating(false); setNewName(""); }
                 }}
               />
               {newName.trim() && (
@@ -236,22 +337,50 @@ function TagDialog({
             </div>
           )}
 
-          <TagList
-            tags={[
-              ...(pendingTag ? [pendingTag] : []),
-              ...tags.filter(
-                (t) =>
-                  t.name.toLowerCase().includes(tagSearch.toLowerCase()) &&
-                  t.name.toLowerCase() !==
-                    (pendingTag?.name.toLowerCase() ?? ""),
-              ),
-            ]}
-            onDelete={(id) => deleteTag.mutate({ tagId: id })}
-            onReorder={(ids) => reorderTags.mutate({ ids })}
-            onUpdate={(tagId, changes) =>
-              updateTag.mutate({ tagId, ...changes })
-            }
-          />
+          {isAssignMode ? (
+            <ScrollArea className="h-72 -mx-6">
+              <div className="px-6">
+                {assignedIds.size > 0 && (
+                  <>
+                    <p className="pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Aplicadas</p>
+                    <div className="divide-y divide-border/40">
+                      {(pendingTag ? [pendingTag, ...filteredTags] : filteredTags)
+                        .filter((t) => assignedIds.has(t.id))
+                        .map((tag) => (
+                          <AssignTagRow key={tag.id} tag={tag} action="remove" onAction={() => toggleTag(tag.id)} />
+                        ))}
+                    </div>
+                    <div className="my-3 h-px bg-border/60" />
+                  </>
+                )}
+                {filteredTags.filter((t) => !assignedIds.has(t.id)).length > 0 && (
+                  <>
+                    <p className="pb-1 pt-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Disponibles</p>
+                    <div className="divide-y divide-border/40">
+                      {(pendingTag && !assignedIds.has(pendingTag.id) ? [pendingTag, ...filteredTags] : filteredTags)
+                        .filter((t) => !assignedIds.has(t.id))
+                        .map((tag) => (
+                          <AssignTagRow key={tag.id} tag={tag} action="add" onAction={() => toggleTag(tag.id)} />
+                        ))}
+                    </div>
+                  </>
+                )}
+                {filteredTags.length === 0 && !pendingTag && (
+                  <p className="py-8 text-center text-sm text-muted-foreground">No hay etiquetas todavía.</p>
+                )}
+              </div>
+            </ScrollArea>
+          ) : (
+            <TagList
+              tags={[
+                ...(pendingTag ? [pendingTag] : []),
+                ...filteredTags,
+              ]}
+              onDelete={(id) => deleteTag.mutate({ tagId: id })}
+              onReorder={(ids) => reorderTags.mutate({ ids })}
+              onUpdate={(tagId, changes) => updateTag.mutate({ tagId, ...changes })}
+            />
+          )}
         </div>
       </DialogContent>
     </Dialog>

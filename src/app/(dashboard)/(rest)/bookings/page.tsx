@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import type { SearchParams } from "nuqs/server";
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";

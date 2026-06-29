@@ -83,7 +83,7 @@ function PopoverContent({
 
   if (isMobile) {
     return (
-      <DrawerContent data-slot="popover-content" className={className}>
+      <DrawerContent data-slot="popover-content">
         <div className="flex items-center justify-between px-5 pt-4 pb-3">
           <DrawerClose asChild>
             <button

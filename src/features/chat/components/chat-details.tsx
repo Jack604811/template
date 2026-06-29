@@ -13,6 +13,7 @@ import {
   LogInIcon,
   LogOutIcon,
   StarIcon,
+  TagIcon,
   TimerIcon,
   TrashIcon,
   UsersIcon,
@@ -42,7 +43,7 @@ import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
 import { type Message as BubbleMessage, MessageBubble } from "./message-bubble";
 import { DeleteItem } from "@/components/ui/delete-item";
-import { ConversationTags } from "./conversation-tags";
+import { type Tag, TagDialog } from "./conversation-list";
 
 type MediaFilter = "media" | "docs" | "links";
 
@@ -148,6 +149,9 @@ function PanelContent({
   const [draft, setDraft] = useState(notes);
   const [view, setView] = useState<"menu" | "multimedia" | "starred">("menu");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [tagDialogOpen, setTagDialogOpen] = useState(false);
+  const { data: rawTags = [] } = useQuery(trpc.chat.getTags.queryOptions());
+  const tags: Tag[] = rawTags.map((t) => ({ id: t.id, name: t.name, color: t.color, createdAt: t.createdAt, conversationCount: t._count.conversations }));
   const [mediaFilter, setMediaFilter] = useState<MediaFilter>("media");
   const saveTimeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const drawerTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -231,7 +235,7 @@ function PanelContent({
   const previewMedia = mediaItems.slice(0, 3);
 
   const avatarSection = (
-    <div className="relative flex flex-col items-center gap-1.5 px-4 pb-6 pt-4">
+    <div className="relative flex flex-col items-center px-4 pb-6 pt-4">
       <div />
       <Avatar className="mt-2 size-20">
         <AvatarFallback
@@ -242,7 +246,7 @@ function PanelContent({
         </AvatarFallback>
       </Avatar>
       <p className="mt-2 text-[17px] font-semibold">{conversation.name}</p>
-      <p className="text-sm capitalize text-muted-foreground">
+      <p className="mt-0.5 text-sm capitalize text-muted-foreground">
         {conversation.channel}
       </p>
     </div>
@@ -570,7 +574,11 @@ function PanelContent({
               label="Equipo asignado"
               value="Ninguno"
             />
-            <ConversationTags conversationId={conversation.id} />
+            <InfoRow
+              icon={<TagIcon />}
+              label="Etiquetas"
+              onClick={() => setTagDialogOpen(true)}
+            />
             <InfoRow
               icon={<StarIcon />}
               label="Mensajes destacados"
@@ -681,6 +689,12 @@ function PanelContent({
               onConfirm={() => deleteConversation.mutate({ conversationId: conversation.id })}
               title="Eliminar chat"
               description="¿Estás seguro de que quieres eliminar esta conversación? Esta acción no se puede deshacer."
+            />
+            <TagDialog
+              open={tagDialogOpen}
+              onOpenChange={setTagDialogOpen}
+              tags={tags}
+              conversationId={conversation.id}
             />
           </div>
         </ScrollArea>

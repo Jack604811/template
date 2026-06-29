@@ -9,16 +9,18 @@ export const credentialsRouter = createTRPCRouter({
   create: organizationProcedure
     .input(
       z.object({
+        id: z.string().optional(),
         name: z.string().min(1, "Name is required"),
         type: z.enum(CredentialType),
         value: z.string().min(1, "Value is required")
       })
     )
     .mutation(({ ctx, input }) => {
-      const { name, value, type } = input;
+      const { id, name, value, type } = input;
 
       return prisma.credential.create({
         data: {
+          ...(id ? { id } : {}),
           name,
           organizationId: ctx.organizationId,
           type,

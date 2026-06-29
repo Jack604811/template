@@ -1,7 +1,6 @@
 "use client";
 
 import { CameraIcon, FileIcon, ImageIcon, MicIcon, VideoIcon } from "lucide-react";
-import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 
 export interface ReplyTarget {
@@ -110,13 +109,14 @@ export function RepliedMessage({ reply, isUser, payload, onClick }: RepliedMessa
 
       {/* Thumbnail */}
       {thumbUrl && (
-        <div className="relative w-14 shrink-0 self-stretch overflow-hidden rounded-r-xl">
+        <div className="relative w-[40px] h-[48px] shrink-0 overflow-hidden rounded-r-xl self-center my-auto">
           {reply.mediaType === "video" ? (
             <video src={thumbUrl} className="size-full object-cover" muted preload="metadata">
               <track kind="captions" />
             </video>
           ) : (
-            <NextImage src={thumbUrl} alt="" width={56} height={56} className="size-full object-cover" unoptimized />
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={thumbUrl} alt="" className="size-full object-cover" />
           )}
         </div>
       )}

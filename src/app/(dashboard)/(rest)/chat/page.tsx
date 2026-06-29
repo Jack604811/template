@@ -2,6 +2,8 @@ import { ChatPage } from "@/features/chat/components/chat-page";
 import { requireAuth } from "@/lib/auth-utils";
 import { HydrateClient, prefetch, trpc } from "@/trpc/server";
 
+export const dynamic = "force-dynamic";
+
 const Page = async ({ searchParams }: { searchParams: Promise<Record<string, string>> }) => {
   await requireAuth();
   const { id } = await searchParams;

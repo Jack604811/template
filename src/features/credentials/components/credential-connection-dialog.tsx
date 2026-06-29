@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Copy } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
@@ -140,6 +140,11 @@ export const CredentialConnectionDialog = ({
   const updateCredential = useUpdateCredential();
   const app = getCredentialOption(credentialType);
   const isEditMode = !!existingCredential;
+  const [preGeneratedId, setPreGeneratedId] = useState<string>(() => crypto.randomUUID());
+
+  useEffect(() => {
+    if (open && !isEditMode) setPreGeneratedId(crypto.randomUUID());
+  }, [open, isEditMode]);
 
   const extraFields = useMemo(
     () => (app as { extraFields?: ExtraField[] })?.extraFields ?? [],
@@ -225,6 +230,7 @@ export const CredentialConnectionDialog = ({
         toast.success(`Credencial de ${app?.label} actualizada`);
       } else {
         const newCredential = await createCredential.mutateAsync({
+          id: preGeneratedId,
           name: values.name,
           type: credentialType,
           value: serializedValue ?? "",
@@ -392,16 +398,10 @@ export const CredentialConnectionDialog = ({
                     </p>
                   </div>
                   <CopyField label="URL de callback" value={webhookUrl} />
-                  {existingCredential?.id ? (
-                    <CopyField label="Token de verificación" value={existingCredential.id} />
-                  ) : (
-                    <div className="space-y-1.5">
-                      <Label className="text-sm font-medium">Token de verificación</Label>
-                      <p className="text-xs text-muted-foreground">
-                        Guarda esta credencial primero para obtener tu token de verificación.
-                      </p>
-                    </div>
-                  )}
+                  <CopyField
+                    label="Token de verificación"
+                    value={existingCredential?.id ?? preGeneratedId}
+                  />
                 </div>
               </>
             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronLeftIcon, MessageSquareIcon, PlusIcon } from "lucide-react";
+import { ChevronLeftIcon, MessageSquareIcon } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import {
   Conversation,
@@ -37,6 +37,7 @@ import { MessageBubble } from "./message-bubble";
 import type { SendPayload } from "./message-input";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
+import { ConversationContextMenu } from "./conversation-context-menu";
 import { SystemMessage } from "./system-message";
 
 
@@ -155,6 +156,7 @@ interface ConversationViewProps {
   conversation: ConversationType | null;
   stableKeyMap: RefObject<Map<string, string>>;
   onToggleInfo: () => void;
+  isInfoOpen?: boolean;
   onBack?: () => void;
   scrollToMessageId?: string | null;
   externalReplyTo?: ReplyTarget | null;
@@ -164,6 +166,7 @@ export function ConversationView({
   conversation,
   stableKeyMap,
   onToggleInfo,
+  isInfoOpen = false,
   onBack,
   scrollToMessageId,
   externalReplyTo,
@@ -561,14 +564,13 @@ export function ConversationView({
             </p>
           </div>
         </button>
-        <button
-          type="button"
-          onClick={onToggleInfo}
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
-          title="Información del contacto"
-        >
-          <PlusIcon className="size-4" />
-        </button>
+        <ConversationContextMenu
+          conversation={conversation}
+          stableKeyMap={stableKeyMap}
+          onToggleInfo={onToggleInfo}
+          isInfoOpen={isInfoOpen}
+          onDeleted={onBack}
+        />
       </div>
 
       {/* messages */}

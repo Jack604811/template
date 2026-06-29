@@ -117,7 +117,8 @@ function SortableTagRow({
           {editingName ? (
             <input
               ref={inputRef}
-              className="h-5 w-full border-0 p-0 bg-transparent text-sm font-medium outline-none leading-none"
+              size={Math.max(nameValue.length + 1, 4)}
+              className="h-5 w-auto border-0 p-0 bg-transparent text-sm font-medium outline-none leading-none"
               spellCheck={false}
               value={nameValue}
               maxLength={50}
@@ -147,9 +148,10 @@ function SortableTagRow({
               : `${tag.conversationCount} conversaciones`}
           </p>
         </div>
-        {editingName && inputFocused ? (
+        {editingName ? (
           <Button
             size="sm"
+            className={inputFocused ? "" : "invisible pointer-events-none"}
             onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
             onClick={commitName}
             disabled={!nameValue.trim() || nameValue.trim() === tag.name}

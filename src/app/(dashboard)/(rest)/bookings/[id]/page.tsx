@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import { ErrorBoundary } from "react-error-boundary";
+import { BookingDetailsPage } from "@/features/bookings/components/booking-details-page";
+import { BookingsError, BookingsLoading } from "@/features/bookings/components/bookings";
+import { prefetchBooking } from "@/features/bookings/server/prefetch";
 import { requireAuth } from "@/lib/auth-utils";
 import { HydrateClient } from "@/trpc/server";
-import { prefetchBooking } from "@/features/bookings/server/prefetch";
-import { BookingDetailsPage } from "@/features/bookings/components/booking-details-page";
-import { BookingsLoading, BookingsError } from "@/features/bookings/components/bookings";
+
+export const dynamic = "force-dynamic";
 
 type Props = {
   params: Promise<{ id: string }>;
@@ -13,14 +15,11 @@ type Props = {
 const Page = async ({ params }: Props) => {
   await requireAuth();
   const { id } = await params;
-  
-  // Prefetch booking - errors are handled gracefully by React Query
-  // If prefetch fails, component will fetch on client side
+
   try {
     await prefetchBooking(id);
   } catch {
-    // Silently handle prefetch errors - prevents "Unauthorized" errors from breaking SSR
-    // Component will fetch data on client side via useSuspenseBooking
+    // Client will fetch
   }
 
   return (
@@ -37,4 +36,3 @@ const Page = async ({ params }: Props) => {
 };
 
 export default Page;
-

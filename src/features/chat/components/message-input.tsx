@@ -14,6 +14,7 @@ import {
   SmileIcon,
   SquareIcon,
   Trash2Icon,
+  XIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -42,6 +43,12 @@ export interface SendPayload {
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
+interface PendingImage {
+  id: string;
+  file: File;
+  objectUrl: string;
+}
+
 interface MessageInputProps {
   conversationId?: string;
   credentialId?: string | null;
@@ -50,11 +57,6 @@ interface MessageInputProps {
   onSend?: (payload: SendPayload) => void;
   onSendMedia?: (file: File, caption: string) => void;
 }
-
-const ATTACH_OPTIONS = [
-  { id: "images", label: "Imágenes", icon: ImageIcon, accept: "image/*,video/*" },
-  { id: "docs",   label: "Archivos", icon: BookOpenIcon, accept: ".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.zip,.rar,audio/*" },
-] as const;
 
 const ACTION_OPTIONS = [
   { id: "location",      label: "Ubicación",         icon: MapPinIcon              },
@@ -236,15 +238,22 @@ export function MessageInput({
   onSend,
   onSendMedia,
 }: MessageInputProps) {
-  // MessageInput is always rendered inside PromptInputProvider in conversation-view
   const { textInput } = usePromptInputController();
   const hasText = textInput.value.trim().length > 0;
 
   const formRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const docInputRef = useRef<HTMLInputElement>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+
+  const pendingImagesRef = useRef(pendingImages);
+  pendingImagesRef.current = pendingImages;
+  useEffect(() => {
+    return () => { pendingImagesRef.current.forEach((p) => { URL.revokeObjectURL(p.objectUrl); }); };
+  }, []);
 
   const recorder = useVoiceRecorder(useCallback((file: File) => {
     onSendMedia?.(file, "");
@@ -253,35 +262,60 @@ export function MessageInput({
   const isRequesting = recorder.state === "requesting";
   const isRecording  = recorder.state === "recording";
 
-  function handleTextSubmit({ text }: { text: string }) {
-    if (!text.trim()) return;
-    onSend?.({ text, replyTo });
-    onCancelReply?.();
+  const hasPending = pendingImages.length > 0;
+  const canSend = hasText || hasPending;
+
+  async function handleTextSubmit({ text }: { text: string }) {
+    if (!canSend) return;
+    for (const pending of pendingImages) {
+      await onSendMedia?.(pending.file, "");
+      URL.revokeObjectURL(pending.objectUrl);
+    }
+    setPendingImages([]);
+    if (text.trim()) {
+      onSend?.({ text, replyTo });
+      onCancelReply?.();
+    }
     formRef.current?.querySelector("textarea")?.focus();
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleImageFilesChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    if (!files.length || !conversationId) return;
+
+    const oversized = files.find((f) => f.size > MAX_BYTES);
+    if (oversized) { alert("El archivo no puede superar 25 MB."); return; }
+
+    const compressed = await Promise.all(
+      files.map((f) => f.type.startsWith("image/") ? compressImage(f) : Promise.resolve(f)),
+    );
+
+    const next: PendingImage[] = compressed.map((file) => ({
+      id: `${file.name}-${Date.now()}-${Math.random()}`,
+      file,
+      objectUrl: URL.createObjectURL(file),
+    }));
+
+    setPendingImages((prev) => [...prev, ...next]);
+    setPopoverOpen(false);
+  }
+
+  async function handleDocFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.files?.[0];
     e.target.value = "";
     if (!raw || !conversationId) return;
-
-    if (raw.size > MAX_BYTES) {
-      alert("El archivo no puede superar 25 MB.");
-      return;
-    }
-
-    const file = raw.type.startsWith("image/") ? await compressImage(raw) : raw;
-    onSendMedia?.(file, "");
+    if (raw.size > MAX_BYTES) { alert("El archivo no puede superar 25 MB."); return; }
+    onSendMedia?.(raw, "");
     formRef.current?.querySelector("textarea")?.focus();
   }
 
-  function openFilePicker(accept: string) {
-    setPopoverOpen(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.accept = accept;
-      fileInputRef.current.click();
-      fileInputRef.current.accept = "image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.zip,.rar";
-    }
+  function removePendingImage(id: string) {
+    setPendingImages((prev) => {
+      const item = prev.find((p) => p.id === id);
+      if (item) URL.revokeObjectURL(item.objectUrl);
+      return prev.filter((p) => p.id !== id);
+    });
   }
 
   function handleActionClick(id: string) {
@@ -295,11 +329,19 @@ export function MessageInput({
       {replyTo && <ReplyInputPreview reply={replyTo} onCancel={() => onCancelReply?.()} />}
       <div className="px-4">
         <input
-          ref={fileInputRef}
+          ref={imageInputRef}
           type="file"
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.zip,.rar"
+          accept="image/*,video/*"
+          multiple
           className="hidden"
-          onChange={handleFileChange}
+          onChange={handleImageFilesChange}
+        />
+        <input
+          ref={docInputRef}
+          type="file"
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.zip,.rar,audio/*"
+          className="hidden"
+          onChange={handleDocFileChange}
         />
 
         {conversationId && credentialId && (
@@ -328,6 +370,28 @@ export function MessageInput({
           />
         ) : (
           <PromptInput onSubmit={handleTextSubmit} className="[&_[data-slot=input-group]]:rounded-2xl">
+            {hasPending && (
+              <div className="flex w-full gap-2 overflow-x-auto px-1 pb-1 pt-2 scrollbar-none">
+                {pendingImages.map((img) => (
+                  <div key={img.id} className="relative shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={img.objectUrl}
+                      alt={img.file.name}
+                      className="size-16 rounded-lg object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePendingImage(img.id)}
+                      className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-foreground text-background shadow"
+                      aria-label="Quitar imagen"
+                    >
+                      <XIcon className="size-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <PromptInputTextarea
               placeholder="Mensaje..."
               className="min-h-0! max-h-32 py-2 text-sm"
@@ -345,17 +409,22 @@ export function MessageInput({
                   </PopoverTrigger>
                   <PopoverContent side="top" align="start" sideOffset={10} className="p-1.5 md:mb-12">
                     <div className="flex flex-col">
-                      {ATTACH_OPTIONS.map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => openFilePicker(opt.accept)}
-                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted"
-                        >
-                          <opt.icon className="size-4 shrink-0 text-muted-foreground" />
-                          {opt.label}
-                        </button>
-                      ))}
+                      <button
+                        type="button"
+                        onClick={() => { setPopoverOpen(false); imageInputRef.current?.click(); }}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted"
+                      >
+                        <ImageIcon className="size-4 shrink-0 text-muted-foreground" />
+                        Imágenes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setPopoverOpen(false); docInputRef.current?.click(); }}
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-muted"
+                      >
+                        <BookOpenIcon className="size-4 shrink-0 text-muted-foreground" />
+                        Archivos
+                      </button>
                       <div className="my-1 h-px bg-border" />
                       {ACTION_OPTIONS.map((opt) => (
                         <button
@@ -377,7 +446,7 @@ export function MessageInput({
                 </PromptInputButton>
               </div>
 
-              {hasText ? (
+              {canSend ? (
                 <PromptInputSubmit className="size-10 rounded-full">
                   <SendHorizonalIcon className="size-4" />
                 </PromptInputSubmit>

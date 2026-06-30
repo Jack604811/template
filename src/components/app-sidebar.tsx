@@ -31,15 +31,17 @@ import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-sub
 import { useNavigationHistory } from "@/hooks/use-navigation-history";
 import { authClient } from "@/lib/auth-client";
 
+const isDev = process.env.NODE_ENV === "development";
+
 const menuItems = [
   {
     title: "Main",
     items: [
       { title: "Home", icon: HomeIcon, url: "/" },
-      { title: "Reservas", icon: CalendarDaysIcon, url: "/bookings" },
+      ...(isDev ? [{ title: "Reservas", icon: CalendarDaysIcon, url: "/bookings" }] : []),
       { title: "Chats", icon: MessageCircleIcon, url: "/chat" },
-      { title: "Agentes", icon: BotIcon, url: "/agents" },
-      { title: "CMS", icon: DatabaseIcon, url: "/cms" },
+      ...(isDev ? [{ title: "Agentes", icon: BotIcon, url: "/agents" }] : []),
+      ...(isDev ? [{ title: "CMS", icon: DatabaseIcon, url: "/cms" }] : []),
       { title: "Integraciones", icon: PlugZapIcon, url: "/integrations" },
       { title: "Settings", icon: SettingsIcon, url: "/settings" },
     ],

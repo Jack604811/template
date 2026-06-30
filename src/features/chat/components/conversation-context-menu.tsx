@@ -68,7 +68,7 @@ export function ConversationContextMenu({
         <PopoverTrigger asChild>
           <button
             type="button"
-            className="flex size-10 shrink-0 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+            className="flex size-10 shrink-0 items-center justify-center rounded-full text-foreground transition-colors hover:bg-foreground/8"
           >
             <EllipsisVerticalIcon className="size-4" />
           </button>

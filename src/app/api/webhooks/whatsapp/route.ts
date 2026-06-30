@@ -341,6 +341,24 @@ async function triggerMatchingWorkflows(
 
   for (const cred of matchingCredentials) {
     try {
+      let customer = await prisma.customer.findFirst({
+        where: { organizationId: cred.organizationId, phone: from },
+      });
+      if (!customer) {
+        customer = await prisma.customer.create({
+          data: {
+            organizationId: cred.organizationId,
+            name: senderName ?? from,
+            phone: from,
+          },
+        });
+      } else if (senderName && customer.name !== senderName) {
+        customer = await prisma.customer.update({
+          where: { id: customer.id },
+          data: { name: senderName },
+        });
+      }
+
       const conversation = await prisma.conversation.upsert({
         where: {
           organizationId_channel_externalId: {
@@ -354,6 +372,7 @@ async function triggerMatchingWorkflows(
           lastMessageText: content,
           unreadCount: { increment: 1 },
           blocked: false,
+          customerId: customer.id,
           ...(senderName ? { contactName: senderName } : {}),
         },
         create: {
@@ -365,6 +384,7 @@ async function triggerMatchingWorkflows(
           lastMessageAt: timestamp,
           lastMessageText: content,
           unreadCount: 1,
+          customerId: customer.id,
         },
       });
 

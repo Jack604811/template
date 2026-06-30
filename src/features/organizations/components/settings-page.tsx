@@ -18,14 +18,12 @@ import {
   LogOutIcon,
   MoonIcon,
   PencilIcon,
-  PlugIcon,
   PlusIcon,
   SettingsIcon,
   ToggleLeftIcon,
   TypeIcon,
   UsersIcon,
   XIcon,
-  ZapIcon,
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -33,6 +31,7 @@ import { useTheme } from "next-themes";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { Button } from "@/components/ui/button";
 import {
   type Country,
   CountryDropdown,
@@ -54,8 +53,26 @@ import {
 } from "@/components/ui/empty";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { CustomFieldDialog } from "@/features/custom-fields/components/custom-field-dialog";
-import { useSuspenseCustomFields } from "@/features/custom-fields/hooks/use-custom-fields";
+import { useSuspenseCustomFields, useReorderCustomFields } from "@/features/custom-fields/hooks/use-custom-fields";
 import { CustomFieldDisplayLocation, CustomFieldType } from "@/generated/prisma";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
@@ -68,6 +85,7 @@ import {
   useUpdateOrganizationSettings,
 } from "../hooks/use-organizations";
 import { MemberList } from "./member-list";
+import type { OrgRole } from "../utils/roles";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,7 +94,6 @@ type Tab =
   | "campos"
   | "equipo"
   | "facturacion"
-  | "integraciones"
   | "documentos";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -84,7 +101,6 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "campos", label: "Variables", icon: ListIcon },
   { id: "equipo", label: "Equipo", icon: UsersIcon },
   { id: "facturacion", label: "Facturación", icon: CreditCardIcon },
-  { id: "integraciones", label: "Integraciones", icon: PlugIcon },
   { id: "documentos", label: "Documentos", icon: FileTextIcon },
 ];
 
@@ -299,11 +315,7 @@ const PanelGeneral = memo(() => {
     (m) => m.organization.id === currentOrgId,
   );
   const currentOrg = currentMembership?.organization;
-  const currentRole = currentMembership?.role as
-    | "owner"
-    | "admin"
-    | "member"
-    | undefined;
+  const currentRole = currentMembership?.role as OrgRole | undefined;
   const canEdit = currentRole === "owner" || currentRole === "admin";
 
   const availableCountries = useMemo(
@@ -773,83 +785,95 @@ function FieldTypeIcon({ type }: { type: CustomFieldType }) {
   }
 }
 
-function VariablesList() {
+function SortableVariableRow({
+  field,
+  onEdit,
+}: {
+  field: FieldItem;
+  onEdit: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      {...attributes}
+      {...listeners}
+      className={cn("flex cursor-grab items-center gap-3 py-3.5 active:cursor-grabbing", isDragging && "opacity-50")}
+    >
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
+        <FieldTypeIcon type={field.type} />
+      </span>
+      <button type="button" className="min-w-0 flex-1 truncate text-left text-[15px] text-foreground/90" onClick={onEdit}>
+        {field.name}
+      </button>
+      {field.required && (
+        <span className="shrink-0 rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-semibold text-primary">
+          Requerido
+        </span>
+      )}
+      <span className="shrink-0 text-[12px] text-muted-foreground">{FIELD_TYPE_LABELS_ES[field.type]}</span>
+      <ChevronRightIcon className="size-4 shrink-0 text-foreground/20" />
+    </div>
+  );
+}
+
+function VariablesList({ addOpen, onAddOpenChange }: { addOpen: boolean; onAddOpenChange: (v: boolean) => void }) {
   const { data: fields } = useSuspenseCustomFields();
+  const reorderFields = useReorderCustomFields();
   const [editField, setEditField] = useState<FieldItem | null>(null);
-  const [addLocation, setAddLocation] =
-    useState<CustomFieldDisplayLocation | null>(null);
+  const [items, setItems] = useState<FieldItem[]>([]);
 
-  const bookingFields = (fields as FieldItem[]).filter(
-    (f) => f.displayLocation === CustomFieldDisplayLocation.BOOKING,
-  );
-  const customerFields = (fields as FieldItem[]).filter(
-    (f) => f.displayLocation === CustomFieldDisplayLocation.CUSTOMER,
+  const customerFields = useMemo(
+    () => (fields as FieldItem[]).filter((f) => f.displayLocation === CustomFieldDisplayLocation.CUSTOMER),
+    [fields],
   );
 
-  const sections = [
-    {
-      label: "VARIABLES DE CLIENTE",
-      items: customerFields,
-      location: CustomFieldDisplayLocation.CUSTOMER,
-    },
-    {
-      label: "VARIABLES DE RESERVA",
-      items: bookingFields,
-      location: CustomFieldDisplayLocation.BOOKING,
-    },
-  ];
+  useEffect(() => {
+    setItems(customerFields);
+  }, [customerFields]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((f) => f.id === active.id);
+    const newIndex = items.findIndex((f) => f.id === over.id);
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered);
+    reorderFields.mutate({
+      fieldOrders: reordered.map((f, i) => ({ id: f.id, order: i })),
+    });
+  }
 
   return (
     <>
-      <div className="flex flex-col gap-16">
-        {sections.map(({ label, items, location }) => (
-          <div key={location}>
-            <div className="mb-3 flex items-center justify-between">
-              <SectionLabel>{label}</SectionLabel>
-              <button
-                type="button"
-                onClick={() => setAddLocation(location)}
-                className="flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <PlusIcon className="size-3.5" />
-                Nuevo
-              </button>
+      {customerFields.length === 0 ? (
+        <p className="py-4 text-sm text-muted-foreground">Sin campos</p>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={items.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+            <div className="divide-y divide-border/40">
+              {items.map((field) => (
+                <SortableVariableRow
+                  key={field.id}
+                  field={field}
+                  onEdit={() => setEditField(field)}
+                />
+              ))}
             </div>
-            <div>
-              {items.length === 0 ? (
-                <p className="py-4 text-sm text-muted-foreground">Sin campos</p>
-              ) : (
-                items.map((field, idx) => (
-                  <div key={field.id}>
-                    {idx > 0 && <div className="h-px bg-border/40" />}
-                    <button
-                      type="button"
-                      onClick={() => setEditField(field)}
-                      className="-mx-5 flex w-[calc(100%+2.5rem)] items-center gap-3 px-5 py-3.5 text-left transition-colors hover:bg-muted/50 active:bg-muted"
-                    >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-                        <FieldTypeIcon type={field.type} />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[15px] text-foreground/90">
-                        {field.name}
-                      </span>
-                      {field.required && (
-                        <span className="shrink-0 rounded-full bg-primary/12 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                          Requerido
-                        </span>
-                      )}
-                      <span className="shrink-0 text-[12px] text-muted-foreground">
-                        {FIELD_TYPE_LABELS_ES[field.type]}
-                      </span>
-                      <ChevronRightIcon className="size-4 shrink-0 text-foreground/20" />
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+          </SortableContext>
+        </DndContext>
+      )}
 
       <CustomFieldDialog
         open={editField !== null}
@@ -874,12 +898,10 @@ function VariablesList() {
       />
 
       <CustomFieldDialog
-        open={addLocation !== null}
-        onOpenChange={(v) => !v && setAddLocation(null)}
+        open={addOpen}
+        onOpenChange={onAddOpenChange}
         hideDisplayLocation
-        defaultValues={
-          addLocation !== null ? { displayLocation: addLocation } : undefined
-        }
+        defaultValues={{ displayLocation: CustomFieldDisplayLocation.CUSTOMER }}
       />
     </>
   );
@@ -891,22 +913,28 @@ function PanelContent({
   tab,
   orgId,
   role,
+  addOpen,
+  onAddOpenChange,
+  inviteOpen,
+  setInviteOpen,
 }: {
   tab: Tab;
   orgId: string;
-  role: "owner" | "admin" | "member";
+  role: OrgRole;
+  addOpen: boolean;
+  onAddOpenChange: (v: boolean) => void;
+  inviteOpen: boolean;
+  setInviteOpen: (v: boolean) => void;
 }) {
   switch (tab) {
     case "general":
       return <PanelGeneral />;
     case "campos":
-      return <VariablesList />;
+      return <VariablesList addOpen={addOpen} onAddOpenChange={onAddOpenChange} />;
     case "equipo":
-      return <MemberList organizationId={orgId} currentRole={role} />;
+      return <MemberList organizationId={orgId} currentRole={role} inviteOpen={inviteOpen} setInviteOpen={setInviteOpen} />;
     case "facturacion":
       return <StubPanel icon={CreditCardIcon} />;
-    case "integraciones":
-      return <StubPanel icon={ZapIcon} />;
     case "documentos":
       return <StubPanel icon={FileTextIcon} />;
   }
@@ -985,11 +1013,14 @@ function MobileSettings({
 }: {
   orgName: string;
   orgId: string;
-  role: "owner" | "admin" | "member";
+  role: OrgRole;
   plan: string;
 }) {
   const [openTab, setOpenTab] = useState<Tab | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const activeTab = TABS.find((t) => t.id === openTab);
+  const canManage = role === "owner" || role === "admin";
 
   return (
     <>
@@ -1072,20 +1103,46 @@ function MobileSettings({
             <span className="text-[15px] font-semibold">
               {activeTab?.label ?? ""}
             </span>
-            <DrawerClose asChild>
+            {canManage && openTab === "equipo" ? (
               <button
                 type="button"
+                onClick={() => setInviteOpen(true)}
                 className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
               >
-                <XIcon className="size-5" />
+                <PlusIcon className="size-5" />
               </button>
-            </DrawerClose>
+            ) : canManage && openTab === "campos" ? (
+              <button
+                type="button"
+                onClick={() => setAddOpen(true)}
+                className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+              >
+                <PlusIcon className="size-5" />
+              </button>
+            ) : (
+              <DrawerClose asChild>
+                <button
+                  type="button"
+                  className="flex size-10 items-center justify-center rounded-full bg-foreground/8 text-foreground transition-colors hover:bg-foreground/12"
+                >
+                  <XIcon className="size-5" />
+                </button>
+              </DrawerClose>
+            )}
           </div>
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto px-5 pb-safe-or-8">
             {openTab && (
-              <PanelContent tab={openTab} orgId={orgId} role={role} />
+              <PanelContent
+                tab={openTab}
+                orgId={orgId}
+                role={role}
+                addOpen={addOpen}
+                onAddOpenChange={setAddOpen}
+                inviteOpen={inviteOpen}
+                setInviteOpen={setInviteOpen}
+              />
             )}
           </div>
         </DrawerContent>
@@ -1104,13 +1161,16 @@ function DesktopSettings({
 }: {
   orgName: string;
   orgId: string;
-  role: "owner" | "admin" | "member";
+  role: OrgRole;
   plan: string;
 }) {
   const [active, setActive] = useState<Tab>("general");
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const canManage = role === "owner" || role === "admin";
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-dvh">
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r flex flex-col p-4 gap-1">
         {/* Org strip */}
@@ -1163,10 +1223,32 @@ function DesktopSettings({
       {/* Content */}
       <main className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-2xl">
-          <h2 className="text-lg font-semibold mb-6">
-            {TABS.find((t) => t.id === active)?.label}
-          </h2>
-          <PanelContent tab={active} orgId={orgId} role={role} />
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold tracking-tight">
+              {TABS.find((t) => t.id === active)?.label}
+            </h2>
+            {canManage && active === "equipo" && (
+              <Button size="sm" onClick={() => setInviteOpen(true)}>
+                <PlusIcon className="size-4" />
+                Invitar
+              </Button>
+            )}
+            {canManage && active === "campos" && (
+              <Button size="sm" onClick={() => setAddOpen(true)}>
+                <PlusIcon className="size-4" />
+                Nuevo
+              </Button>
+            )}
+          </div>
+          <PanelContent
+            tab={active}
+            orgId={orgId}
+            role={role}
+            addOpen={addOpen}
+            onAddOpenChange={setAddOpen}
+            inviteOpen={inviteOpen}
+            setInviteOpen={setInviteOpen}
+          />
         </div>
       </main>
     </div>
@@ -1185,7 +1267,7 @@ export const SettingsPage = memo(() => {
     (m) => m.organization.id === currentOrgId,
   );
   const org = membership?.organization;
-  const role = (membership?.role ?? "member") as "owner" | "admin" | "member";
+  const role = (membership?.role ?? "readonly") as OrgRole;
   const plan = hasActiveSubscription ? "Pro" : "Free";
 
   if (!org || !currentOrgId) return null;

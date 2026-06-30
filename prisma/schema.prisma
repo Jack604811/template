@@ -87,6 +87,7 @@ model Organization {
   conversations       Conversation[]
   conversationTags    ConversationTag[]
   credentials         Credential[]
+  quickReplies        QuickReply[]
   workflows           Workflow[]
   bookables           Bookable[]
   bookableCollections BookableCollection[]
@@ -258,6 +259,7 @@ model Customer {
   updatedAt         DateTime           @updatedAt
   bookings          Booking[]
   customFieldValues CustomFieldValue[]
+  conversations     Conversation[]
   organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("customer")
@@ -299,19 +301,22 @@ model CustomField {
 }
 
 model CustomFieldValue {
-  id         String      @id @default(cuid())
-  fieldId    String
-  value      Json
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  bookingId  String?
-  customerId String?
-  booking    Booking?    @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  customer   Customer?   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  field      CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  id             String        @id @default(cuid())
+  fieldId        String
+  value          Json
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  bookingId      String?
+  customerId     String?
+  conversationId String?
+  booking        Booking?      @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  customer       Customer?     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  field          CustomField   @relation(fields: [fieldId], references: [id], onDelete: Cascade)
 
   @@unique([bookingId, fieldId])
   @@unique([customerId, fieldId])
+  @@unique([conversationId, fieldId])
   @@map("custom_field_value")
 }
 
@@ -434,10 +439,13 @@ model Conversation {
   updatedAt       DateTime                  @updatedAt
   blocked         Boolean                   @default(false)
   notes           String?
-  organization    Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  participants    ConversationParticipant[]
-  messages        Message[]
-  tags            ConversationTagAssignment[]
+  customerId      String?
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer?                   @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  participants      ConversationParticipant[]
+  messages          Message[]
+  tags              ConversationTagAssignment[]
+  customFieldValues CustomFieldValue[]
 
   @@unique([organizationId, channel, externalId])
   @@index([organizationId, lastMessageAt(sort: Desc)])
@@ -632,4 +640,16 @@ enum CustomFieldType {
 enum CustomFieldDisplayLocation {
   BOOKING
   CUSTOMER
+}
+
+model QuickReply {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  shortcut       String?
+  steps          Json
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("quick_reply")
 }

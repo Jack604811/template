@@ -16,6 +16,7 @@ import { WeekStartSelect } from "@/components/ui/week-start-select";
 import { DateTimeFormatSelect } from "@/components/ui/date-time-format-select";
 import { useCurrentOrganization, useSuspenseOrganizations, useUpdateOrganizationName, useUpdateOrganizationSettings } from "../hooks/use-organizations";
 import { MemberList } from "./member-list";
+import type { OrgRole } from "../utils/roles";
 import { CustomFieldsList } from "@/features/custom-fields/components/custom-fields-list";
 
 const formSchema = z.object({
@@ -37,7 +38,8 @@ export const OrganizationSettingsView = memo(() => {
 
   const currentMembership = memberships.find(m => m.organization.id === currentOrgId);
   const currentOrg = currentMembership?.organization;
-  const currentRole = currentMembership?.role as "owner" | "admin" | "member" | undefined;
+  const currentRole = currentMembership?.role as OrgRole | undefined;
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   // Get available countries
   const availableCountries = useMemo(
@@ -390,7 +392,7 @@ export const OrganizationSettingsView = memo(() => {
         </Card>
         <Card>
           {currentOrgId && (
-            <MemberList organizationId={currentOrgId} currentRole={currentRole || "member"} />
+            <MemberList organizationId={currentOrgId} currentRole={currentRole ?? "readonly"} inviteOpen={inviteOpen} setInviteOpen={setInviteOpen} />
           )}
         </Card>
       </div>

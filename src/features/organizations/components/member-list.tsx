@@ -1,16 +1,5 @@
 "use client";
 
-import { memo, useState } from "react";
-import { MoreHorizontalIcon, UserIcon, PlusIcon } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,155 +10,210 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
-import { useSuspenseOrganizationMembers, useRemoveMember, useUpdateMemberRole } from "../hooks/use-organizations";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { MoreHorizontalIcon } from "lucide-react";
+import { memo, useState } from "react";
+import {
+  useCancelInvitation,
+  useRemoveMember,
+  useSuspenseOrganizationInvitations,
+  useSuspenseOrganizationMembers,
+  useUpdateMemberRole,
+} from "../hooks/use-organizations";
+import { ASSIGNABLE_ROLES, getRoleLabel, type OrgRole } from "../utils/roles";
 import { InviteMemberDialog } from "./invite-member-dialog";
+
+function Avatar({ name }: { name: string }) {
+  const initial = name[0]?.toUpperCase() ?? "?";
+  return (
+    <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+      {initial}
+    </span>
+  );
+}
 
 interface Props {
   organizationId: string;
-  currentRole: "owner" | "admin" | "member";
+  currentRole: OrgRole;
+  inviteOpen: boolean;
+  setInviteOpen: (open: boolean) => void;
 }
 
-export const MemberList = memo(({ organizationId, currentRole }: Props) => {
+export const MemberList = memo(({ organizationId, currentRole, inviteOpen, setInviteOpen }: Props) => {
   const { data: members } = useSuspenseOrganizationMembers(organizationId);
+  const { data: invitations } = useSuspenseOrganizationInvitations(organizationId);
   const removeMember = useRemoveMember();
   const updateRole = useUpdateMemberRole();
+  const cancelInvitation = useCancelInvitation();
 
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
-  const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [selectedMember, setSelectedMember] = useState<{ userId: string; name: string } | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<{ userId: string; name: string } | null>(null);
 
-  const canManageMembers = currentRole === "owner" || currentRole === "admin";
+  const canManage = currentRole === "owner" || currentRole === "admin";
   const isOwner = currentRole === "owner";
-
-  const handleRemoveMember = () => {
-    if (selectedMember) {
-      removeMember.mutate({
-        organizationId,
-        userId: selectedMember.userId,
-      });
-      setRemoveDialogOpen(false);
-      setSelectedMember(null);
-    }
-  };
-
-  const handleChangeRole = (userId: string, newRole: "owner" | "admin" | "member") => {
-    updateRole.mutate({
-      organizationId,
-      userId,
-      role: newRole,
-    });
-  };
 
   return (
     <>
       <InviteMemberDialog
-        open={inviteDialogOpen}
-        onOpenChange={setInviteDialogOpen}
+        open={inviteOpen}
+        onOpenChange={setInviteOpen}
         organizationId={organizationId}
       />
 
-      <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+      <AlertDialog open={!!removeTarget} onOpenChange={(v) => !v && setRemoveTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Remove Member</AlertDialogTitle>
+            <AlertDialogTitle>Eliminar miembro</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to remove {selectedMember?.name} from the organization?
-              They will lose access to all workflows, credentials, and executions.
+              ¿Estás seguro de que quieres eliminar a {removeTarget?.name} de la organización?
+              Perderá acceso a todos los flujos de trabajo, credenciales y ejecuciones.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleRemoveMember} disabled={removeMember.isPending}>
-              {removeMember.isPending ? "Removing..." : "Remove"}
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (removeTarget) {
+                  removeMember.mutate({ organizationId, userId: removeTarget.userId });
+                  setRemoveTarget(null);
+                }
+              }}
+              disabled={removeMember.isPending}
+            >
+              {removeMember.isPending ? "Eliminando..." : "Eliminar"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <CardHeader>
-        <CardTitle>Team Members</CardTitle>
-        <CardDescription>
-          Manage who has access to this organization
-        </CardDescription>
-        {canManageMembers && (
-          <CardAction>
-            <Button onClick={() => setInviteDialogOpen(true)} size="sm">
-              <PlusIcon className="size-4" />
-              Add Member
-            </Button>
-          </CardAction>
-        )}
-      </CardHeader>
-
-      <CardContent>
-        <div className="space-y-2">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className="flex items-center justify-between p-4 border rounded-lg"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                  <UserIcon className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <div className="font-medium">{member.user.name}</div>
-                  <div className="text-sm text-muted-foreground">{member.user.email}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant={member.role === "owner" ? "default" : "secondary"}>
-                  {member.role}
-                </Badge>
-                {canManageMembers && member.role !== "owner" && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontalIcon className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {isOwner && (
-                        <>
-                          <DropdownMenuItem
-                            onClick={() => handleChangeRole(member.user.id, "admin")}
-                            disabled={member.role === "admin"}
-                          >
-                            Make Admin
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => handleChangeRole(member.user.id, "member")}
-                            disabled={member.role === "member"}
-                          >
-                            Make Member
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                        </>
+      <div className="rounded-xl border overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/30">
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Usuario</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground">Rol</th>
+              <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Se unió el</th>
+              {canManage && <th className="px-4 py-3 w-10" />}
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((member) => (
+              <tr key={member.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={member.user.name || member.user.email} />
+                    <div className="min-w-0">
+                      {member.user.name && (
+                        <p className="font-medium leading-none truncate">{member.user.name}</p>
                       )}
-                      <DropdownMenuItem
-                        className="text-destructive"
-                        onClick={() => {
-                          setSelectedMember({
-                            userId: member.user.id,
-                            name: member.user.name,
-                          });
-                          setRemoveDialogOpen(true);
-                        }}
-                      >
-                        Remove from Organization
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      <p className="text-muted-foreground text-xs mt-0.5 truncate">{member.user.email}</p>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="text-sm">{getRoleLabel(member.role)}</span>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                  {format(new Date(member.createdAt), "d MMM yyyy", { locale: es })}
+                </td>
+                {canManage && (
+                  <td className="px-4 py-3">
+                    {member.role !== "owner" && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="size-8">
+                            <MoreHorizontalIcon className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {isOwner && (
+                            <>
+                              {ASSIGNABLE_ROLES.filter((r) => r !== member.role).map((r) => (
+                                <DropdownMenuItem
+                                  key={r}
+                                  onClick={() => updateRole.mutate({ organizationId, userId: member.user.id, role: r })}
+                                >
+                                  Cambiar a {getRoleLabel(r)}
+                                </DropdownMenuItem>
+                              ))}
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setRemoveTarget({ userId: member.user.id, name: member.user.name || member.user.email })}
+                          >
+                            Eliminar de la organización
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </td>
                 )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
+              </tr>
+            ))}
+
+            {invitations.map((inv) => (
+              <tr key={inv.id} className="border-b last:border-0 hover:bg-muted/20 transition-colors opacity-60">
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={inv.email} />
+                    <p className="text-sm truncate">{inv.email}</p>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">{getRoleLabel(inv.role)}</span>
+                    <span className="rounded-full bg-yellow-500/10 px-2 py-0.5 text-[10px] font-semibold text-yellow-600 dark:text-yellow-400">
+                      Pendiente
+                    </span>
+                  </div>
+                </td>
+                <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">
+                  {format(new Date(inv.createdAt), "d MMM yyyy", { locale: es })}
+                </td>
+                {canManage && (
+                  <td className="px-4 py-3">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="size-8">
+                          <MoreHorizontalIcon className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          className="text-destructive"
+                          onClick={() => cancelInvitation.mutate({ organizationId, invitationId: inv.id })}
+                        >
+                          Cancelar invitación
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </td>
+                )}
+              </tr>
+            ))}
+
+            {members.length === 0 && invitations.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-muted-foreground">
+                  No hay miembros en esta organización.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 });
 
 MemberList.displayName = "MemberList";
-

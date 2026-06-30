@@ -24,9 +24,10 @@ function Dialog({
   onOpenChange,
   modal,
   defaultOpen,
+  forceDialog = false,
   children,
-}: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  const isMobile = useIsMobile();
+}: React.ComponentProps<typeof DialogPrimitive.Root> & { forceDialog?: boolean }) {
+  const isMobile = useIsMobile() && !forceDialog;
 
   if (isMobile) {
     return (

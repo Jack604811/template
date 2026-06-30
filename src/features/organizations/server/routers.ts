@@ -25,6 +25,46 @@ export const organizationsRouter = createTRPCRouter({
     });
   }),
   
+  getInvitations: protectedProcedure
+    .input(z.object({ organizationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const membership = await prisma.member.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: input.organizationId,
+            userId: ctx.auth.user.id,
+          },
+        },
+      });
+      if (!membership) throw new TRPCError({ code: "FORBIDDEN", message: "Not a member" });
+
+      return prisma.invitation.findMany({
+        where: { organizationId: input.organizationId, status: "pending" },
+        orderBy: { createdAt: "desc" },
+      });
+    }),
+
+  cancelInvitation: protectedProcedure
+    .input(z.object({ organizationId: z.string(), invitationId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const membership = await prisma.member.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: input.organizationId,
+            userId: ctx.auth.user.id,
+          },
+        },
+      });
+      if (!membership || !["owner", "admin"].includes(membership.role)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Solo propietarios y administradores pueden cancelar invitaciones" });
+      }
+      await prisma.invitation.update({
+        where: { id: input.invitationId },
+        data: { status: "cancelled" },
+      });
+      return { success: true };
+    }),
+
   getMembers: protectedProcedure
     .input(z.object({ organizationId: z.string() }))
     .query(async ({ ctx, input }) => {
@@ -108,10 +148,10 @@ export const organizationsRouter = createTRPCRouter({
     }),
   
   inviteMember: protectedProcedure
-    .input(z.object({ 
+    .input(z.object({
       organizationId: z.string(),
       email: z.string().email(),
-      role: z.enum(["admin", "member"])
+      role: z.enum(["admin", "editor", "livechat", "readonly"])
     }))
     .mutation(async ({ ctx, input }) => {
       // Check user is owner/admin
@@ -212,7 +252,7 @@ export const organizationsRouter = createTRPCRouter({
     .input(z.object({
       organizationId: z.string(),
       userId: z.string(),
-      role: z.enum(["owner", "admin", "member"])
+      role: z.enum(["admin", "editor", "livechat", "readonly"])
     }))
     .mutation(async ({ ctx, input }) => {
       // Only owner can update roles
@@ -252,6 +292,53 @@ export const organizationsRouter = createTRPCRouter({
       });
 
       return updatedMember;
+    }),
+
+  acceptInvitation: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const invitation = await prisma.invitation.findUnique({
+        where: { id: input.id },
+        include: { organization: true },
+      });
+
+      if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "La invitación no es válida o ha expirado",
+        });
+      }
+
+      const existing = await prisma.member.findUnique({
+        where: {
+          organizationId_userId: {
+            organizationId: invitation.organizationId,
+            userId: ctx.auth.user.id,
+          },
+        },
+      });
+
+      if (!existing) {
+        await prisma.member.create({
+          data: {
+            organizationId: invitation.organizationId,
+            userId: ctx.auth.user.id,
+            role: invitation.role,
+          },
+        });
+      }
+
+      await prisma.invitation.update({
+        where: { id: input.id },
+        data: { status: "accepted" },
+      });
+
+      await prisma.user.update({
+        where: { id: ctx.auth.user.id },
+        data: { lastActiveOrganizationId: invitation.organizationId },
+      });
+
+      return { organizationId: invitation.organizationId, organizationName: invitation.organization.name };
     }),
 
   updateName: adminProcedure

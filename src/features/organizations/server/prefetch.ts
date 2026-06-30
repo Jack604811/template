@@ -1,4 +1,3 @@
-import type { inferInput } from "@trpc/tanstack-react-query";
 import { prefetch, trpc } from "@/trpc/server";
 
 /**
@@ -20,5 +19,12 @@ export const prefetchCurrentOrganization = () => {
  */
 export const prefetchOrganizationMembers = (organizationId: string) => {
   return prefetch(trpc.organizations.getMembers.queryOptions({ organizationId }));
+};
+
+/**
+ * Prefetch pending invitations (for settings page)
+ */
+export const prefetchOrganizationInvitations = (organizationId: string) => {
+  return prefetch(trpc.organizations.getInvitations.queryOptions({ organizationId }));
 };
 

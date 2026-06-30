@@ -90,6 +90,26 @@ export const adminProcedure = organizationProcedure.use(({ ctx, next }) => {
   return next({ ctx });
 });
 
+export const editorProcedure = organizationProcedure.use(({ ctx, next }) => {
+  if (!["owner", "admin", "editor"].includes(ctx.memberRole)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Editor access required",
+    });
+  }
+  return next({ ctx });
+});
+
+export const livechatProcedure = organizationProcedure.use(({ ctx, next }) => {
+  if (!["owner", "admin", "editor", "livechat"].includes(ctx.memberRole)) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "Livechat access required",
+    });
+  }
+  return next({ ctx });
+});
+
 export const ownerProcedure = organizationProcedure.use(({ ctx, next }) => {
   if (ctx.memberRole !== "owner") {
     throw new TRPCError({

@@ -5,7 +5,6 @@ import {
   ImageIcon,
   LayoutTemplateIcon,
   LoaderIcon,
-  MapPinIcon,
   MessageSquareQuoteIcon,
   MicIcon,
   PlusIcon,
@@ -29,6 +28,7 @@ import { LiveWaveform } from "@/components/ui/live-waveform";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { compressImage } from "../lib/compress";
 import { CatalogPicker } from "./catalog-picker";
+import { QuickReplyPicker } from "./quick-reply-picker";
 import type { ReplyTarget } from "./replied-message";
 import { ReplyInputPreview } from "./reply-input-preview";
 import { TemplatePicker } from "./template-picker";
@@ -59,7 +59,6 @@ interface MessageInputProps {
 }
 
 const ACTION_OPTIONS = [
-  { id: "location",      label: "Ubicación",         icon: MapPinIcon              },
   { id: "quick-replies", label: "Respuestas rápidas", icon: MessageSquareQuoteIcon  },
   { id: "catalog",       label: "Catálogo",           icon: ShoppingBagIcon         },
   { id: "templates",     label: "Plantillas",         icon: LayoutTemplateIcon      },
@@ -247,6 +246,7 @@ export function MessageInput({
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [quickRepliesOpen, setQuickRepliesOpen] = useState(false);
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
 
   const pendingImagesRef = useRef(pendingImages);
@@ -322,6 +322,7 @@ export function MessageInput({
     setPopoverOpen(false);
     if (id === "templates") setTemplateOpen(true);
     if (id === "catalog") setCatalogOpen(true);
+    if (id === "quick-replies") setQuickRepliesOpen(true);
   }
 
   return (
@@ -344,6 +345,11 @@ export function MessageInput({
           onChange={handleDocFileChange}
         />
 
+        <QuickReplyPicker
+          open={quickRepliesOpen}
+          onClose={() => setQuickRepliesOpen(false)}
+          onSend={(payload) => { onSend?.(payload); }}
+        />
         {conversationId && credentialId && (
           <>
             <TemplatePicker

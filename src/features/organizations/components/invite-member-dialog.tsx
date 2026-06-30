@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -26,15 +26,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CheckIcon, CopyIcon } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useEffect } from "react";
+import z from "zod";
 import { useInviteMember } from "../hooks/use-organizations";
+import { ASSIGNABLE_ROLES, ROLE_META } from "../utils/roles";
 
 const formSchema = z.object({
-  email: z.string().email("Please enter a valid email address"),
-  role: z.enum(["admin", "member"]),
+  email: z.string().email("Ingresa un correo válido"),
+  role: z.enum(["admin", "editor", "livechat", "readonly"] as const),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -47,116 +50,145 @@ interface Props {
 
 export const InviteMemberDialog = ({ open, onOpenChange, organizationId }: Props) => {
   const inviteMember = useInviteMember();
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      email: "",
-      role: "member",
-    },
+    defaultValues: { email: "", role: "readonly" },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({
-        email: "",
-        role: "member",
-      });
+      form.reset({ email: "", role: "readonly" });
+      setInviteUrl(null);
+      setCopied(false);
     }
   }, [open, form]);
 
   const handleSubmit = async (values: FormValues) => {
-    await inviteMember.mutateAsync({
+    const invitation = await inviteMember.mutateAsync({
       organizationId,
       email: values.email,
       role: values.role,
-    }, {
-      onSuccess: () => {
-        onOpenChange(false);
-      },
     });
+    const url = `${window.location.origin}/accept-invitation?id=${invitation.id}`;
+    setInviteUrl(url);
+  };
+
+  const handleCopy = () => {
+    if (!inviteUrl) return;
+    navigator.clipboard.writeText(inviteUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} forceDialog>
       <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Invite Member</DialogTitle>
-          <DialogDescription>
-            Send an invitation to join your organization
-          </DialogDescription>
-        </DialogHeader>
-        <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(handleSubmit)}
-            className="space-y-4 mt-4"
-          >
-            <FormField
-              control={form.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email Address</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="member@example.com"
-                      {...field}
-                      disabled={inviteMember.isPending}
-                    />
-                  </FormControl>
-                  <FormDescription>
-                    The email address of the person you want to invite.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="role"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
+        {inviteUrl ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Invitación creada</DialogTitle>
+              <DialogDescription>
+                Comparte este enlace o código QR con la persona que deseas invitar.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col items-center gap-4 py-2">
+              <div className="rounded-xl border bg-white p-3">
+                <QRCodeSVG value={inviteUrl} size={180} />
+              </div>
+              <div className="flex w-full items-center gap-2">
+                <Input readOnly value={inviteUrl} className="text-xs" />
+                <Button type="button" size="icon" variant="outline" onClick={handleCopy}>
+                  {copied ? <CheckIcon className="size-4" /> : <CopyIcon className="size-4" />}
+                </Button>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={() => onOpenChange(false)}>Cerrar</Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Invitar miembro</DialogTitle>
+              <DialogDescription>
+                Envía una invitación para unirse a la organización
+              </DialogDescription>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4 mt-4">
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Correo electrónico</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="miembro@ejemplo.com"
+                          {...field}
+                          disabled={inviteMember.isPending}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        El correo de la persona que deseas invitar.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Rol</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                        disabled={inviteMember.isPending}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Seleccionar rol" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>
+                              {ROLE_META[r].label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {form.watch("role") ? ROLE_META[form.watch("role")].description : ""}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onOpenChange(false)}
                     disabled={inviteMember.isPending}
                   >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a role" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="member">Member</SelectItem>
-                      <SelectItem value="admin">Admin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    Admins can manage members and settings.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={inviteMember.isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={inviteMember.isPending}>
-                {inviteMember.isPending ? "Sending..." : "Send Invitation"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={inviteMember.isPending}>
+                    {inviteMember.isPending ? "Creando..." : "Crear invitación"}
+                  </Button>
+                </DialogFooter>
+              </form>
+            </Form>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );
 };
-

@@ -88,6 +88,20 @@ function buildWhatsAppPayload(
     };
   }
 
+  if (mediaType === "location") {
+    const url = mediaFilename ?? "";
+    const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+    const m = atMatch ?? qMatch;
+    if (m) {
+      return {
+        messaging_product: "whatsapp", to, type: "location",
+        location: { latitude: parseFloat(m[1]), longitude: parseFloat(m[2]) },
+        ...context,
+      };
+    }
+    return { messaging_product: "whatsapp", to, type: "text", text: { body: url }, ...context };
+  }
   if (!mediaUrl || !mediaType) {
     return { messaging_product: "whatsapp", to, type: "text", text: { body: content }, ...context };
   }
@@ -915,12 +929,50 @@ export const chatRouter = createTRPCRouter({
       });
     }),
 
+  getConversationCustomFields: organizationProcedure
+    .input(z.object({ conversationId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const values = await prisma.customFieldValue.findMany({
+        where: {
+          conversationId: input.conversationId,
+          conversation: { organizationId: ctx.organizationId },
+        },
+        include: { field: true },
+      });
+      const record: Record<string, unknown> = {};
+      for (const v of values) {
+        record[v.field.identifier] = v.value;
+      }
+      return record;
+    }),
+
+  updateConversationCustomField: organizationProcedure
+    .input(z.object({ conversationId: z.string(), identifier: z.string(), value: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const conversation = await prisma.conversation.findFirst({
+        where: { id: input.conversationId, organizationId: ctx.organizationId },
+      });
+      if (!conversation) throw new Error("Conversation not found");
+
+      const field = await prisma.customField.findFirst({
+        where: { identifier: input.identifier, organizationId: ctx.organizationId },
+      });
+      if (!field) throw new Error("Custom field not found");
+
+      await prisma.customFieldValue.upsert({
+        where: { conversationId_fieldId: { conversationId: input.conversationId, fieldId: field.id } },
+        create: { conversationId: input.conversationId, fieldId: field.id, value: input.value },
+        update: { value: input.value },
+      });
+      return { success: true };
+    }),
+
   deleteConversation: organizationProcedure
     .input(z.object({ conversationId: z.string() }))
     .mutation(async ({ ctx, input }) => {
       const conversation = await prisma.conversation.findFirst({
         where: { id: input.conversationId, organizationId: ctx.organizationId },
-        select: { channel: true },
+        select: { channel: true, customerId: true },
       });
       if (!conversation) return;
 
@@ -938,6 +990,14 @@ export const chatRouter = createTRPCRouter({
       await prisma.conversation.delete({
         where: { id: input.conversationId },
       });
+
+      if (conversation.customerId) {
+        try {
+          await prisma.customer.delete({ where: { id: conversation.customerId } });
+        } catch {
+          // Customer has bookings or other references — keep the customer record.
+        }
+      }
     }),
 
 });

@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth-utils";
 import { OrganizationSettingsView } from "@/features/organizations/components/organization-settings-view";
-import { prefetchCurrentOrganization, prefetchOrganizationMembers, prefetchOrganizations } from "@/features/organizations/server/prefetch";
+import { prefetchOrganizationInvitations, prefetchOrganizationMembers, prefetchOrganizations } from "@/features/organizations/server/prefetch";
 import { Suspense } from "react";
 import { LoadingView } from "@/components/entity-components";
 
@@ -13,6 +13,7 @@ const Page = async () => {
   
   if (currentOrgId) {
     await prefetchOrganizationMembers(currentOrgId);
+    await prefetchOrganizationInvitations(currentOrgId);
   }
 
   return (

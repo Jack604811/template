@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftIcon,
   BanIcon,
-  BellIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FileTextIcon,
@@ -14,15 +13,15 @@ import {
   LogOutIcon,
   StarIcon,
   TagIcon,
-  TimerIcon,
   TrashIcon,
   UsersIcon,
   VideoIcon,
   XIcon,
 } from "lucide-react";
 import Image from "next/image";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { DeleteItem } from "@/components/ui/delete-item";
 import {
   Drawer,
   DrawerClose,
@@ -30,9 +29,12 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from "@/components/ui/drawer";
+import { InfoRow as DetailInfoRow, Section } from "@/components/ui/info-row";
 import { Pills } from "@/components/ui/pills";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { parseCustomFields } from "@/features/custom-fields/utils/parse-custom-fields";
+import { CustomFieldDisplayLocation, CustomFieldType } from "@/generated/prisma";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -41,9 +43,8 @@ import { useConversationParticipant } from "../hooks/use-conversation-participan
 import { useMessageActions } from "../hooks/use-message-actions";
 import type { Conversation } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
-import { type Message as BubbleMessage, MessageBubble } from "./message-bubble";
-import { DeleteItem } from "@/components/ui/delete-item";
 import { type Tag, TagDialog } from "./conversation-list";
+import { type Message as BubbleMessage, MessageBubble } from "./message-bubble";
 
 type MediaFilter = "media" | "docs" | "links";
 
@@ -55,7 +56,7 @@ const MEDIA_PILLS = [
 
 const URL_RE = /https?:\/\/[^\s<>"]+/g;
 
-interface InfoRowProps {
+interface NavRowProps {
   icon: React.ReactNode;
   label: string;
   value?: string;
@@ -64,14 +65,14 @@ interface InfoRowProps {
   children?: React.ReactNode;
 }
 
-function InfoRow({
+function NavRow({
   icon,
   label,
   value,
   destructive = false,
   onClick,
   children,
-}: InfoRowProps) {
+}: NavRowProps) {
   return (
     <button
       type="button"
@@ -147,7 +148,7 @@ function PanelContent({
   const [notes, setNotes] = useState(conversation.notes ?? "");
   const [notesDrawerOpen, setNotesDrawerOpen] = useState(false);
   const [draft, setDraft] = useState(notes);
-  const [view, setView] = useState<"menu" | "multimedia" | "starred">("menu");
+  const [view, setView] = useState<"menu" | "multimedia" | "starred" | "customFields">("menu");
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const { data: rawTags = [] } = useQuery(trpc.chat.getTags.queryOptions());
@@ -204,6 +205,96 @@ function PanelContent({
   const { hasJoined, joinConversation, leaveConversation } =
     useConversationParticipant(conversation, stableKeyMap);
 
+  const { data: allCustomFields = [] } = useQuery(trpc.customFields.getMany.queryOptions());
+  const contactFields = useMemo(
+    () => parseCustomFields(allCustomFields, CustomFieldDisplayLocation.CUSTOMER),
+    [allCustomFields],
+  );
+  const customFieldsQueryOptions = trpc.chat.getConversationCustomFields.queryOptions({
+    conversationId: conversation.id,
+  });
+  const { data: customFieldValues = {} } = useQuery(customFieldsQueryOptions);
+  const updateCustomField = useMutation(
+    trpc.chat.updateConversationCustomField.mutationOptions({
+      onMutate: async (input) => {
+        await queryClient.cancelQueries({ queryKey: customFieldsQueryOptions.queryKey });
+        const previous = queryClient.getQueryData(customFieldsQueryOptions.queryKey);
+        queryClient.setQueryData(customFieldsQueryOptions.queryKey, (old) => ({
+          ...old,
+          [input.identifier]: input.value,
+        }));
+        return { previous };
+      },
+      onError: (_err, _input, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(customFieldsQueryOptions.queryKey, context.previous);
+        }
+      },
+      onSettled: () => {
+        void queryClient.invalidateQueries({ queryKey: customFieldsQueryOptions.queryKey });
+      },
+    }),
+  );
+
+  function renderCustomFieldRow(
+    field: (typeof contactFields)[number],
+    i: number,
+    total: number,
+  ) {
+    const val = (customFieldValues[field.identifier] as string | null) ?? null;
+    const isTextField =
+      field.type === CustomFieldType.TEXT ||
+      field.type === CustomFieldType.NUMBER ||
+      field.type === CustomFieldType.DATE ||
+      field.type === CustomFieldType.TIME;
+    const isTextarea = field.type === CustomFieldType.TEXTAREA;
+    const isSelect =
+      field.type === CustomFieldType.OPTIONS || field.type === CustomFieldType.MULTISELECT;
+    const isLast = i === total - 1;
+
+    if (isTextField || isTextarea) {
+      return (
+        <DetailInfoRow
+          key={field.id}
+          label={field.name}
+          value={val}
+          placeholder={field.placeholder ?? undefined}
+          last={isLast}
+          onSave={(v) =>
+            updateCustomField.mutate({
+              conversationId: conversation.id,
+              identifier: field.identifier,
+              value: v,
+            })
+          }
+          saving={updateCustomField.isPending}
+          multiline={isTextarea}
+        />
+      );
+    }
+    if (isSelect && field.options) {
+      return (
+        <DetailInfoRow
+          key={field.id}
+          label={field.name}
+          value={val}
+          placeholder={field.placeholder ?? undefined}
+          last={isLast}
+          options={field.options}
+          onSave={(v) =>
+            updateCustomField.mutate({
+              conversationId: conversation.id,
+              identifier: field.identifier,
+              value: v,
+            })
+          }
+          saving={updateCustomField.isPending}
+        />
+      );
+    }
+    return <DetailInfoRow key={field.id} label={field.name} value={val} placeholder={field.placeholder ?? undefined} last={isLast} />;
+  }
+
   const deleteConversation = useMutation(
     trpc.chat.deleteConversation.mutationOptions({
       onSuccess: () => onDeleteSuccess(conversation.id),
@@ -256,7 +347,7 @@ function PanelContent({
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Header */}
       <div className="flex h-14 shrink-0 items-center justify-between px-2">
-        {view === "multimedia" || view === "starred" ? (
+        {view === "multimedia" || view === "starred" || view === "customFields" ? (
           <button
             type="button"
             onClick={() => setView("menu")}
@@ -475,12 +566,51 @@ function PanelContent({
         </ScrollArea>
       ) : null}
 
+      {/* Custom fields full view */}
+      {view === "customFields" ? (
+        <ScrollArea className="min-h-0 flex-1">
+          {avatarSection}
+          <Separator />
+          <div className="py-3">
+            <Section label="Custom fields">
+              {contactFields.map((field, i) =>
+                renderCustomFieldRow(field, i, contactFields.length),
+              )}
+            </Section>
+          </div>
+        </ScrollArea>
+      ) : null}
+
       {/* Main menu view */}
       {view === "menu" && (
         <ScrollArea className="min-h-0 flex-1">
           {avatarSection}
 
           <Separator />
+
+          {contactFields.length > 0 && (
+            <>
+              <div className="flex items-center justify-between px-4 pt-3 mb-2">
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Custom fields
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setView("customFields")}
+                  className="flex items-center justify-center text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                >
+                  <ChevronRightIcon className="size-4" />
+                </button>
+              </div>
+              {contactFields
+                .slice(0, 4)
+                .map((field, i) =>
+                  renderCustomFieldRow(field, i, Math.min(contactFields.length, 4)),
+                )}
+              <div className="pb-3" />
+              <Separator />
+            </>
+          )}
 
           <div className="px-4 py-3">
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
@@ -569,23 +699,23 @@ function PanelContent({
           <Separator />
 
           <div className="py-1">
-            <InfoRow
+            <NavRow
               icon={<UsersIcon />}
               label="Equipo asignado"
               value="Ninguno"
             />
-            <InfoRow
+            <NavRow
               icon={<TagIcon />}
               label="Etiquetas"
               onClick={() => setTagDialogOpen(true)}
             />
-            <InfoRow
+            <NavRow
               icon={<StarIcon />}
               label="Mensajes destacados"
               value={starredItems.length > 0 ? String(starredItems.length) : "Ninguno"}
               onClick={() => setView("starred")}
             />
-            <InfoRow
+            <NavRow
               icon={<ImageIcon />}
               label="Multimedia y docs"
               onClick={() => {
@@ -637,19 +767,8 @@ function PanelContent({
           <Separator />
 
           <div className="py-1">
-            <InfoRow
-              icon={<TimerIcon />}
-              label="Mensajes temporales"
-              value="Desactivado"
-            />
-            <InfoRow icon={<BellIcon />} label="Silenciar mensajes" />
-          </div>
-
-          <Separator />
-
-          <div className="py-1">
             {hasJoined ? (
-              <InfoRow
+              <NavRow
                 icon={<LogOutIcon />}
                 label="Abandonar la conversación"
                 onClick={() =>
@@ -657,7 +776,7 @@ function PanelContent({
                 }
               />
             ) : (
-              <InfoRow
+              <NavRow
                 icon={<LogInIcon />}
                 label="Unirte a la conversación"
                 onClick={() =>
@@ -665,7 +784,7 @@ function PanelContent({
                 }
               />
             )}
-            <InfoRow
+            <NavRow
               icon={<BanIcon />}
               label={localBlocked ? "Desbloquear" : "Bloquear"}
               onClick={
@@ -677,7 +796,7 @@ function PanelContent({
                     }
               }
             />
-            <InfoRow
+            <NavRow
               icon={<TrashIcon />}
               label="Eliminar chat"
               destructive

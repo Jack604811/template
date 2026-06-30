@@ -4,6 +4,7 @@ import { prefetchCustomFields } from "@/features/custom-fields/server/prefetch";
 import { SettingsPage } from "@/features/organizations/components/settings-page";
 import {
   prefetchCurrentOrganization,
+  prefetchOrganizationInvitations,
   prefetchOrganizationMembers,
   prefetchOrganizations,
 } from "@/features/organizations/server/prefetch";
@@ -18,11 +19,12 @@ const Page = async () => {
   if (currentOrgId) {
     await prefetchCurrentOrganization();
     await prefetchOrganizationMembers(currentOrgId);
+    await prefetchOrganizationInvitations(currentOrgId);
     await prefetchCustomFields();
   }
 
   return (
-    <Suspense fallback={<LoadingView />}>
+    <Suspense fallback={<div className="flex h-dvh items-center justify-center"><LoadingView /></div>}>
       <SettingsPage />
     </Suspense>
   );

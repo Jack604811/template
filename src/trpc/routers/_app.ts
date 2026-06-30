@@ -2,6 +2,7 @@ import { bookablesRouter } from '@/features/bookables/server/bookables-router';
 import { bookableCollectionsRouter } from '@/features/bookables/server/routers';
 import { customerRouter } from '@/features/bookings/server/customer-router';
 import { bookingsRouter } from '@/features/bookings/server/routers';
+import { quickRepliesRouter } from '@/features/chat/server/quick-replies-router';
 import { chatRouter } from '@/features/chat/server/router';
 import { credentialsRouter } from '@/features/credentials/server/routers';
 import { customFieldsRouter } from '@/features/custom-fields/server/routers';
@@ -14,6 +15,7 @@ import { createTRPCRouter } from '../init';
 
 export const appRouter = createTRPCRouter({
   chat: chatRouter,
+  quickReplies: quickRepliesRouter,
   workflows: workflowsRouter,
   templates: templatesRouter,
   credentials: credentialsRouter,

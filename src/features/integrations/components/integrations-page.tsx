@@ -1,5 +1,23 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useQuery } from "@tanstack/react-query";
 import { KeyRoundIcon } from "lucide-react";
 import Image from "next/image";
@@ -70,6 +88,31 @@ export function IntegrationsPage() {
 }
 
 
+type AppOption = (typeof credentialTypeOptions)[number];
+
+function SortableIntegrationCard({
+  app,
+  credentials,
+  onManage,
+}: {
+  app: AppOption;
+  credentials: Credential[];
+  onManage: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: app.value });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={isDragging ? "opacity-50" : ""}
+      {...attributes}
+      {...listeners}
+    >
+      <IntegrationAppCard app={app} credentials={credentials} onManage={onManage} />
+    </div>
+  );
+}
+
 function IntegrationsGrid({
   search,
   activeCategory,
@@ -85,6 +128,23 @@ function IntegrationsGrid({
     trpc.credentials.getMany.queryOptions({ pageSize: 100 }),
   );
 
+  const [orderedApps, setOrderedApps] = useState<AppOption[]>([...credentialTypeOptions]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setOrderedApps((prev) => {
+      const oldIndex = prev.findIndex((a) => a.value === active.id);
+      const newIndex = prev.findIndex((a) => a.value === over.id);
+      return arrayMove(prev, oldIndex, newIndex);
+    });
+  }
+
   const credentialsByType = useMemo(() => {
     const map = new Map<CredentialType, Credential[]>();
     const items: Credential[] = data?.items ?? [];
@@ -97,12 +157,12 @@ function IntegrationsGrid({
 
   const filteredApps = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return credentialTypeOptions.filter((app) => {
+    return orderedApps.filter((app) => {
       const matchesSearch = !q || app.label.toLowerCase().includes(q) || app.description.toLowerCase().includes(q);
       const matchesCategory = activeCategory === "all" || (app as { category?: string }).category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [search, activeCategory]);
+  }, [orderedApps, search, activeCategory]);
 
   const showApiKeyCard = activeCategory === "all" && !search.trim();
 
@@ -111,17 +171,26 @@ function IntegrationsGrid({
       {!showApiKeyCard && filteredApps.length === 0 ? (
         <IntegrationsEmptyCard />
       ) : (
-        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {showApiKeyCard && <ApiKeyCard onClick={onApiKeyOpen} />}
-          {filteredApps.map((app) => (
-            <IntegrationAppCard
-              key={app.value}
-              app={app}
-              credentials={credentialsByType.get(app.value as CredentialType) ?? []}
-              onManage={() => router.push(`/integrations/${app.value.toLowerCase()}`)}
-            />
-          ))}
-        </div>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={filteredApps.map((a) => a.value)} strategy={rectSortingStrategy}>
+            <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {showApiKeyCard && <ApiKeyCard onClick={onApiKeyOpen} />}
+              {filteredApps.map((app) => (
+                <SortableIntegrationCard
+                  key={app.value}
+                  app={app}
+                  credentials={credentialsByType.get(app.value as CredentialType) ?? []}
+                  onManage={() => router.push(`/integrations/${app.value.toLowerCase()}`)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
     </div>
   );

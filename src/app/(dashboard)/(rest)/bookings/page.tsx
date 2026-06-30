@@ -59,9 +59,22 @@ const Page = async ({ searchParams }: Props) => {
   await requireAuth();
 
   const params = await bookingsParamsLoader(searchParams);
-  prefetchOrganizations();
-  prefetchCurrentOrganization();
-  prefetchBookings({ ...params, startDate: params.startDate ?? undefined, endDate: params.endDate ?? undefined });
+
+  // Prefetch errors are handled gracefully by React Query.
+  // If prefetch fails, components will fetch on the client side instead.
+  try {
+    await Promise.all([
+      prefetchOrganizations(),
+      prefetchCurrentOrganization(),
+      prefetchBookings({
+        ...params,
+        startDate: params.startDate ?? undefined,
+        endDate: params.endDate ?? undefined,
+      }),
+    ]);
+  } catch {
+    // Silently handle prefetch errors - prevents "Unauthorized" errors from breaking SSR
+  }
 
   return (
     <div className="flex flex-col h-full">

@@ -192,7 +192,7 @@ function createEmptyStep(type: QuickReplyStep["type"]): QuickReplyStep {
     case "cta_url":
       return { type: "cta_url", text: "", buttonUrl: "", displayText: "" };
     case "location":
-      return { type: "location", url: "" };
+      return { type: "location", latitude: 0, longitude: 0 };
   }
 }
 
@@ -440,6 +440,118 @@ function CarouselCardEditor({
   );
 }
 
+// ─── Location step form ───────────────────────────────────────────────────────
+
+function parseGoogleMapsUrl(url: string): { latitude: number; longitude: number } | null {
+  const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (atMatch) return { latitude: parseFloat(atMatch[1]), longitude: parseFloat(atMatch[2]) };
+  const qMatch = url.match(/[?&](?:q|ll)=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+  if (qMatch) return { latitude: parseFloat(qMatch[1]), longitude: parseFloat(qMatch[2]) };
+  return null;
+}
+
+type LocationStep = Extract<QuickReplyStep, { type: "location" }>;
+
+function LocationStepForm({
+  step,
+  onChange,
+  id1, id2, id3, id4,
+}: {
+  step: LocationStep;
+  onChange: (s: QuickReplyStep) => void;
+  id1: string; id2: string; id3: string; id4: string;
+}) {
+  const [urlInput, setUrlInput] = useState("");
+  const [resolving, setResolving] = useState(false);
+
+  async function handleUrlChange(raw: string) {
+    setUrlInput(raw);
+    const direct = parseGoogleMapsUrl(raw);
+    if (direct) {
+      onChange({ ...step, latitude: direct.latitude, longitude: direct.longitude });
+      return;
+    }
+    if (raw.includes("goo.gl") || raw.includes("maps.app")) {
+      setResolving(true);
+      try {
+        const res = await fetch(`/api/resolve-maps-url?url=${encodeURIComponent(raw)}`);
+        if (res.ok) {
+          const { resolved } = await res.json() as { resolved: string };
+          const coords = parseGoogleMapsUrl(resolved);
+          if (coords) onChange({ ...step, latitude: coords.latitude, longitude: coords.longitude });
+        }
+      } catch {}
+      setResolving(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <Label className="text-[12px] text-muted-foreground">
+          URL de Google Maps <span className="font-normal opacity-60">(extrae coordenadas automáticamente)</span>
+        </Label>
+        <div className="relative">
+          <Input
+            placeholder="https://maps.google.com/... o maps.app.goo.gl/..."
+            value={urlInput}
+            onChange={(e) => { void handleUrlChange(e.target.value); }}
+          />
+          {resolving && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-muted-foreground">
+              Resolviendo…
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={id1} className="text-[12px] text-muted-foreground">Latitud</Label>
+          <Input
+            id={id1}
+            type="number"
+            placeholder="0.000000"
+            value={step.latitude || ""}
+            onChange={(e) => onChange({ ...step, latitude: parseFloat(e.target.value) || 0 })}
+          />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={id2} className="text-[12px] text-muted-foreground">Longitud</Label>
+          <Input
+            id={id2}
+            type="number"
+            placeholder="0.000000"
+            value={step.longitude || ""}
+            onChange={(e) => onChange({ ...step, longitude: parseFloat(e.target.value) || 0 })}
+          />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={id3} className="text-[12px] text-muted-foreground">
+          Nombre <span className="font-normal opacity-60">(opcional)</span>
+        </Label>
+        <Input
+          id={id3}
+          placeholder="Ej. Oficina central"
+          value={step.name ?? ""}
+          onChange={(e) => onChange({ ...step, name: e.target.value || undefined })}
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={id4} className="text-[12px] text-muted-foreground">
+          Dirección <span className="font-normal opacity-60">(opcional)</span>
+        </Label>
+        <Input
+          id={id4}
+          placeholder="Ej. Av. Reforma 123, CDMX"
+          value={step.address ?? ""}
+          onChange={(e) => onChange({ ...step, address: e.target.value || undefined })}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Inline step form body ────────────────────────────────────────────────────
 
 function StepFormBody({
@@ -675,17 +787,7 @@ function StepFormBody({
   }
 
   if (step.type === "location") {
-    return (
-      <div className="flex flex-col gap-1.5">
-        <Label htmlFor={id1} className="text-[12px] text-muted-foreground">URL de Google Maps</Label>
-        <Input
-          id={id1}
-          placeholder="https://maps.google.com/..."
-          value={step.url}
-          onChange={(e) => onChange({ ...step, url: e.target.value })}
-        />
-      </div>
-    );
+    return <LocationStepForm step={step} onChange={onChange} id1={id1} id2={id2} id3={id3} id4={id4} />;
   }
 
   return null;
@@ -786,29 +888,40 @@ function StepCard({
 
 const MAX_STEPS = 3;
 
+interface QuickReplyInitialValue {
+  id: string;
+  name: string;
+  shortcut?: string;
+  steps: QuickReplyStep[];
+}
+
 interface QuickReplyCreatorProps {
   open: boolean;
   onClose: () => void;
   onSave: () => void;
+  initialValue?: QuickReplyInitialValue | null;
 }
 
 export function QuickReplyCreator({
   open,
   onClose,
   onSave,
+  initialValue,
 }: QuickReplyCreatorProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const listQueryOptions = trpc.quickReplies.getMany.queryOptions();
+  const isEditing = !!initialValue?.id;
+
   const createReply = useMutation(
     trpc.quickReplies.create.mutationOptions({
       onMutate: async (input) => {
         await queryClient.cancelQueries({ queryKey: listQueryOptions.queryKey });
         const prev = queryClient.getQueryData(listQueryOptions.queryKey);
-        queryClient.setQueryData(listQueryOptions.queryKey, (old: { id: string; name: string; shortcut?: string; steps: QuickReplyStep[] }[] | undefined) => [
-          { id: `optimistic-${crypto.randomUUID()}`, name: input.name, shortcut: input.shortcut, steps: input.steps as QuickReplyStep[] },
-          ...(old ?? []),
-        ]);
+        const optimistic = { id: `optimistic-${crypto.randomUUID()}`, name: input.name, shortcut: input.shortcut as string | undefined, steps: input.steps as QuickReplyStep[] };
+        queryClient.setQueryData(listQueryOptions.queryKey, (old) =>
+          old ? [optimistic, ...old] : [optimistic],
+        );
         return { prev };
       },
       onError: (_e, _v, ctx) => {
@@ -817,12 +930,33 @@ export function QuickReplyCreator({
       onSettled: () => queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
     }),
   );
-  const [name, setName] = useState("");
-  const [shortcut, setShortcut] = useState("");
-  const [entries, setEntries] = useState<StepEntry[]>([]);
+
+  const updateReply = useMutation(
+    trpc.quickReplies.update.mutationOptions({
+      onSettled: () => queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
+    }),
+  );
+
+  const [name, setName] = useState(initialValue?.name ?? "");
+  const [shortcut, setShortcut] = useState(initialValue?.shortcut?.replace(/^\//, "") ?? "");
+  const [entries, setEntries] = useState<StepEntry[]>(
+    () => (initialValue?.steps ?? []).map((step) => ({ id: crypto.randomUUID(), step })),
+  );
   const [newestId, setNewestId] = useState<string | null>(null);
   const nameId = useId();
   const shortcutId = useId();
+
+  // Sync state when initialValue changes (e.g. switching between quick replies)
+  const prevInitialId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (initialValue?.id !== prevInitialId.current) {
+      prevInitialId.current = initialValue?.id;
+      setName(initialValue?.name ?? "");
+      setShortcut(initialValue?.shortcut?.replace(/^\//, "") ?? "");
+      setEntries((initialValue?.steps ?? []).map((step) => ({ id: crypto.randomUUID(), step })));
+      setNewestId(null);
+    }
+  }, [initialValue]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -877,11 +1011,16 @@ export function QuickReplyCreator({
   function handleSave() {
     if (!name.trim() || entries.length === 0) return;
     const sc = shortcut.trim();
-    createReply.mutate({
+    const payload = {
       name: name.trim(),
       shortcut: sc ? (sc.startsWith("/") ? sc : `/${sc}`) : undefined,
       steps: entries.map((e) => e.step),
-    });
+    };
+    if (isEditing && initialValue?.id) {
+      updateReply.mutate({ id: initialValue.id, ...payload });
+    } else {
+      createReply.mutate(payload);
+    }
     onSave();
     handleOpenChange(false);
   }
@@ -893,10 +1032,9 @@ export function QuickReplyCreator({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>Nueva respuesta rápida</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar respuesta rápida" : "Nueva respuesta rápida"}</DialogTitle>
           <DialogDescription>
-            Crea una secuencia de hasta {MAX_STEPS} mensajes para enviar de
-            forma rápida.
+            {isEditing ? "Modifica la secuencia de mensajes." : `Crea una secuencia de hasta ${MAX_STEPS} mensajes para enviar de forma rápida.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -1013,7 +1151,7 @@ export function QuickReplyCreator({
             Cancelar
           </Button>
           <Button disabled={!canSave} onClick={handleSave}>
-            Guardar respuesta rápida
+            {isEditing ? "Guardar cambios" : "Guardar respuesta rápida"}
           </Button>
         </DialogFooter>
       </DialogContent>

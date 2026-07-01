@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronLeftIcon, XIcon } from "lucide-react";
 import type * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
@@ -45,11 +46,19 @@ function DrawerOverlay({
   );
 }
 
+interface DrawerAction {
+  label: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}
+
 function DrawerContent({
   className,
   children,
+  action,
   ...props
-}: React.ComponentProps<typeof DrawerPrimitive.Content>) {
+}: React.ComponentProps<typeof DrawerPrimitive.Content> & { action?: DrawerAction }) {
   return (
     <DrawerPortal data-slot="drawer-portal">
       <DrawerOverlay />
@@ -67,6 +76,19 @@ function DrawerContent({
       >
         <div className="bg-foreground/20 mx-auto mt-3 hidden h-1 w-9 shrink-0 rounded-full group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}
+        {action && (
+          <div className="mt-auto p-4">
+            <button
+              type="button"
+              onClick={action.onClick}
+              disabled={action.disabled}
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {action.icon}
+              {action.label}
+            </button>
+          </div>
+        )}
       </DrawerPrimitive.Content>
     </DrawerPortal>
   );
@@ -108,6 +130,41 @@ function DrawerTitle({
   );
 }
 
+interface DrawerNavHeaderProps {
+  title: React.ReactNode;
+  onBack?: () => void;
+  onClose?: () => void;
+  className?: string;
+}
+
+function DrawerNavHeader({ title, onBack, onClose, className }: DrawerNavHeaderProps) {
+  return (
+    <div
+      data-slot="drawer-nav-header"
+      className={cn("relative flex items-center justify-center px-4 py-4", className)}
+    >
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="absolute left-4 flex size-9 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/15"
+        >
+          <ChevronLeftIcon className="size-5" />
+        </button>
+      )}
+      <span className="text-base font-semibold">{title}</span>
+      {onClose && (
+        <DrawerPrimitive.Close
+          onClick={onClose}
+          className="absolute right-4 flex size-9 items-center justify-center rounded-full bg-foreground/10 text-foreground transition-colors hover:bg-foreground/15"
+        >
+          <XIcon className="size-4" />
+        </DrawerPrimitive.Close>
+      )}
+    </div>
+  );
+}
+
 function DrawerDescription({
   className,
   ...props
@@ -129,6 +186,7 @@ export {
   DrawerClose,
   DrawerContent,
   DrawerHeader,
+  DrawerNavHeader,
   DrawerFooter,
   DrawerTitle,
   DrawerDescription,

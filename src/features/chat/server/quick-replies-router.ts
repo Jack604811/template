@@ -31,7 +31,10 @@ const QuickReplyStepSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("location"),
-    url: z.string(),
+    latitude: z.number(),
+    longitude: z.number(),
+    name: z.string().optional(),
+    address: z.string().optional(),
   }),
 ]);
 
@@ -72,6 +75,22 @@ export const quickRepliesRouter = createTRPCRouter({
         shortcut: row.shortcut ?? undefined,
         steps: input.steps,
       };
+    }),
+
+  update: organizationProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).max(60),
+        shortcut: z.string().max(20).optional(),
+        steps: z.array(QuickReplyStepSchema).min(1).max(3),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await prisma.quickReply.updateMany({
+        where: { id: input.id, organizationId: ctx.organizationId },
+        data: { name: input.name, shortcut: input.shortcut ?? null, steps: input.steps },
+      });
     }),
 
   delete: organizationProcedure

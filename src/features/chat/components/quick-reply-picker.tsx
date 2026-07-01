@@ -15,7 +15,6 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,8 +24,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerNavHeader,
+} from "@/components/ui/drawer";
 import { DeleteItem } from "@/components/ui/delete-item";
 import { Search } from "@/components/ui/search";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useTRPC } from "@/trpc/client";
 import type { SendPayload } from "./message-input";
 import { QuickReplyCreator } from "./quick-reply-creator";
@@ -49,7 +54,7 @@ export type QuickReplyStep =
   | { type: "carousel"; text?: string; cards: CarouselCard[] }
   | { type: "document"; url: string; filename: string; caption?: string }
   | { type: "cta_url"; text: string; buttonUrl: string; displayText: string; headerImageUrl?: string; footer?: string }
-  | { type: "location"; url: string };
+  | { type: "location"; latitude: number; longitude: number; name?: string; address?: string };
 
 export interface QuickReplySequence {
   id: string;
@@ -62,7 +67,7 @@ export interface QuickReplySequence {
 
 // ─── Step helpers ──────────────────────────────────────────────────────────────
 
-function stepToPayload(step: QuickReplyStep): SendPayload {
+export function stepToPayload(step: QuickReplyStep): SendPayload {
   switch (step.type) {
     case "text":
       return { text: step.text };
@@ -88,7 +93,16 @@ function stepToPayload(step: QuickReplyStep): SendPayload {
         }),
       };
     case "location":
-      return { text: "", mediaType: "location", mediaFilename: step.url };
+      return {
+        text: "",
+        mediaType: "location",
+        mediaFilename: JSON.stringify({
+          latitude: step.latitude,
+          longitude: step.longitude,
+          ...(step.name && { name: step.name }),
+          ...(step.address && { address: step.address }),
+        }),
+      };
   }
 }
 
@@ -167,7 +181,10 @@ function StepCard({ step, index }: { step: QuickReplyStep; index: number }) {
         {step.type === "location" && (
           <div className="flex items-center gap-2">
             <MapPinIcon className="size-4 shrink-0 text-rose-500" />
-            <p className="truncate text-[13px] text-foreground/80">{step.url || "Sin URL"}</p>
+            <div className="min-w-0">
+              {step.name && <p className="truncate text-[13px] font-medium">{step.name}</p>}
+              <p className="truncate text-[12px] text-muted-foreground">{step.latitude}, {step.longitude}</p>
+            </div>
           </div>
         )}
       </div>
@@ -180,14 +197,13 @@ function StepCard({ step, index }: { step: QuickReplyStep; index: number }) {
 interface QuickReplyPickerProps {
   open: boolean;
   onClose: () => void;
-  onSend: (payload: SendPayload) => void;
 }
 
-export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProps) {
+export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
   const trpc = useTRPC();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<QuickReplySequence | null>(null);
+  const [editingQr, setEditingQr] = useState<QuickReplySequence | null>(null);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -219,7 +235,6 @@ export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProp
   function handleOpenChange(v: boolean) {
     if (!v) {
       onClose();
-      setSelected(null);
       setSearch("");
     }
   }
@@ -228,69 +243,6 @@ export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProp
     if (!deletingId) return;
     deleteReply.mutate({ id: deletingId });
     setDeletingId(null);
-  }
-
-  function handleSend() {
-    if (!selected) return;
-    for (const step of selected.steps) {
-      onSend(stepToPayload(step));
-    }
-    handleOpenChange(false);
-  }
-
-  // ── Detail view ──
-  if (selected) {
-    return (
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="flex size-7 shrink-0 items-center justify-center rounded-full hover:bg-muted"
-                aria-label="Volver"
-              >
-                <ArrowLeftIcon className="size-4" />
-              </button>
-              <div className="min-w-0 flex-1">
-                <DialogTitle className="text-sm">{selected.name}</DialogTitle>
-                {selected.shortcut && (
-                  <DialogDescription className="text-[11px]">{selected.shortcut}</DialogDescription>
-                )}
-              </div>
-              <Badge variant="secondary" className="shrink-0 text-[11px]">
-                {selected.steps.length} {selected.steps.length === 1 ? "mensaje" : "mensajes"}
-              </Badge>
-            </div>
-          </DialogHeader>
-
-          <div className="max-h-[55vh] -mx-6 px-6 overflow-y-auto">
-            <div className="flex flex-col gap-2 py-2">
-              {selected.steps.length === 0 ? (
-                <p className="py-6 text-center text-sm text-muted-foreground">
-                  Esta secuencia no tiene mensajes todavía.
-                </p>
-              ) : (
-                selected.steps.map((step, i) => (
-                  <StepCard key={`${step.type}-${i}`} step={step} index={i} />
-                ))
-              )}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSelected(null)}>
-              Volver
-            </Button>
-            <Button onClick={handleSend} disabled={selected.steps.length === 0}>
-              <SendHorizontalIcon className="size-3.5" />
-              Enviar secuencia
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    );
   }
 
   // ── List view ──
@@ -322,11 +274,13 @@ export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProp
           </div>
 
           <QuickReplyCreator
-            open={creatorOpen}
-            onClose={() => setCreatorOpen(false)}
+            open={creatorOpen || editingQr !== null}
+            initialValue={editingQr}
+            onClose={() => { setCreatorOpen(false); setEditingQr(null); }}
             onSave={() => {
               void queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
               setCreatorOpen(false);
+              setEditingQr(null);
             }}
           />
 
@@ -355,7 +309,7 @@ export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProp
                       <button
                         type="button"
                         className="flex flex-1 items-center gap-3 text-left"
-                        onClick={() => setSelected(qr)}
+                        onClick={() => setEditingQr(qr)}
                       >
                         <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                           <MessageSquareQuoteIcon className="size-4 text-primary" />
@@ -398,6 +352,110 @@ export function QuickReplyPicker({ open, onClose, onSend }: QuickReplyPickerProp
             )}
           </div>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── QuickReplyDetailDialog ───────────────────────────────────────────────────
+
+interface QuickReplyDetailDialogProps {
+  sequence: QuickReplySequence | null;
+  onClose: () => void;
+  onSend: (payload: SendPayload) => void;
+}
+
+export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReplyDetailDialogProps) {
+  const isMobile = useIsMobile();
+
+  function handleSend() {
+    if (!sequence) return;
+    for (const step of sequence.steps) {
+      onSend(stepToPayload(step));
+    }
+    onClose();
+  }
+
+  const stepCount = sequence?.steps.length ?? 0;
+
+  const steps = (
+    <div className="flex flex-col gap-2 py-2">
+      {stepCount === 0 ? (
+        <p className="py-6 text-center text-sm text-muted-foreground">
+          Esta secuencia no tiene mensajes todavía.
+        </p>
+      ) : (
+        sequence?.steps.map((step, i) => (
+          // eslint-disable-next-line react/no-array-index-key
+          <StepCard key={`${step.type}-${i}`} step={step} index={i} />
+        ))
+      )}
+    </div>
+  );
+
+  const sendButton = (
+    <Button className="w-full" onClick={handleSend} disabled={stepCount === 0}>
+      <SendHorizontalIcon className="size-3.5" />
+      Enviar al chat
+    </Button>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={!!sequence} onOpenChange={(v) => { if (!v) onClose(); }}>
+        <DrawerContent
+          action={{
+            label: "Enviar al chat",
+            icon: <SendHorizontalIcon className="size-3.5" />,
+            onClick: handleSend,
+            disabled: stepCount === 0,
+          }}
+        >
+          <DrawerNavHeader
+            title={
+              <div className="flex flex-col items-center">
+                <span className="text-sm font-semibold">{sequence?.name}</span>
+                {sequence?.shortcut && (
+                  <span className="text-[11px] text-muted-foreground">{sequence.shortcut}</span>
+                )}
+              </div>
+            }
+            onBack={onClose}
+            onClose={onClose}
+          />
+          <div className="overflow-y-auto px-4">{steps}</div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={!!sequence} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex size-7 shrink-0 items-center justify-center rounded-full hover:bg-muted"
+              aria-label="Volver"
+            >
+              <ArrowLeftIcon className="size-4" />
+            </button>
+            <div className="min-w-0 flex-1">
+              <DialogTitle className="text-sm">{sequence?.name}</DialogTitle>
+              {sequence?.shortcut && (
+                <DialogDescription className="text-[11px]">{sequence.shortcut}</DialogDescription>
+              )}
+            </div>
+          </div>
+        </DialogHeader>
+
+        <div className="-mx-6 max-h-[55vh] overflow-y-auto px-6">{steps}</div>
+
+        <DialogFooter>
+          {sendButton}
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

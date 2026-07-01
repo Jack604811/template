@@ -13,7 +13,7 @@ interface QuickRepliesProps {
 
 export function QuickReplies({ replies, onSelect, actions }: QuickRepliesProps) {
   return (
-    <div className="flex flex-nowrap gap-2 overflow-x-auto px-4 pb-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+    <div className="flex min-w-0 flex-nowrap gap-2 overflow-x-auto px-4 pb-1 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
       {actions?.map((action) => (
         <button
           key={action.label}

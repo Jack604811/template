@@ -9,10 +9,7 @@ import {
   ConversationEmptyState,
   ConversationScrollButton,
 } from "@/components/ai-elements/conversation";
-import {
-  PromptInputProvider,
-  usePromptInputController,
-} from "@/components/ai-elements/prompt-input";
+import { PromptInputProvider, usePromptInputController } from "@/components/ai-elements/prompt-input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -31,113 +28,43 @@ import { mimeToMediaType } from "../lib/compress";
 import { uploadFileXHR } from "../lib/upload";
 import type { Conversation as ConversationType } from "../types";
 import { getAvatarStyle } from "../utils/avatar";
+import { ConversationContextMenu } from "./conversation-context-menu";
 import { DateSeparator, isSameDay } from "./date-separator";
 import type { Message, ReplyTarget } from "./message-bubble";
 import { MessageBubble } from "./message-bubble";
 import type { SendPayload } from "./message-input";
 import { MessageInput } from "./message-input";
 import { QuickReplies } from "./quick-replies";
-import { ConversationContextMenu } from "./conversation-context-menu";
+import { QuickReplyDetailDialog } from "./quick-reply-picker";
+import type { QuickReplySequence } from "./quick-reply-picker";
+import { QuickReplySlashMenu } from "./quick-reply-slash-menu";
 import { SystemMessage } from "./system-message";
 
 
 function ConnectedQuickReplies({ onSendPayload }: { onSendPayload: (payload: SendPayload) => void }) {
+  const trpc = useTRPC();
   const { textInput } = usePromptInputController();
+  const { data: sequences = [] } = useQuery(trpc.quickReplies.getMany.queryOptions());
+  const [selected, setSelected] = useState<QuickReplySequence | null>(null);
+
+  if (sequences.length === 0 || textInput.value.startsWith("/")) return null;
+
   return (
-    <QuickReplies
-      replies={[]}
-      onSelect={textInput.setInput}
-      actions={[
-        {
-          label: "⊞ QR Carousel",
-          onSelect: () =>
-            onSendPayload({
-              text: "Here are our latest arrivals, each under $25:",
-              mediaType: "interactive_carousel",
-              mediaFilename: JSON.stringify({
-                cards: [
-                  {
-                    title: "Blue Echeveria",
-                    description: "A rosette-shaped succulent with powdery blue leaves.",
-                    imageUrl: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&q=80",
-                    quickReplies: [
-                      { id: "learn-blue-echeveria", title: "Learn more" },
-                      { id: "fav-blue-echeveria", title: "Add to favorites" },
-                    ],
-                  },
-                  {
-                    title: "Zebra Haworthia",
-                    description: "Striking white stripes on deep green leaves.",
-                    imageUrl: "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=400&q=80",
-                    quickReplies: [
-                      { id: "learn-zebra-haworthia", title: "Learn more" },
-                      { id: "fav-zebra-haworthia", title: "Add to favorites" },
-                    ],
-                  },
-                  {
-                    title: "Panda Plant",
-                    description: "Soft, fuzzy leaves with chocolate-brown edges.",
-                    imageUrl: "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?w=400&q=80",
-                    quickReplies: [
-                      { id: "learn-panda-plant", title: "Learn more" },
-                      { id: "fav-panda-plant", title: "Add to favorites" },
-                    ],
-                  },
-                ],
-              }),
-            }),
-        },
-        {
-          label: "⊞ Carousel",
-          onSelect: () =>
-            onSendPayload({
-              text: "Here are our latest arrivals, each under $25:",
-              mediaType: "interactive_carousel",
-              mediaFilename: JSON.stringify({
-                cards: [
-                  {
-                    title: "Blue Echeveria",
-                    description: "A rosette-shaped succulent with powdery blue leaves.",
-                    imageUrl: "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=400&q=80",
-                    buttonText: "Buy now",
-                    buttonUrl: "https://example.com/blue-echeveria",
-                  },
-                  {
-                    title: "Zebra Haworthia",
-                    description: "Striking white stripes on deep green leaves.",
-                    imageUrl: "https://images.unsplash.com/photo-1459411552884-841db9b3cc2a?w=400&q=80",
-                    buttonText: "Buy now",
-                    buttonUrl: "https://example.com/zebra-haworthia",
-                  },
-                  {
-                    title: "Panda Plant",
-                    description: "Soft, fuzzy leaves with chocolate-brown edges.",
-                    imageUrl: "https://images.unsplash.com/photo-1509423350716-97f9360b4e09?w=400&q=80",
-                    buttonText: "Buy now",
-                    buttonUrl: "https://example.com/panda-plant",
-                  },
-                ],
-              }),
-            }),
-        },
-        {
-          label: "↗ CTA URL",
-          onSelect: () =>
-            onSendPayload({
-              text: "Tap the button below to see available dates.",
-              mediaType: "interactive_cta_url",
-              mediaUrl:
-                "https://www.luckyshrub.com?clickID=kqDGWd24Q5TRwoEQTICY7W1JKoXvaZOXWAS7h1P76s0R7Paec4",
-              mediaFilename: JSON.stringify({
-                displayText: "See Dates",
-                footer: "Dates subject to change.",
-                headerImageUrl:
-                  "https://images.unsplash.com/photo-1485955900006-10f4d324d411?w=600&q=80",
-              }),
-            }),
-        },
-      ]}
-    />
+    <>
+      <QuickReplies
+        replies={[]}
+        onSelect={() => undefined}
+        actions={sequences.map((qr) => ({
+          label: qr.shortcut ? qr.shortcut.replace(/^\//, "") : qr.name,
+          onSelect: () => setSelected(qr),
+        }))}
+      />
+      <QuickReplyDetailDialog
+        sequence={selected}
+        onClose={() => setSelected(null)}
+        onSend={onSendPayload}
+      />
+    </>
   );
 }
 
@@ -236,7 +163,7 @@ export function ConversationView({
         const previous = queryClient.getQueryData(
           messagesQueryOptions.queryKey,
         );
-        const optimisticId = `optimistic-${Date.now()}`;
+        const optimisticId = `optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         stableKeyMap.current.set(optimisticId, optimisticId);
         const joinPrep = prepareImplicitJoin();
         const lastText = mediaType ? content || `[${mediaType}]` : content;
@@ -515,7 +442,7 @@ export function ConversationView({
 
   function handleSend(payload: SendPayload) {
     if (!conversation) return;
-    if (!payload.text.trim() && !payload.mediaUrl) return;
+    if (!payload.text.trim() && !payload.mediaUrl && !payload.mediaFilename) return;
     pendingReplyRef.current = payload.replyTo;
     sendMessage.mutate({
       conversationId: conversation.id,
@@ -653,8 +580,9 @@ export function ConversationView({
       </div>
 
       {/* input */}
-      <div>
+      <div className="relative min-w-0">
         <PromptInputProvider>
+          <QuickReplySlashMenu onSend={handleSend} />
           <ConnectedQuickReplies onSendPayload={handleSend} />
           <MessageInput
             conversationId={conversation.id}

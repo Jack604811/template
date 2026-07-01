@@ -3,8 +3,8 @@
 import { useDrag } from "@use-gesture/react";
 import {
   ArchiveIcon,
-  CheckIcon,
   CheckCheckIcon,
+  CheckIcon,
   CornerUpLeftIcon,
   DownloadIcon,
   ExternalLinkIcon,
@@ -15,8 +15,8 @@ import {
   MapPinIcon,
   MoreHorizontalIcon,
   PauseIcon,
-  PlayIcon,
   PlayCircleIcon,
+  PlayIcon,
   RefreshCwIcon,
   UserRoundIcon,
   VideoIcon,
@@ -515,42 +515,88 @@ function DocumentBubble({ message, isUser }: { message: Message; isUser: boolean
   );
 }
 
+function osmTile(lat: number, lon: number, zoom: number) {
+  const n = 2 ** zoom;
+  const x = Math.floor((lon + 180) / 360 * n);
+  const latRad = (lat * Math.PI) / 180;
+  const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+  const fracX = (lon + 180) / 360 * n - x;
+  const fracY = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n - y;
+  return { x, y, fracX, fracY };
+}
+
 function LocationBubble({ message, isUser }: { message: Message; isUser: boolean }) {
-  const placeName = message.mediaFilename ?? "";
-  const geoMatch = message.mediaUrl?.match(/^geo:(-?[\d.]+),(-?[\d.]+)/);
-  const lat = geoMatch?.[1];
-  const lon = geoMatch?.[2];
-  const mapsUrl = lat && lon
-    ? `https://maps.google.com/?q=${lat},${lon}`
-    : placeName ? `https://maps.google.com/?q=${encodeURIComponent(placeName)}` : null;
+  let lat: number | null = null;
+  let lon: number | null = null;
+  let displayName: string | undefined;
+
+  try {
+    const parsed = JSON.parse(message.mediaFilename ?? "{}") as {
+      latitude?: number; longitude?: number; name?: string; address?: string;
+    };
+    if (parsed.latitude != null && parsed.longitude != null) {
+      lat = parsed.latitude;
+      lon = parsed.longitude;
+      displayName = parsed.name ?? parsed.address;
+    }
+  } catch {}
+
+  if (lat == null) {
+    const geoMatch = message.mediaUrl?.match(/^geo:(-?[\d.]+),(-?[\d.]+)/);
+    if (geoMatch) { lat = parseFloat(geoMatch[1]); lon = parseFloat(geoMatch[2]); }
+  }
+
+  const mapsUrl = lat != null && lon != null ? `https://maps.google.com/?q=${lat},${lon}` : null;
+
+  const zoom = 15;
+  const tile = lat != null && lon != null ? osmTile(lat, lon, zoom) : null;
+  const tileUrl = tile ? `https://tile.openstreetmap.org/${zoom}/${tile.x}/${tile.y}.png` : null;
+  // Position the 256×256 tile so that the pin lands at the center of the 256×128 viewport
+  const tileLeft = tile ? Math.round(128 - tile.fracX * 256) : 0;
+  const tileTop  = tile ? Math.round(64  - tile.fracY * 256) : 0;
 
   return (
-    <a href={mapsUrl ?? undefined} target="_blank" rel="noreferrer"
-      className={cn("block w-64 overflow-hidden rounded-2xl", !mapsUrl && "pointer-events-none")}>
-      <div className={cn("relative flex h-32 items-center justify-center overflow-hidden",
-        isUser ? "bg-primary-foreground/10" : "bg-emerald-950/60")}>
-        <div className="absolute inset-0 opacity-20"
-          style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.15) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-        <div className={cn("absolute inset-0 opacity-15", isUser ? "bg-primary-foreground" : "bg-emerald-400")}
-          style={{ backgroundImage: "linear-gradient(transparent 46%, currentColor 46%, currentColor 54%, transparent 54%), linear-gradient(90deg, transparent 30%, currentColor 30%, currentColor 36%, transparent 36%)", backgroundSize: "80px 80px" }} />
-        <div className="relative flex flex-col items-center">
-          <div className={cn("flex size-10 items-center justify-center rounded-full shadow-lg",
-            isUser ? "bg-primary-foreground text-primary" : "bg-emerald-500 text-white")}>
-            <MapPinIcon className="size-5" />
+    <a
+      href={mapsUrl ?? undefined}
+      target="_blank"
+      rel="noreferrer"
+      className={cn("block w-64 overflow-hidden rounded-2xl", !mapsUrl && "pointer-events-none")}
+    >
+      <div className="relative h-32 w-64 overflow-hidden">
+        {tileUrl ? (
+          <>
+            <div
+              className="absolute select-none"
+              style={{ left: tileLeft, top: tileTop }}
+            >
+              <NextImage
+                src={tileUrl}
+                alt=""
+                width={256}
+                height={256}
+                unoptimized
+                draggable={false}
+              />
+            </div>
+            {/* Pin centered on the exact coordinates */}
+            <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-md">
+              <MapPinIcon className="size-7 fill-rose-500 text-white" />
+            </div>
+          </>
+        ) : (
+          <div className={cn("flex h-full w-full items-center justify-center",
+            isUser ? "bg-primary-foreground/10" : "bg-muted")}>
+            <MapPinIcon className={cn("size-8", isUser ? "text-primary-foreground/40" : "text-foreground/30")} />
           </div>
-          <div className={cn("mt-0.5 size-2 rounded-full opacity-30",
-            isUser ? "bg-primary-foreground" : "bg-emerald-500")} />
-        </div>
+        )}
       </div>
       <div className={cn("flex items-center justify-between gap-2 px-3 py-2.5",
         isUser ? "bg-primary-foreground/10" : "bg-foreground/8")}>
-        <div className="min-w-0">
-          <p className="text-[12px] font-semibold leading-tight">{placeName || "Ubicación compartida"}</p>
-          {lat && lon && (
-            <p className={cn("text-[10px]", isUser ? "text-primary-foreground/50" : "text-muted-foreground")}>
-              {parseFloat(lat).toFixed(4)}, {parseFloat(lon).toFixed(4)}
-            </p>
-          )}
+        <div className="flex min-w-0 items-center gap-2">
+          <MapPinIcon className={cn("size-3.5 shrink-0", isUser ? "text-primary-foreground/70" : "text-rose-500")} />
+          <p className="truncate text-[12px] font-semibold leading-tight">
+            {displayName || "Ubicación compartida"}
+          </p>
         </div>
         {mapsUrl && <ExternalLinkIcon className={cn("size-3.5 shrink-0", isUser ? "text-primary-foreground/60" : "text-muted-foreground")} />}
       </div>
@@ -711,6 +757,30 @@ function CarouselBubble({ message }: { message: Message; isUser: boolean }) {
   );
 }
 
+// eslint-disable-next-line no-useless-escape
+const WA_SPLIT_RE = /(\*[^*]+\*|_[^_]+_|~[^~]+~|\n|https?:\/\/[^\s]+)/g;
+const URL_TEST_RE = /^https?:\/\//;
+
+function parseWhatsAppText(text: string): React.ReactNode[] {
+  return text.split(WA_SPLIT_RE).map((seg, i) => {
+    const k = `${i}:${seg.slice(0, 8)}`;
+    if (seg === "\n") return <br key={k} />;
+    if (URL_TEST_RE.test(seg))
+      return <a key={k} href={seg} target="_blank" rel="noopener noreferrer" className="break-all underline opacity-80">{seg}</a>;
+    if (seg.startsWith("*") && seg.endsWith("*") && seg.length > 2)
+      return <strong key={k}>{seg.slice(1, -1)}</strong>;
+    if (seg.startsWith("_") && seg.endsWith("_") && seg.length > 2)
+      return <em key={k}>{seg.slice(1, -1)}</em>;
+    if (seg.startsWith("~") && seg.endsWith("~") && seg.length > 2)
+      return <s key={k}>{seg.slice(1, -1)}</s>;
+    return seg;
+  });
+}
+
+function WhatsAppText({ text, className }: { text: string; className?: string }) {
+  return <span className={cn("break-words", className)}>{parseWhatsAppText(text)}</span>;
+}
+
 export function MessageContent({ message, isUser }: { message: Message; isUser: boolean }) {
   switch (message.mediaType) {
     case "image":    return <ImageBubble message={message} isUser={isUser} />;
@@ -726,9 +796,9 @@ export function MessageContent({ message, isUser }: { message: Message; isUser: 
     case "button":
     case "interactive": {
       const isPlaceholder = /^\[.*?\]$/.test(message.text?.trim() ?? "");
-      return <span className="leading-relaxed">{isPlaceholder ? "Button reply" : message.text}</span>;
+      return isPlaceholder ? <span className="leading-relaxed">Button reply</span> : <WhatsAppText text={message.text ?? ""} className="leading-relaxed" />;
     }
-    default:                     return <span className="leading-relaxed">{message.text}</span>;
+    default: return <WhatsAppText text={message.text ?? ""} className="leading-relaxed" />;
   }
 }
 

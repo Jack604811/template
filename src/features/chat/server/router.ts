@@ -89,18 +89,23 @@ function buildWhatsAppPayload(
   }
 
   if (mediaType === "location") {
-    const url = mediaFilename ?? "";
-    const atMatch = url.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-    const qMatch = url.match(/[?&]q=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
-    const m = atMatch ?? qMatch;
-    if (m) {
+    try {
+      const { latitude, longitude, name, address } = JSON.parse(mediaFilename ?? "{}") as {
+        latitude: number; longitude: number; name?: string; address?: string;
+      };
       return {
         messaging_product: "whatsapp", to, type: "location",
-        location: { latitude: parseFloat(m[1]), longitude: parseFloat(m[2]) },
+        location: {
+          latitude,
+          longitude,
+          ...(name && { name }),
+          ...(address && { address }),
+        },
         ...context,
       };
+    } catch {
+      return { messaging_product: "whatsapp", to, type: "text", text: { body: content || "📍 Ubicación" }, ...context };
     }
-    return { messaging_product: "whatsapp", to, type: "text", text: { body: url }, ...context };
   }
   if (!mediaUrl || !mediaType) {
     return { messaging_product: "whatsapp", to, type: "text", text: { body: content }, ...context };

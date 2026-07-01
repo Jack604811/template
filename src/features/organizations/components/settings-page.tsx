@@ -1,14 +1,35 @@
 "use client";
 
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  restrictToParentElement,
+  restrictToVerticalAxis,
+} from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { countries } from "country-data-list";
 import {
   BanknoteIcon,
-  ChevronsUpDownIcon,
   Building2Icon,
   CalendarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronsUpDownIcon,
   ClockIcon,
   CreditCardIcon,
   FileTextIcon,
@@ -53,29 +74,17 @@ import {
 } from "@/components/ui/empty";
 import { Switch } from "@/components/ui/switch";
 import { TimezoneSelect } from "@/components/ui/timezone-select";
-import {
-  closestCenter,
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
-import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 import { CustomFieldDialog } from "@/features/custom-fields/components/custom-field-dialog";
-import { useSuspenseCustomFields, useReorderCustomFields } from "@/features/custom-fields/hooks/use-custom-fields";
-import { CustomFieldDisplayLocation, CustomFieldType } from "@/generated/prisma";
-import { useIsMobile } from "@/hooks/use-mobile";
+import {
+  useReorderCustomFields,
+  useSuspenseCustomFields,
+} from "@/features/custom-fields/hooks/use-custom-fields";
 import { useHasActiveSubscription } from "@/features/subscriptions/hooks/use-subscription";
+import {
+  CustomFieldDisplayLocation,
+  CustomFieldType,
+} from "@/generated/prisma";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 import {
@@ -84,17 +93,12 @@ import {
   useUpdateOrganizationName,
   useUpdateOrganizationSettings,
 } from "../hooks/use-organizations";
-import { MemberList } from "./member-list";
 import type { OrgRole } from "../utils/roles";
+import { MemberList } from "./member-list";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type Tab =
-  | "general"
-  | "campos"
-  | "equipo"
-  | "facturacion"
-  | "documentos";
+type Tab = "general" | "campos" | "equipo" | "facturacion" | "documentos";
 
 const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: "general", label: "General", icon: SettingsIcon },
@@ -216,7 +220,7 @@ function DesktopPickerRow({
       className={cn(
         "relative flex items-center gap-4 py-3.5",
         !last && "border-b border-border/40",
-        disabled ? "opacity-50" : "cursor-pointer",
+        !disabled && "cursor-pointer",
       )}
     >
       <div className="pointer-events-none flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl bg-muted/30">
@@ -231,9 +235,9 @@ function DesktopPickerRow({
         </p>
       </div>
       <PencilIcon className="pointer-events-none size-3 shrink-0 text-muted-foreground/30" />
-      <div className="absolute inset-0 [&>button]:absolute [&>button]:inset-0 [&>button]:h-full [&>button]:w-full [&>button]:cursor-pointer [&>button]:opacity-0 [&>button]:disabled:cursor-default">
-        {children}
-      </div>
+      {!disabled && (
+        <div className="absolute inset-0 opacity-0">{children}</div>
+      )}
     </div>
   );
 }
@@ -443,8 +447,12 @@ const PanelGeneral = memo(() => {
 
   if (!isMobile) {
     const countryName = selectedCountry?.name ?? watchedCountry ?? "—";
-    const weekStartLabel = WEEK_START_OPTIONS.find((o) => o.value === watchedWeekStart)?.label ?? "—";
-    const dateFormatLabel = DATE_FORMAT_OPTIONS.find((o) => o.value === watchedDateTimeFormat)?.label ?? "—";
+    const weekStartLabel =
+      WEEK_START_OPTIONS.find((o) => o.value === watchedWeekStart)?.label ??
+      "—";
+    const dateFormatLabel =
+      DATE_FORMAT_OPTIONS.find((o) => o.value === watchedDateTimeFormat)
+        ?.label ?? "—";
     const tzLabel = watchedTimezone
       ? watchedTimezone.replace(/_/g, " ").replace(/\//g, " · ")
       : "—";
@@ -453,12 +461,15 @@ const PanelGeneral = memo(() => {
       <div className="flex flex-col gap-6">
         <div>
           <SectionLabel className="mb-2">Organización</SectionLabel>
-          <DesktopField icon={<Building2Icon className={iconCls} />} label="Nombre">
+          <DesktopField
+            icon={<Building2Icon className={iconCls} />}
+            label="Nombre"
+          >
             <input
               value={watchedName}
               onChange={(e) => form.setValue("name", e.target.value)}
               disabled={!canEdit}
-              className="w-full bg-transparent border-none outline-none text-[15px] text-foreground leading-snug p-0 m-0 font-[inherit] appearance-none disabled:opacity-50"
+              className="w-full bg-transparent border-none outline-none text-[15px] text-foreground leading-snug p-0 m-0 font-[inherit] appearance-none"
             />
           </DesktopField>
           <DesktopPickerRow
@@ -515,7 +526,10 @@ const PanelGeneral = memo(() => {
             valueDisplay={weekStartLabel}
             onClick={() =>
               canEdit &&
-              form.setValue("weekStart", watchedWeekStart === "monday" ? "sunday" : "monday")
+              form.setValue(
+                "weekStart",
+                watchedWeekStart === "monday" ? "sunday" : "monday",
+              )
             }
           />
           <DesktopToggleRow
@@ -525,7 +539,10 @@ const PanelGeneral = memo(() => {
             last
             onClick={() =>
               canEdit &&
-              form.setValue("dateTimeFormat", watchedDateTimeFormat === "12" ? "24" : "12")
+              form.setValue(
+                "dateTimeFormat",
+                watchedDateTimeFormat === "12" ? "24" : "12",
+              )
             }
           />
         </div>
@@ -569,13 +586,19 @@ const PanelGeneral = memo(() => {
           <SettingsRow
             icon={<CalendarIcon className={iconCls} />}
             label="Inicio de semana"
-            value={WEEK_START_OPTIONS.find((o) => o.value === watchedWeekStart)?.label}
+            value={
+              WEEK_START_OPTIONS.find((o) => o.value === watchedWeekStart)
+                ?.label
+            }
             onClick={canEdit ? () => openField("weekStart") : undefined}
           />
           <SettingsRow
             icon={<SettingsIcon className={iconCls} />}
             label="Formato de hora"
-            value={DATE_FORMAT_OPTIONS.find((o) => o.value === watchedDateTimeFormat)?.label}
+            value={
+              DATE_FORMAT_OPTIONS.find((o) => o.value === watchedDateTimeFormat)
+                ?.label
+            }
             onClick={canEdit ? () => openField("dateTimeFormat") : undefined}
             last
           />
@@ -674,45 +697,59 @@ const PanelGeneral = memo(() => {
                 placeholder="Seleccionar zona horaria"
               />
             )}
-            {(editingField === "weekStart" || editingField === "dateTimeFormat") && (
+            {(editingField === "weekStart" ||
+              editingField === "dateTimeFormat") && (
               <div className="flex flex-col gap-2">
-                {(editingField === "weekStart" ? WEEK_START_OPTIONS : DATE_FORMAT_OPTIONS).map(
-                  (opt) => {
-                    const current =
-                      editingField === "weekStart" ? watchedWeekStart : watchedDateTimeFormat;
-                    const isActive = opt.value === current;
-                    return (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => {
-                          if (editingField === "weekStart") {
-                            form.setValue("weekStart", opt.value as "monday" | "sunday");
-                          } else {
-                            form.setValue("dateTimeFormat", opt.value as "12" | "24");
-                          }
-                          setEditingField(null);
-                        }}
+                {(editingField === "weekStart"
+                  ? WEEK_START_OPTIONS
+                  : DATE_FORMAT_OPTIONS
+                ).map((opt) => {
+                  const current =
+                    editingField === "weekStart"
+                      ? watchedWeekStart
+                      : watchedDateTimeFormat;
+                  const isActive = opt.value === current;
+                  return (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => {
+                        if (editingField === "weekStart") {
+                          form.setValue(
+                            "weekStart",
+                            opt.value as "monday" | "sunday",
+                          );
+                        } else {
+                          form.setValue(
+                            "dateTimeFormat",
+                            opt.value as "12" | "24",
+                          );
+                        }
+                        setEditingField(null);
+                      }}
+                      className={cn(
+                        "flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-[15px] font-medium transition-colors",
+                        isActive
+                          ? "border-primary/50 bg-primary/10 text-primary"
+                          : "border-border bg-muted/30 text-foreground",
+                      )}
+                    >
+                      <span
                         className={cn(
-                          "flex w-full items-center gap-3 rounded-2xl border px-4 py-4 text-[15px] font-medium transition-colors",
+                          "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
                           isActive
-                            ? "border-primary/50 bg-primary/10 text-primary"
-                            : "border-border bg-muted/30 text-foreground",
+                            ? "border-primary"
+                            : "border-muted-foreground/40",
                         )}
                       >
-                        <span
-                          className={cn(
-                            "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-colors",
-                            isActive ? "border-primary" : "border-muted-foreground/40",
-                          )}
-                        >
-                          {isActive && <span className="h-2 w-2 rounded-full bg-primary" />}
-                        </span>
-                        {opt.label}
-                      </button>
-                    );
-                  },
-                )}
+                        {isActive && (
+                          <span className="h-2 w-2 rounded-full bg-primary" />
+                        )}
+                      </span>
+                      {opt.label}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -792,19 +829,33 @@ function SortableVariableRow({
   field: FieldItem;
   onEdit: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: field.id });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: field.id });
   return (
     <div
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       {...attributes}
       {...listeners}
-      className={cn("flex cursor-grab items-center gap-3 py-3.5 active:cursor-grabbing", isDragging && "opacity-50")}
+      className={cn(
+        "flex cursor-grab items-center gap-3 py-3.5 active:cursor-grabbing",
+        isDragging && "opacity-50",
+      )}
     >
       <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
         <FieldTypeIcon type={field.type} />
       </span>
-      <button type="button" className="min-w-0 flex-1 truncate text-left text-[15px] text-foreground/90" onClick={onEdit}>
+      <button
+        type="button"
+        className="min-w-0 flex-1 truncate text-left text-[15px] text-foreground/90"
+        onClick={onEdit}
+      >
         {field.name}
       </button>
       {field.required && (
@@ -812,20 +863,31 @@ function SortableVariableRow({
           Requerido
         </span>
       )}
-      <span className="shrink-0 text-[12px] text-muted-foreground">{FIELD_TYPE_LABELS_ES[field.type]}</span>
+      <span className="shrink-0 text-[12px] text-muted-foreground">
+        {FIELD_TYPE_LABELS_ES[field.type]}
+      </span>
       <ChevronRightIcon className="size-4 shrink-0 text-foreground/20" />
     </div>
   );
 }
 
-function VariablesList({ addOpen, onAddOpenChange }: { addOpen: boolean; onAddOpenChange: (v: boolean) => void }) {
+function VariablesList({
+  addOpen,
+  onAddOpenChange,
+}: {
+  addOpen: boolean;
+  onAddOpenChange: (v: boolean) => void;
+}) {
   const { data: fields } = useSuspenseCustomFields();
   const reorderFields = useReorderCustomFields();
   const [editField, setEditField] = useState<FieldItem | null>(null);
   const [items, setItems] = useState<FieldItem[]>([]);
 
   const customerFields = useMemo(
-    () => (fields as FieldItem[]).filter((f) => f.displayLocation === CustomFieldDisplayLocation.CUSTOMER),
+    () =>
+      (fields as FieldItem[]).filter(
+        (f) => f.displayLocation === CustomFieldDisplayLocation.CUSTOMER,
+      ),
     [fields],
   );
 
@@ -835,7 +897,9 @@ function VariablesList({ addOpen, onAddOpenChange }: { addOpen: boolean; onAddOp
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
   function handleDragEnd(event: DragEndEvent) {
@@ -861,7 +925,10 @@ function VariablesList({ addOpen, onAddOpenChange }: { addOpen: boolean; onAddOp
           modifiers={[restrictToVerticalAxis, restrictToParentElement]}
           onDragEnd={handleDragEnd}
         >
-          <SortableContext items={items.map((f) => f.id)} strategy={verticalListSortingStrategy}>
+          <SortableContext
+            items={items.map((f) => f.id)}
+            strategy={verticalListSortingStrategy}
+          >
             <div className="divide-y divide-border/40">
               {items.map((field) => (
                 <SortableVariableRow
@@ -930,9 +997,18 @@ function PanelContent({
     case "general":
       return <PanelGeneral />;
     case "campos":
-      return <VariablesList addOpen={addOpen} onAddOpenChange={onAddOpenChange} />;
+      return (
+        <VariablesList addOpen={addOpen} onAddOpenChange={onAddOpenChange} />
+      );
     case "equipo":
-      return <MemberList organizationId={orgId} currentRole={role} inviteOpen={inviteOpen} setInviteOpen={setInviteOpen} />;
+      return (
+        <MemberList
+          organizationId={orgId}
+          currentRole={role}
+          inviteOpen={inviteOpen}
+          setInviteOpen={setInviteOpen}
+        />
+      );
     case "facturacion":
       return <StubPanel icon={CreditCardIcon} />;
     case "documentos":
@@ -1026,7 +1102,10 @@ function MobileSettings({
     <>
       <div className="flex flex-col px-4 py-4">
         {/* Org profile */}
-        <Link href="/select-organization" className="flex items-center gap-3 py-3 px-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted">
+        <Link
+          href="/select-organization"
+          className="flex items-center gap-3 py-3 px-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted"
+        >
           <div className="size-14 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
             <Building2Icon className="size-7 text-primary" />
           </div>
@@ -1174,7 +1253,10 @@ function DesktopSettings({
       {/* Sidebar */}
       <aside className="w-56 shrink-0 border-r flex flex-col p-4 gap-1">
         {/* Org strip */}
-        <Link href="/select-organization" className="flex items-center gap-2.5 px-2 py-3 mb-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted">
+        <Link
+          href="/select-organization"
+          className="flex items-center gap-2.5 px-2 py-3 mb-2 rounded-xl transition-colors hover:bg-muted/50 active:bg-muted"
+        >
           <div className="size-9 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
             <Building2Icon className="size-5 text-primary" />
           </div>
@@ -1182,9 +1264,7 @@ function DesktopSettings({
             <p className="text-sm font-semibold text-foreground leading-tight truncate">
               {orgName}
             </p>
-            <p className="text-[11px] text-muted-foreground">
-              {plan}
-            </p>
+            <p className="text-[11px] text-muted-foreground">{plan}</p>
           </div>
           <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground/40" />
         </Link>
@@ -1274,12 +1354,22 @@ export const SettingsPage = memo(() => {
 
   if (isMobile) {
     return (
-      <MobileSettings orgName={org.name} orgId={currentOrgId} role={role} plan={plan} />
+      <MobileSettings
+        orgName={org.name}
+        orgId={currentOrgId}
+        role={role}
+        plan={plan}
+      />
     );
   }
 
   return (
-    <DesktopSettings orgName={org.name} orgId={currentOrgId} role={role} plan={plan} />
+    <DesktopSettings
+      orgName={org.name}
+      orgId={currentOrgId}
+      role={role}
+      plan={plan}
+    />
   );
 });
 SettingsPage.displayName = "SettingsPage";

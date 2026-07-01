@@ -53,7 +53,7 @@ export function useConversationParticipant(
 
   function makeSystemMsg(content: string): CachedMessage {
     return {
-      id: `system-optimistic-${Date.now()}`,
+      id: `system-optimistic-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       conversationId: conversation?.id ?? "",
       externalId: null,
       role: "SYSTEM",
@@ -75,7 +75,7 @@ export function useConversationParticipant(
   // Called from sendMessage.onMutate — registers the optimistic join side-effect
   function prepareImplicitJoin(): { joinOptimisticId: string; msg: CachedMessage } | null {
     if (hasJoined) return null;
-    const joinOptimisticId = `optimistic-join-${Date.now()}`;
+    const joinOptimisticId = `optimistic-join-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     stableKeyMap.current.set(joinOptimisticId, joinOptimisticId);
     return { joinOptimisticId, msg: { ...makeSystemMsg(JOIN_TEXT_SELF), id: joinOptimisticId } };
   }
@@ -103,7 +103,7 @@ export function useConversationParticipant(
       onMutate: async () => {
         await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
         const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
-        const joinOptimisticId = `optimistic-join-${Date.now()}`;
+        const joinOptimisticId = `optimistic-join-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         stableKeyMap.current.set(joinOptimisticId, joinOptimisticId);
         hasJoinedRef.current = true;
         queryClient.setQueryData(
@@ -149,7 +149,7 @@ export function useConversationParticipant(
       onMutate: async () => {
         await queryClient.cancelQueries({ queryKey: messagesQueryOptions.queryKey });
         const previous = queryClient.getQueryData(messagesQueryOptions.queryKey);
-        const leaveOptimisticId = `optimistic-leave-${Date.now()}`;
+        const leaveOptimisticId = `optimistic-leave-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         stableKeyMap.current.set(leaveOptimisticId, leaveOptimisticId);
         hasJoinedRef.current = false;
         queryClient.setQueryData(

@@ -348,7 +348,6 @@ export function MessageInput({
         <QuickReplyPicker
           open={quickRepliesOpen}
           onClose={() => setQuickRepliesOpen(false)}
-          onSend={(payload) => { onSend?.(payload); }}
         />
         {conversationId && credentialId && (
           <>

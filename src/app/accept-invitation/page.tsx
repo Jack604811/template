@@ -22,11 +22,13 @@ const Page = async ({ searchParams }: Props) => {
   if (!invitation || invitation.status !== "pending" || invitation.expiresAt < new Date()) {
     return (
       <AuthLayout>
-        <div className="rounded-xl border bg-card p-8 text-center shadow-sm">
-          <p className="font-semibold">Invitación no válida</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Esta invitación ha expirado o ya fue utilizada.
-          </p>
+        <div className="flex min-h-svh items-center justify-center px-4">
+          <div className="text-center">
+            <p className="font-semibold">Invitación no válida</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Esta invitación ha expirado o ya fue utilizada.
+            </p>
+          </div>
         </div>
       </AuthLayout>
     );
@@ -34,42 +36,8 @@ const Page = async ({ searchParams }: Props) => {
 
   const session = await auth.api.getSession({ headers: await headers() });
 
-  if (session) {
-    const existing = await prisma.member.findUnique({
-      where: {
-        organizationId_userId: {
-          organizationId: invitation.organizationId,
-          userId: session.user.id,
-        },
-      },
-    });
-
-    if (!existing) {
-      await prisma.member.create({
-        data: {
-          organizationId: invitation.organizationId,
-          userId: session.user.id,
-          role: invitation.role,
-        },
-      });
-    }
-
-    await prisma.invitation.update({
-      where: { id },
-      data: { status: "accepted" },
-    });
-
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: { lastActiveOrganizationId: invitation.organizationId },
-    });
-
-    await auth.api.setActiveOrganization({
-      headers: await headers(),
-      body: { organizationId: invitation.organizationId },
-    });
-
-    redirect("/chat");
+  if (!session) {
+    redirect(`/login?id=${id}`);
   }
 
   return (

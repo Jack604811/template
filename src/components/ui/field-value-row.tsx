@@ -13,12 +13,6 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -153,8 +147,8 @@ export function InfoRow({
 
   if (!isMobile && isSelect && onSave) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <Popover>
+        <PopoverTrigger asChild>
           <div className={`flex items-center gap-4 py-3.5 px-5 cursor-pointer ${borderClass}`}>
             {iconEl}
             <div className="flex-1 min-w-0">
@@ -165,20 +159,21 @@ export function InfoRow({
             </div>
             <PencilIcon className="size-3 text-muted-foreground/30 shrink-0" />
           </div>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-40 rounded-2xl p-1">
+        </PopoverTrigger>
+        <PopoverContent side="bottom" align="start" sideOffset={4} alignOffset={64} className="w-auto min-w-40 p-1 rounded-2xl">
           {options.map((opt) => (
-            <DropdownMenuItem
+            <button
               key={opt}
+              type="button"
               onClick={() => onSave(opt)}
-              className="flex items-center justify-between gap-2 font-medium cursor-pointer"
+              className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-[15px] font-medium hover:bg-muted transition-colors"
             >
               {optionLabels?.[opt] ?? opt}
               {opt === value && <CheckIcon className="size-3.5 text-primary" />}
-            </DropdownMenuItem>
+            </button>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+        </PopoverContent>
+      </Popover>
     );
   }
 
@@ -199,7 +194,7 @@ export function InfoRow({
             <PencilIcon className="size-3 text-muted-foreground/30 shrink-0" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" side="bottom" align="center" sideOffset={4}>
           <Calendar
             mode="single"
             selected={selectedDate}
@@ -213,21 +208,11 @@ export function InfoRow({
 
   return (
     <>
-      <div
-        role={onSave && !editing ? "button" : undefined}
-        tabIndex={onSave && !editing ? 0 : undefined}
+      <button
+        type="button"
         className={`flex w-full items-center gap-4 py-3.5 px-5 text-left ${borderClass} ${onSave ? "cursor-pointer" : "cursor-default"}`}
-        onClick={!editing ? openEdit : undefined}
-        onKeyDown={
-          onSave && !editing
-            ? (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  openEdit();
-                }
-              }
-            : undefined
-        }
+        onClick={openEdit}
+        disabled={!onSave}
       >
         {iconEl}
         <div className="flex-1 min-w-0">
@@ -256,7 +241,7 @@ export function InfoRow({
           )}
         </div>
         {onSave && <PencilIcon className="size-3 text-muted-foreground/30 shrink-0" />}
-      </div>
+      </button>
 
       {onSave && (
         <Drawer open={editing && isMobile} onOpenChange={(v) => !v && cancel()}>

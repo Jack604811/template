@@ -107,9 +107,12 @@ export const useRemoveCustomField = () => {
  */
 export const useReorderCustomFields = () => {
   const trpc = useTRPC();
+  const queryClient = useQueryClient();
 
   return useMutation(
-    trpc.customFields.reorder.mutationOptions({}),
+    trpc.customFields.reorder.mutationOptions({
+      onSettled: () => queryClient.invalidateQueries({ queryKey: trpc.customFields.getMany.queryOptions().queryKey }),
+    }),
   );
 };
 

@@ -272,12 +272,14 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
   const [editingQr, setEditingQr] = useState<QuickReplySequence | null>(null);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [items, setItems] = useState<QuickReplySequence[]>([]);
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
 
   const queryOptions = trpc.quickReplies.getMany.queryOptions();
   const { data: sequences = [] } = useQuery(queryOptions);
 
-  useEffect(() => { setItems(sequences); }, [sequences]);
+  const items = dragOrder
+    ? dragOrder.map((id) => sequences.find((s) => s.id === id)).filter(Boolean) as QuickReplySequence[]
+    : sequences;
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -286,7 +288,7 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
 
   const reorderReply = useMutation(
     trpc.quickReplies.reorder.mutationOptions({
-      onSettled: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
+      onSettled: () => { setDragOrder(null); queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }); },
     }),
   );
 
@@ -320,7 +322,7 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
     const oldIndex = items.findIndex((qr) => qr.id === active.id);
     const newIndex = items.findIndex((qr) => qr.id === over.id);
     const reordered = arrayMove(items, oldIndex, newIndex);
-    setItems(reordered);
+    setDragOrder(reordered.map((qr) => qr.id));
     reorderReply.mutate({ ids: reordered.map((qr) => qr.id) });
   }
 

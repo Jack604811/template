@@ -4,6 +4,7 @@ import { ChevronLeftIcon, XIcon } from "lucide-react";
 import type * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 function Drawer({
@@ -77,16 +78,16 @@ function DrawerContent({
         <div className="bg-foreground/20 mx-auto mt-3 hidden h-1 w-9 shrink-0 rounded-full group-data-[vaul-drawer-direction=bottom]/drawer-content:block" />
         {children}
         {action && (
-          <div className="mt-auto p-4">
-            <button
+          <div className="mt-auto p-4 pb-8">
+            <Button
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-primary py-3.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="w-full"
             >
               {action.icon}
               {action.label}
-            </button>
+            </Button>
           </div>
         )}
       </DrawerPrimitive.Content>

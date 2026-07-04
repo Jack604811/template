@@ -29,7 +29,7 @@ import {
   DrawerDescription,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { InfoRow as DetailInfoRow, Section } from "@/components/ui/info-row";
+import { InfoRow as DetailInfoRow, Section } from "@/components/ui/field-value-row";
 import { Pills } from "@/components/ui/pills";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -242,57 +242,32 @@ function PanelContent({
     total: number,
   ) {
     const val = (customFieldValues[field.identifier] as string | null) ?? null;
-    const isTextField =
-      field.type === CustomFieldType.TEXT ||
-      field.type === CustomFieldType.NUMBER ||
-      field.type === CustomFieldType.DATE ||
-      field.type === CustomFieldType.TIME;
     const isTextarea = field.type === CustomFieldType.TEXTAREA;
     const isSelect =
       field.type === CustomFieldType.OPTIONS || field.type === CustomFieldType.MULTISELECT;
     const isLast = i === total - 1;
 
-    if (isTextField || isTextarea) {
-      return (
-        <DetailInfoRow
-          key={field.id}
-          label={field.name}
-          value={val}
-          placeholder={field.placeholder ?? undefined}
-          last={isLast}
-          onSave={(v) =>
-            updateCustomField.mutate({
-              conversationId: conversation.id,
-              identifier: field.identifier,
-              value: v,
-            })
-          }
-          saving={updateCustomField.isPending}
-          multiline={isTextarea}
-        />
-      );
-    }
-    if (isSelect && field.options) {
-      return (
-        <DetailInfoRow
-          key={field.id}
-          label={field.name}
-          value={val}
-          placeholder={field.placeholder ?? undefined}
-          last={isLast}
-          options={field.options}
-          onSave={(v) =>
-            updateCustomField.mutate({
-              conversationId: conversation.id,
-              identifier: field.identifier,
-              value: v,
-            })
-          }
-          saving={updateCustomField.isPending}
-        />
-      );
-    }
-    return <DetailInfoRow key={field.id} label={field.name} value={val} placeholder={field.placeholder ?? undefined} last={isLast} />;
+    const onSave = (v: string) =>
+      updateCustomField.mutate({
+        conversationId: conversation.id,
+        identifier: field.identifier,
+        value: v,
+      });
+
+    return (
+      <DetailInfoRow
+        key={field.id}
+        label={field.name}
+        value={val}
+        placeholder={field.placeholder ?? undefined}
+        last={isLast}
+        fieldType={field.type as import("@/components/ui/field-value-row").FieldType}
+        options={isSelect ? (field.options ?? undefined) : undefined}
+        onSave={onSave}
+        saving={updateCustomField.isPending}
+        multiline={isTextarea}
+      />
+    );
   }
 
   const deleteConversation = useMutation(
@@ -648,7 +623,13 @@ function PanelContent({
             open={notesDrawerOpen}
             onOpenChange={(v) => !v && setNotesDrawerOpen(false)}
           >
-            <DrawerContent>
+            <DrawerContent
+              action={{
+                label: "Guardar",
+                onClick: () => { saveNotes(draft); setNotesDrawerOpen(false); },
+                disabled: updateNotes.isPending,
+              }}
+            >
               <div className="flex items-center justify-between px-5 pt-4 pb-3">
                 <DrawerClose asChild>
                   <button
@@ -673,7 +654,7 @@ function PanelContent({
               <DrawerDescription className="sr-only">
                 Editar notas del contacto
               </DrawerDescription>
-              <div className="px-5 pt-2 pb-safe-or-6 flex flex-col gap-3">
+              <div className="px-5 pt-2 pb-2 flex flex-col gap-3">
                 <textarea
                   ref={drawerTextareaRef}
                   value={draft}
@@ -681,17 +662,6 @@ function PanelContent({
                   placeholder="Agregar notas sobre este contacto..."
                   className="w-full h-[50dvh] rounded-2xl border border-border bg-muted/30 px-4 py-3.5 text-[15px] text-foreground outline-none focus:border-primary/50 transition-colors resize-none placeholder:text-muted-foreground/50 placeholder:italic"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    saveNotes(draft);
-                    setNotesDrawerOpen(false);
-                  }}
-                  disabled={updateNotes.isPending}
-                  className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground text-[15px] font-semibold transition-opacity disabled:opacity-50"
-                >
-                  Guardar
-                </button>
               </div>
             </DrawerContent>
           </Drawer>

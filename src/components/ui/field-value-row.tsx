@@ -1,7 +1,10 @@
 "use client";
 
+import { format, isValid, parse } from "date-fns";
+import { es } from "date-fns/locale";
 import { CheckIcon, ChevronLeftIcon, PencilIcon, XIcon } from "lucide-react";
 import { useRef, useState } from "react";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Drawer,
   DrawerClose,
@@ -15,6 +18,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
@@ -55,6 +63,8 @@ export function Section({
   );
 }
 
+export type FieldType = "TEXT" | "NUMBER" | "DATE" | "TIME" | "TEXTAREA" | "OPTIONS" | "MULTISELECT";
+
 export interface InfoRowProps {
   icon?: React.ReactNode;
   label: string;
@@ -66,6 +76,15 @@ export interface InfoRowProps {
   options?: string[];
   optionLabels?: Record<string, string>;
   multiline?: boolean;
+  fieldType?: FieldType;
+}
+
+function formatDisplayValue(value: string, fieldType?: FieldType): string {
+  if (fieldType === "DATE" && value) {
+    const parsed = parse(value, "yyyy-MM-dd", new Date());
+    if (isValid(parsed)) return format(parsed, "d 'de' MMMM yyyy", { locale: es });
+  }
+  return value;
 }
 
 export function InfoRow({
@@ -79,6 +98,7 @@ export function InfoRow({
   options,
   optionLabels,
   multiline = false,
+  fieldType,
 }: InfoRowProps) {
   const isMobile = useIsMobile();
   const [editing, setEditing] = useState(false);
@@ -88,8 +108,13 @@ export function InfoRow({
   if (!value && !onSave) return null;
 
   const isSelect = !!options;
+  const isDate = fieldType === "DATE";
+  const isTime = fieldType === "TIME";
+  const isNumber = fieldType === "NUMBER";
+  const needsGuardar = !isSelect && !isDate;
+
   const borderClass = last ? "" : "border-b border-border/40";
-  const displayValue = value ? (optionLabels?.[value] ?? value) : (placeholder ?? "—");
+  const displayValue = value ? formatDisplayValue(optionLabels?.[value] ?? value, fieldType) : (placeholder ?? "—");
 
   const iconEl = (
     <div className="shrink-0 w-9 h-9 rounded-2xl bg-muted/30 flex items-center justify-center">
@@ -114,6 +139,17 @@ export function InfoRow({
     setEditing(false);
     setDraft(value ?? "");
   }
+
+  function saveDate(date: Date | undefined) {
+    if (!date) return;
+    const formatted = format(date, "yyyy-MM-dd");
+    onSave?.(formatted);
+    setEditing(false);
+  }
+
+  const selectedDate = isDate && value
+    ? (() => { const d = parse(value, "yyyy-MM-dd", new Date()); return isValid(d) ? d : undefined; })()
+    : undefined;
 
   if (!isMobile && isSelect && onSave) {
     return (
@@ -146,6 +182,35 @@ export function InfoRow({
     );
   }
 
+  if (!isMobile && isDate && onSave) {
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button type="button" className={`flex w-full items-center gap-4 py-3.5 px-5 text-left cursor-pointer ${borderClass}`}>
+            {iconEl}
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground leading-none mb-1.5">
+                {label}
+              </p>
+              <p className={`text-[15px] leading-snug truncate ${!value ? "text-muted-foreground/50 italic" : "text-foreground"}`}>
+                {displayValue}
+              </p>
+            </div>
+            <PencilIcon className="size-3 text-muted-foreground/30 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(d) => saveDate(d)}
+            locale={es}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+
   return (
     <>
       <div
@@ -173,6 +238,7 @@ export function InfoRow({
             <input
               ref={inputRef}
               readOnly={!editing}
+              type={isNumber ? "number" : isTime ? "time" : "text"}
               value={editing ? draft : (value ?? "")}
               placeholder={placeholder}
               onChange={(e) => setDraft(e.target.value)}
@@ -194,7 +260,9 @@ export function InfoRow({
 
       {onSave && (
         <Drawer open={editing && isMobile} onOpenChange={(v) => !v && cancel()}>
-          <DrawerContent>
+          <DrawerContent
+            action={needsGuardar ? { label: "Guardar", onClick: save, disabled: saving } : undefined}
+          >
             <div className="flex items-center justify-between px-5 pt-4 pb-3">
               <DrawerClose asChild>
                 <button
@@ -215,7 +283,7 @@ export function InfoRow({
               </DrawerClose>
             </div>
             <DrawerDescription className="sr-only">Editar {label}</DrawerDescription>
-            <div className="px-5 pt-2 pb-safe-or-6 flex flex-col gap-3">
+            <div className="px-5 pt-2 pb-2 flex flex-col gap-3">
               {isSelect ? (
                 <div className="flex flex-col gap-2">
                   {(options ?? []).map((opt) => (
@@ -242,6 +310,15 @@ export function InfoRow({
                     </button>
                   ))}
                 </div>
+              ) : isDate ? (
+                <div className="flex justify-center">
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={saveDate}
+                    locale={es}
+                  />
+                </div>
               ) : multiline ? (
                 <textarea
                   ref={(el) => el?.focus()}
@@ -253,21 +330,12 @@ export function InfoRow({
               ) : (
                 <input
                   ref={(el) => el?.focus()}
+                  type={isNumber ? "number" : isTime ? "time" : "text"}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && save()}
                   className="w-full rounded-2xl border border-border bg-muted/30 px-4 py-3.5 text-[15px] text-foreground outline-none focus:border-primary/50 transition-colors"
                 />
-              )}
-              {!isSelect && (
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="w-full py-3.5 rounded-2xl bg-primary text-primary-foreground text-[15px] font-semibold transition-opacity disabled:opacity-50"
-                >
-                  Guardar
-                </button>
               )}
             </div>
           </DrawerContent>

@@ -2,6 +2,24 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToParentElement, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   ArrowLeftIcon,
   FileTextIcon,
   ImageIcon,
@@ -14,7 +32,7 @@ import {
   TextIcon,
   Trash2Icon,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -192,6 +210,54 @@ function StepCard({ step, index }: { step: QuickReplyStep; index: number }) {
   );
 }
 
+// ─── Sortable list row ────────────────────────────────────────────────────────
+
+function SortableQuickReplyRow({
+  qr,
+  onEdit,
+  onDelete,
+}: {
+  qr: QuickReplySequence;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: qr.id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`group flex cursor-grab items-center gap-2 py-3 active:cursor-grabbing ${isDragging ? "opacity-50" : ""}`}
+      {...attributes}
+      {...listeners}
+    >
+      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+        <MessageSquareQuoteIcon className="size-4 text-primary" />
+      </div>
+      <button
+        type="button"
+        className="flex min-w-0 flex-1 flex-col text-left"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onEdit}
+      >
+        <p className="truncate text-sm font-medium">{qr.name}</p>
+        {qr.shortcut && (
+          <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">{qr.shortcut}</p>
+        )}
+      </button>
+      <button
+        type="button"
+        onPointerDown={(e) => e.stopPropagation()}
+        onClick={onDelete}
+        className="flex h-8 shrink-0 items-center opacity-0 transition-opacity group-hover:opacity-100"
+        aria-label="Eliminar respuesta rápida"
+      >
+        <Trash2Icon className="size-4 text-muted-foreground transition-colors hover:text-destructive" />
+      </button>
+    </div>
+  );
+}
+
 // ─── QuickReplyPicker ─────────────────────────────────────────────────────────
 
 interface QuickReplyPickerProps {
@@ -206,9 +272,23 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
   const [editingQr, setEditingQr] = useState<QuickReplySequence | null>(null);
   const [creatorOpen, setCreatorOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [items, setItems] = useState<QuickReplySequence[]>([]);
 
   const queryOptions = trpc.quickReplies.getMany.queryOptions();
   const { data: sequences = [] } = useQuery(queryOptions);
+
+  useEffect(() => { setItems(sequences); }, [sequences]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  const reorderReply = useMutation(
+    trpc.quickReplies.reorder.mutationOptions({
+      onSettled: () => queryClient.invalidateQueries({ queryKey: queryOptions.queryKey }),
+    }),
+  );
 
   const deleteReply = useMutation(
     trpc.quickReplies.delete.mutationOptions({
@@ -227,16 +307,25 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
     }),
   );
 
-  const filtered = sequences.filter((qr) => {
-    const q = search.toLowerCase();
-    return !q || qr.name.toLowerCase().includes(q) || qr.shortcut?.includes(q);
-  });
+  const filtered = search
+    ? sequences.filter((qr) => {
+        const q = search.toLowerCase();
+        return qr.name.toLowerCase().includes(q) || qr.shortcut?.includes(q);
+      })
+    : items;
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = items.findIndex((qr) => qr.id === active.id);
+    const newIndex = items.findIndex((qr) => qr.id === over.id);
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered);
+    reorderReply.mutate({ ids: reordered.map((qr) => qr.id) });
+  }
 
   function handleOpenChange(v: boolean) {
-    if (!v) {
-      onClose();
-      setSearch("");
-    }
+    if (!v) { onClose(); setSearch(""); }
   }
 
   function handleDelete() {
@@ -245,115 +334,117 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
     setDeletingId(null);
   }
 
-  // ── List view ──
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Respuestas rápidas</DialogTitle>
-          <DialogDescription>
-            Selecciona una secuencia de mensajes para enviar.
-          </DialogDescription>
-        </DialogHeader>
+  const isMobile = useIsMobile();
+  const creatorIsOpen = creatorOpen || editingQr !== null;
 
-        <div className="mt-2 space-y-3">
-          <div className="flex items-center gap-2">
-            <Search
-              value={search}
-              onChange={setSearch}
-              placeholder="Buscar respuesta rápida"
+  function handleCreatorClose() {
+    setCreatorOpen(false);
+    setEditingQr(null);
+  }
+
+  const creator = (
+    <QuickReplyCreator
+      open={creatorIsOpen}
+      initialValue={editingQr}
+      onClose={handleCreatorClose}
+      onSave={() => {
+        void queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
+        handleCreatorClose();
+      }}
+    />
+  );
+
+  const deleteDialog = (
+    <DeleteItem
+      open={deletingId !== null}
+      onOpenChange={(v) => { if (!v) setDeletingId(null); }}
+      onConfirm={handleDelete}
+      title="Eliminar respuesta rápida"
+      description="Esta acción no se puede deshacer."
+    />
+  );
+
+  const listBody = filtered.length === 0 ? (
+    <p className="py-8 text-center text-sm text-muted-foreground">
+      {search ? "Sin resultados." : "No hay respuestas rápidas todavía."}
+    </p>
+  ) : search ? (
+    <div className="divide-y divide-border/40">
+      {filtered.map((qr) => (
+        <SortableQuickReplyRow
+          key={qr.id}
+          qr={qr}
+          onEdit={() => setEditingQr(qr)}
+          onDelete={() => setDeletingId(qr.id)}
+        />
+      ))}
+    </div>
+  ) : (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={items.map((qr) => qr.id)} strategy={verticalListSortingStrategy}>
+        <div className="divide-y divide-border/40">
+          {items.map((qr) => (
+            <SortableQuickReplyRow
+              key={qr.id}
+              qr={qr}
+              onEdit={() => setEditingQr(qr)}
+              onDelete={() => setDeletingId(qr.id)}
             />
-            <Button
-              variant="outline"
-              size="icon-sm"
-              className="shrink-0 rounded-full"
-              onClick={() => setCreatorOpen(true)}
-            >
-              <PlusIcon className="size-3.5" />
-            </Button>
-          </div>
-
-          <QuickReplyCreator
-            open={creatorOpen || editingQr !== null}
-            initialValue={editingQr}
-            onClose={() => { setCreatorOpen(false); setEditingQr(null); }}
-            onSave={() => {
-              void queryClient.invalidateQueries({ queryKey: queryOptions.queryKey });
-              setCreatorOpen(false);
-              setEditingQr(null);
-            }}
-          />
-
-          <DeleteItem
-            open={deletingId !== null}
-            onOpenChange={(v) => { if (!v) setDeletingId(null); }}
-            onConfirm={handleDelete}
-            title="Eliminar respuesta rápida"
-            description="Esta acción no se puede deshacer."
-          />
-
-          <div className="h-72 -mx-6 overflow-y-auto">
-            {filtered.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {search ? "Sin resultados." : "No hay respuestas rápidas todavía."}
-              </p>
-            ) : (
-              <div className="divide-y divide-border/40 px-6">
-                {filtered.map((qr) => {
-                  const stepTypeCounts = qr.steps.reduce<Record<string, number>>((acc, s) => {
-                    acc[s.type] = (acc[s.type] ?? 0) + 1;
-                    return acc;
-                  }, {});
-                  return (
-                    <div key={qr.id} className="group flex cursor-pointer items-center gap-3 py-3">
-                      <button
-                        type="button"
-                        className="flex flex-1 items-center gap-3 text-left"
-                        onClick={() => setEditingQr(qr)}
-                      >
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                          <MessageSquareQuoteIcon className="size-4 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="truncate text-sm font-medium">{qr.name}</p>
-                            {qr.shortcut && (
-                              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground">
-                                {qr.shortcut}
-                              </span>
-                            )}
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {Object.entries(stepTypeCounts).map(([type, count]) => {
-                              const m = STEP_META[type as QuickReplyStep["type"]];
-                              const Icon = m.icon;
-                              return (
-                                <span key={type} className="flex items-center gap-1 text-[11px] text-muted-foreground">
-                                  <Icon className={`size-3 ${m.color}`} />
-                                  {count} {m.label.toLowerCase()}{count > 1 ? "s" : ""}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeletingId(qr.id)}
-                        className="h-8 flex items-center opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                        aria-label="Eliminar respuesta rápida"
-                      >
-                        <Trash2Icon className="size-4 text-muted-foreground hover:text-destructive transition-colors" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      </SortableContext>
+    </DndContext>
+  );
+
+  const listContent = (
+    <div className="space-y-3 px-4 pb-4 pt-1">
+      <div className="flex items-center gap-2">
+        <Search value={search} onChange={setSearch} placeholder="Buscar respuesta rápida" />
+        <Button variant="outline" size="icon-sm" className="shrink-0 rounded-full" onClick={() => setCreatorOpen(true)}>
+          <PlusIcon className="size-3.5" />
+        </Button>
+      </div>
+      {listBody}
+    </div>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        {deleteDialog}
+        {creator}
+        <Drawer open={open && !creatorIsOpen} onOpenChange={handleOpenChange}>
+          <DrawerContent className="max-h-[100vh]">
+            <DrawerNavHeader title="Respuestas rápidas" onBack={onClose} onClose={onClose} />
+            <div className="mt-2 overflow-y-auto">
+              {listContent}
+            </div>
+          </DrawerContent>
+        </Drawer>
+      </>
+    );
+  }
+
+  return (
+    <>
+      {deleteDialog}
+      {creator}
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Respuestas rápidas</DialogTitle>
+          </DialogHeader>
+          <div className="mt-2 h-72 -mx-6 overflow-y-auto">
+            {listContent}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -367,28 +458,94 @@ interface QuickReplyDetailDialogProps {
 
 export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReplyDetailDialogProps) {
   const isMobile = useIsMobile();
+  const [localSteps, setLocalSteps] = useState<QuickReplyStep[]>([]);
+
+  useEffect(() => {
+    setLocalSteps(sequence?.steps ?? []);
+  }, [sequence]);
+
+  const updateTextStep = useCallback((index: number, text: string) => {
+    setLocalSteps((prev) => prev.map((s, i) => i === index && s.type === "text" ? { ...s, text } : s));
+  }, []);
 
   function handleSend() {
     if (!sequence) return;
-    for (const step of sequence.steps) {
+    for (const step of localSteps) {
       onSend(stepToPayload(step));
     }
     onClose();
   }
 
-  const stepCount = sequence?.steps.length ?? 0;
+  const stepCount = localSteps.length;
 
   const steps = (
-    <div className="flex flex-col gap-2 py-2">
+    <div className="flex flex-col items-end gap-2 py-2">
       {stepCount === 0 ? (
-        <p className="py-6 text-center text-sm text-muted-foreground">
+        <p className="w-full py-6 text-center text-sm text-muted-foreground">
           Esta secuencia no tiene mensajes todavía.
         </p>
       ) : (
-        sequence?.steps.map((step, i) => (
-          // eslint-disable-next-line react/no-array-index-key
-          <StepCard key={`${step.type}-${i}`} step={step} index={i} />
-        ))
+        localSteps.map((step, i) => {
+          if (step.type === "text") {
+            return (
+              <div key={`text-${i}-${step.text.slice(0, 8)}`} className="w-full max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2">
+                <textarea
+                  value={step.text}
+                  onChange={(e) => updateTextStep(i, e.target.value)}
+                  className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-primary-foreground outline-none [field-sizing:content]"
+                />
+              </div>
+            );
+          }
+          if (step.type === "image") {
+            return (
+              <div key={`image-${step.url.slice(-12)}`} className="max-w-[85%] overflow-hidden rounded-2xl rounded-br-sm bg-primary">
+                {/* biome-ignore lint/performance/noImgElement: preview */}
+                <img src={step.url} alt="" className="max-h-48 w-full object-cover" />
+                {step.caption && (
+                  <p className="px-3 py-2 text-[13px] leading-relaxed text-primary-foreground">{step.caption}</p>
+                )}
+              </div>
+            );
+          }
+          if (step.type === "document") {
+            return (
+              <div key={`doc-${step.filename}`} className="flex max-w-[85%] items-center gap-2 rounded-2xl rounded-br-sm bg-primary px-3 py-2.5">
+                <FileTextIcon className="size-4 shrink-0 text-primary-foreground/70" />
+                <p className="truncate text-[13px] text-primary-foreground">{step.filename}</p>
+              </div>
+            );
+          }
+          if (step.type === "cta_url") {
+            return (
+              <div key={`cta-${step.buttonUrl.slice(-12)}`} className="max-w-[85%] overflow-hidden rounded-2xl rounded-br-sm bg-primary">
+                {step.headerImageUrl && (
+                  // biome-ignore lint/performance/noImgElement: preview
+                  <img src={step.headerImageUrl} alt="" className="h-32 w-full object-cover" />
+                )}
+                <div className="px-3 py-2">
+                  <p className="text-[13px] leading-relaxed text-primary-foreground">{step.text}</p>
+                  <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-primary-foreground/20 px-2 py-1.5">
+                    <LinkIcon className="size-3 text-primary-foreground/70" />
+                    <span className="text-[12px] font-medium text-primary-foreground">{step.displayText}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          }
+          if (step.type === "location") {
+            return (
+              <div key={`loc-${step.latitude}-${step.longitude}`} className="flex max-w-[85%] items-center gap-2 rounded-2xl rounded-br-sm bg-primary px-3 py-2.5">
+                <MapPinIcon className="size-4 shrink-0 text-primary-foreground/70" />
+                <div className="min-w-0">
+                  {step.name && <p className="truncate text-[13px] font-medium text-primary-foreground">{step.name}</p>}
+                  <p className="text-[11px] text-primary-foreground/70">{step.latitude}, {step.longitude}</p>
+                </div>
+              </div>
+            );
+          }
+          return <StepCard key={`${step.type}-${i}`} step={step} index={i} />;
+        })
       )}
     </div>
   );
@@ -423,6 +580,7 @@ export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReply
             onBack={onClose}
             onClose={onClose}
           />
+          <div className="h-px w-full bg-border/50" />
           <div className="overflow-y-auto px-4">{steps}</div>
         </DrawerContent>
       </Drawer>
@@ -450,7 +608,7 @@ export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReply
             </div>
           </div>
         </DialogHeader>
-
+        <div className="-mx-6 h-px bg-border/50" />
         <div className="-mx-6 max-h-[55vh] overflow-y-auto px-6">{steps}</div>
 
         <DialogFooter>

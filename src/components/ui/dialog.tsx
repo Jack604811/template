@@ -141,7 +141,7 @@ function DialogContent({
             </button>
           </DrawerClose>
         </div>
-        <div className="px-5 pb-safe-or-6 flex flex-col gap-4">
+        <div className="px-5 pb-safe-or-6 flex flex-col flex-1 min-h-0 overflow-y-auto gap-4">
           {children}
           {onConfirm && (
             <button

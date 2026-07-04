@@ -49,12 +49,26 @@ function ConnectedQuickReplies({ onSendPayload }: { onSendPayload: (payload: Sen
 
   if (sequences.length === 0 || textInput.value.startsWith("/")) return null;
 
+  const q = textInput.value.toLowerCase().trim();
+  const filtered = !q
+    ? sequences
+    : sequences.filter((qr) => {
+        const label = qr.shortcut ? qr.shortcut.replace(/^\//, "") : qr.name;
+        return (
+          label.toLowerCase().includes(q) ||
+          qr.name.toLowerCase().includes(q) ||
+          qr.steps.some((s) => s.type === "text" && s.text.toLowerCase().includes(q))
+        );
+      });
+
+  if (filtered.length === 0) return null;
+
   return (
     <>
       <QuickReplies
         replies={[]}
         onSelect={() => undefined}
-        actions={sequences.map((qr) => ({
+        actions={filtered.map((qr) => ({
           label: qr.shortcut ? qr.shortcut.replace(/^\//, "") : qr.name,
           onSelect: () => setSelected(qr),
         }))}

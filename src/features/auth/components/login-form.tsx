@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -104,13 +105,13 @@ export function LoginForm() {
               )}
             />
 
-            <button
+            <Button
               type="submit"
               disabled={isPending}
-              className="mt-2 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-60"
+              className="mt-2"
             >
               {isPending ? "Iniciando sesión…" : "Iniciar sesión"}
-            </button>
+            </Button>
           </form>
         </Form>
 

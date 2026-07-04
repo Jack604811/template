@@ -42,7 +42,7 @@ export const quickRepliesRouter = createTRPCRouter({
   getMany: organizationProcedure.query(async ({ ctx }) => {
     const rows = await prisma.quickReply.findMany({
       where: { organizationId: ctx.organizationId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
     });
     return rows.map((r) => ({
       id: r.id,
@@ -99,5 +99,18 @@ export const quickRepliesRouter = createTRPCRouter({
       await prisma.quickReply.deleteMany({
         where: { id: input.id, organizationId: ctx.organizationId },
       });
+    }),
+
+  reorder: organizationProcedure
+    .input(z.object({ ids: z.array(z.string()) }))
+    .mutation(async ({ ctx, input }) => {
+      await prisma.$transaction(
+        input.ids.map((id, index) =>
+          prisma.quickReply.updateMany({
+            where: { id, organizationId: ctx.organizationId },
+            data: { sortOrder: index },
+          }),
+        ),
+      );
     }),
 });

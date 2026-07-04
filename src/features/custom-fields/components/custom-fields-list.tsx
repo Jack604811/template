@@ -22,7 +22,7 @@ import { EmptyView } from "@/components/entity-components";
 import { CardContent, CardDescription, CardHeader, CardTitle, CardAction } from "@/components/ui/card";
 import { useSuspenseCustomFields, useReorderCustomFields, useCreateCustomField, useUpdateCustomField, useRemoveCustomField, useToggleCustomField } from "../hooks/use-custom-fields";
 import { CustomFieldItem } from "./custom-field-item";
-import { CustomFieldDialog } from "./custom-field-dialog";
+import { CustomFieldDetails } from "./custom-field-details";
 import type { CustomField, CustomFieldType, CustomFieldDisplayLocation } from "@/generated/prisma";
 import { CustomFieldDisplayLocation as CustomFieldDisplayLocationEnum } from "@/generated/prisma";
 import { useQueryClient } from "@tanstack/react-query";
@@ -414,7 +414,7 @@ export const CustomFieldsList = memo(() => {
         </DndContext>
       </CardContent>
 
-      <CustomFieldDialog
+      <CustomFieldDetails
         open={dialogOpen}
         onOpenChange={setDialogOpen}
         fieldId={editingFieldId}

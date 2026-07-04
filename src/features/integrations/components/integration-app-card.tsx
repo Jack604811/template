@@ -41,7 +41,7 @@ export function IntegrationAppCard({ app, credentials, onManage }: IntegrationAp
       <button
         type="button"
         className={cn(
-          "hidden md:flex flex-col rounded-2xl border bg-card p-5 gap-4 text-left",
+          "hidden md:flex flex-col rounded-2xl border bg-card p-5 gap-4 text-left h-full",
           "shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group w-full",
           "border-border hover:border-border/80",
         )}
@@ -65,7 +65,7 @@ export function IntegrationAppCard({ app, credentials, onManage }: IntegrationAp
           <h3 className="text-[15px] font-semibold leading-snug text-foreground">
             {app.label}
           </h3>
-          <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground line-clamp-2">
+          <p className="mt-0.5 text-[13px] leading-snug text-muted-foreground line-clamp-2 min-h-[2.5rem]">
             {app.description}
           </p>
         </div>

@@ -44,7 +44,7 @@ const formSchema = z
       return true;
     },
     {
-      message: "Options are required for Options and Multiselect field types",
+      message: "Las opciones son obligatorias para este tipo de campo",
       path: ["options"],
     },
   );

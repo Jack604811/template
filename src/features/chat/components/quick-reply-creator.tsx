@@ -34,6 +34,7 @@ import {
   XIcon,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useTRPC } from "@/trpc/client";
@@ -45,10 +46,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerNavHeader,
+} from "@/components/ui/drawer";
 import { FileUpload } from "@/components/ui/file-upload";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { compressImage } from "../lib/compress"; // eslint-disable-line import/order
 import type { QuickReplySequence, QuickReplyStep } from "./quick-reply-picker"; // eslint-disable-line import/order
@@ -933,6 +940,18 @@ export function QuickReplyCreator({
 
   const updateReply = useMutation(
     trpc.quickReplies.update.mutationOptions({
+      onMutate: async (input) => {
+        await queryClient.cancelQueries({ queryKey: listQueryOptions.queryKey });
+        const prev = queryClient.getQueryData(listQueryOptions.queryKey);
+        queryClient.setQueryData(listQueryOptions.queryKey, (old) =>
+          old ? old.map((qr) => qr.id === input.id ? { ...qr, name: input.name, shortcut: input.shortcut, steps: input.steps as QuickReplyStep[] } : qr) : old,
+        );
+        return { prev };
+      },
+      onError: (e, _v, ctx) => {
+        if (ctx?.prev) queryClient.setQueryData(listQueryOptions.queryKey, ctx.prev);
+        toast.error(e.message);
+      },
       onSettled: () => queryClient.invalidateQueries({ queryKey: listQueryOptions.queryKey }),
     }),
   );
@@ -1025,126 +1044,202 @@ export function QuickReplyCreator({
     handleOpenChange(false);
   }
 
+  const isMobile = useIsMobile();
   const atMax = entries.length >= MAX_STEPS;
   const canSave = name.trim().length > 0 && entries.length > 0;
+
+  const formInner = (
+      <div className="flex flex-col gap-4 px-6 py-5">
+        <div className="grid grid-cols-[7fr_3fr] gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={nameId}>Nombre</Label>
+            <Input
+              id={nameId}
+              placeholder="Ej. Bienvenida"
+              value={name}
+              maxLength={60}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={shortcutId}>
+              Atajo{" "}
+              <span className="font-normal text-muted-foreground">(opc.)</span>
+            </Label>
+            <div className="flex items-center rounded-md border bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+              <span className="pl-3 font-mono text-[13px] text-muted-foreground select-none">/</span>
+              <input
+                id={shortcutId}
+                placeholder="hola"
+                value={shortcut.replace(/^\//, "")}
+                maxLength={19}
+                className="h-9 min-w-0 flex-1 bg-transparent pr-3 font-mono text-[13px] outline-none placeholder:text-muted-foreground/60"
+                onChange={(e) => setShortcut(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-4">
+              {entries.map((entry, i) => (
+                <StepCard
+                  key={entry.id}
+                  entry={entry}
+                  index={i}
+                  isNew={newestId === entry.id}
+                  onChange={(s) => updateStep(entry.id, s)}
+                  onDelete={() => removeStep(entry.id)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+
+        <div
+          className={cn(
+            "rounded-2xl border-2 border-dashed p-4 transition-opacity",
+            entries.length === 0 ? "border-border" : "border-border/50",
+            atMax && "pointer-events-none opacity-40",
+          )}
+        >
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            {entries.length === 0 ? "Elige un tipo de mensaje para comenzar" : `Agregar mensaje (${entries.length}/${MAX_STEPS})`}
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            {STEP_TYPE_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.type}
+                  type="button"
+                  disabled={atMax}
+                  onClick={() => addStepOfType(opt.type)}
+                  className={cn(
+                    "flex items-center gap-2.5 rounded-xl border bg-background px-3 py-2.5 text-left transition-all",
+                    "hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm active:scale-[0.98]",
+                    "disabled:cursor-not-allowed",
+                  )}
+                >
+                  <div className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", opt.bg)}>
+                    <Icon className={cn("size-3.5", opt.color)} />
+                  </div>
+                  <span className="text-[13px] font-medium">{opt.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+  );
+
+  const title = isEditing ? "Editar respuesta rápida" : "Nueva respuesta rápida";
+  const subtitle = isEditing ? "Modifica la secuencia de mensajes." : `Crea una secuencia de hasta ${MAX_STEPS} mensajes para enviar de forma rápida.`;
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={handleOpenChange}>
+        <DrawerContent className="max-h-[100vh]">
+          <DrawerNavHeader title={title} onBack={() => handleOpenChange(false)} onClose={() => handleOpenChange(false)} />
+          <div className="overflow-y-auto">
+            <div className="flex flex-col gap-4 px-3 pb-2 pt-1">
+              {/* Name + Shortcut */}
+              <div className="grid grid-cols-[7fr_3fr] gap-2">
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={nameId} className="text-xs text-muted-foreground">Nombre</Label>
+                  <Input id={nameId} placeholder="Ej. Bienvenida" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <Label htmlFor={shortcutId} className="text-xs text-muted-foreground">Atajo</Label>
+                  <div className="flex items-center rounded-md border bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+                    <span className="pl-3 font-mono text-[13px] text-muted-foreground select-none">/</span>
+                    <input
+                      id={shortcutId}
+                      placeholder="hola"
+                      value={shortcut.replace(/^\//, "")}
+                      maxLength={19}
+                      className="h-9 min-w-0 flex-1 bg-transparent pr-3 font-mono text-[13px] outline-none placeholder:text-muted-foreground/60"
+                      onChange={(e) => setShortcut(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Steps */}
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis, restrictToParentElement]}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext items={entries.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                  <div className="flex flex-col gap-3">
+                    {entries.map((entry, i) => (
+                      <StepCard
+                        key={entry.id}
+                        entry={entry}
+                        index={i}
+                        isNew={newestId === entry.id}
+                        onChange={(s) => updateStep(entry.id, s)}
+                        onDelete={() => removeStep(entry.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+
+              {/* Add message row */}
+              <div className={cn("transition-opacity", atMax && "pointer-events-none opacity-40")}>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {entries.length === 0 ? "Tipo de mensaje" : `Agregar (${entries.length}/${MAX_STEPS})`}
+                </p>
+                <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  {STEP_TYPE_OPTIONS.map((opt) => {
+                    const Icon = opt.icon;
+                    return (
+                      <button
+                        key={opt.type}
+                        type="button"
+                        disabled={atMax}
+                        onClick={() => addStepOfType(opt.type)}
+                        className="flex shrink-0 flex-col items-center gap-1.5 rounded-2xl border bg-background px-4 py-3 transition-all active:scale-95 disabled:opacity-40"
+                      >
+                        <div className={cn("flex size-8 items-center justify-center rounded-xl", opt.bg)}>
+                          <Icon className={cn("size-4", opt.color)} />
+                        </div>
+                        <span className="text-[11px] font-medium">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="p-3">
+            <Button className="w-full" disabled={!canSave} onClick={handleSave}>
+              {isEditing ? "Guardar cambios" : "Guardar respuesta rápida"}
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[90vh] max-w-lg flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="border-b px-6 py-4">
-          <DialogTitle>{isEditing ? "Editar respuesta rápida" : "Nueva respuesta rápida"}</DialogTitle>
-          <DialogDescription>
-            {isEditing ? "Modifica la secuencia de mensajes." : `Crea una secuencia de hasta ${MAX_STEPS} mensajes para enviar de forma rápida.`}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{subtitle}</DialogDescription>
         </DialogHeader>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="flex flex-col gap-4 px-6 py-5">
-            {/* Name + Shortcut */}
-            <div className="flex gap-3">
-              <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                <Label htmlFor={nameId}>Nombre</Label>
-                <Input
-                  id={nameId}
-                  placeholder="Ej. Bienvenida"
-                  value={name}
-                  maxLength={60}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-              <div className="flex w-32 shrink-0 flex-col gap-1.5">
-                <Label htmlFor={shortcutId}>
-                  Atajo{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (opc.)
-                  </span>
-                </Label>
-                <div className="flex items-center rounded-md border bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                  <span className="pl-3 font-mono text-[13px] text-muted-foreground select-none">/</span>
-                  <input
-                    id={shortcutId}
-                    placeholder="hola"
-                    value={shortcut.replace(/^\//, "")}
-                    maxLength={19}
-                    className="h-9 min-w-0 flex-1 bg-transparent pr-3 font-mono text-[13px] outline-none placeholder:text-muted-foreground/60"
-                    onChange={(e) => setShortcut(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Sortable step cards */}
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              modifiers={[restrictToVerticalAxis, restrictToParentElement]}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={entries.map((e) => e.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="flex flex-col gap-4">
-                  {entries.map((entry, i) => (
-                    <StepCard
-                      key={entry.id}
-                      entry={entry}
-                      index={i}
-                      isNew={newestId === entry.id}
-                      onChange={(s) => updateStep(entry.id, s)}
-                      onDelete={() => removeStep(entry.id)}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {/* Add message type buttons */}
-            <div
-              className={cn(
-                "rounded-2xl border-2 border-dashed p-4 transition-opacity",
-                entries.length === 0 ? "border-border" : "border-border/50",
-                atMax && "pointer-events-none opacity-40",
-              )}
-            >
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                {entries.length === 0
-                  ? "Elige un tipo de mensaje para comenzar"
-                  : `Agregar mensaje (${entries.length}/${MAX_STEPS})`}
-              </p>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {STEP_TYPE_OPTIONS.map((opt) => {
-                  const Icon = opt.icon;
-                  return (
-                    <button
-                      key={opt.type}
-                      type="button"
-                      disabled={atMax}
-                      onClick={() => addStepOfType(opt.type)}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-xl border bg-background px-3 py-2.5 text-left transition-all",
-                        "hover:border-primary/40 hover:bg-primary/5 hover:shadow-sm active:scale-[0.98]",
-                        "disabled:cursor-not-allowed",
-                      )}
-                    >
-                      <div
-                        className={cn(
-                          "flex size-7 shrink-0 items-center justify-center rounded-lg",
-                          opt.bg,
-                        )}
-                      >
-                        <Icon className={cn("size-3.5", opt.color)} />
-                      </div>
-                      <span className="text-[13px] font-medium">
-                        {opt.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto">{formInner}</div>
 
         <DialogFooter className="border-t px-6 py-4">
           <Button variant="outline" onClick={() => handleOpenChange(false)}>

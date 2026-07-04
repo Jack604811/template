@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { parseAsString, useQueryStates } from "nuqs";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
@@ -47,6 +47,8 @@ export function ChatPage() {
   );
   const [pendingReply, setPendingReply] = useState<ReplyTarget | null>(null);
   const isMobile = useIsMobile();
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
   const stableKeyMap = useRef<Map<string, string>>(new Map());
 
   function handleNavigateToMessage(messageId: string) {
@@ -105,6 +107,8 @@ export function ChatPage() {
     if (params.id === id) setParams({ id: null });
     setInfoOpen(false);
   }
+
+  if (!hydrated) return null;
 
   if (isMobile) {
     if (params.id && selectedConversation) {

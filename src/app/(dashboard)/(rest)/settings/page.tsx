@@ -9,6 +9,7 @@ import {
   prefetchOrganizations,
 } from "@/features/organizations/server/prefetch";
 import { requireAuth } from "@/lib/auth-utils";
+import { HydrateClient } from "@/trpc/server";
 
 const Page = async () => {
   const session = await requireAuth();
@@ -24,9 +25,11 @@ const Page = async () => {
   }
 
   return (
-    <Suspense fallback={<div className="flex h-dvh items-center justify-center"><LoadingView /></div>}>
-      <SettingsPage />
-    </Suspense>
+    <HydrateClient>
+      <Suspense fallback={<div className="flex h-dvh items-center justify-center"><LoadingView /></div>}>
+        <SettingsPage />
+      </Suspense>
+    </HydrateClient>
   );
 };
 

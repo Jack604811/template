@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronLeftIcon, MessageSquareIcon } from "lucide-react";
 import { type RefObject, useEffect, useRef, useState } from "react";
 import {
-  Conversation,
+  Conversation as ConversationThread,
   ConversationContent,
   ConversationEmptyState,
   ConversationScrollButton,
@@ -32,8 +32,8 @@ import { ConversationContextMenu } from "./conversation-context-menu";
 import { DateSeparator, isSameDay } from "./date-separator";
 import type { Message, ReplyTarget } from "./message-bubble";
 import { MessageBubble } from "./message-bubble";
-import type { SendPayload } from "./message-input";
-import { MessageInput } from "./message-input";
+import type { SendPayload } from "./chat-input";
+import { ChatInput } from "./chat-input";
 import { QuickReplies } from "./quick-replies";
 import { QuickReplyDetailDialog } from "./quick-reply-picker";
 import type { QuickReplySequence } from "./quick-reply-picker";
@@ -93,7 +93,7 @@ interface UploadingEntry {
   abortController: AbortController;
 }
 
-interface ConversationViewProps {
+interface ConversationProps {
   conversation: ConversationType | null;
   stableKeyMap: RefObject<Map<string, string>>;
   onToggleInfo: () => void;
@@ -104,7 +104,7 @@ interface ConversationViewProps {
   externalReplyTo?: ReplyTarget | null;
 }
 
-export function ConversationView({
+export function Conversation({
   conversation,
   stableKeyMap,
   onToggleInfo,
@@ -113,7 +113,7 @@ export function ConversationView({
   onMarkedUnread,
   scrollToMessageId,
   externalReplyTo,
-}: ConversationViewProps) {
+}: ConversationProps) {
   const isMobile = useIsMobile();
   const trpc = useTRPC();
   const queryClient = useQueryClient();
@@ -519,7 +519,7 @@ export function ConversationView({
 
       {/* messages */}
       <div className="overflow-x-hidden overflow-y-hidden">
-        {messagesReady && <Conversation key={conversation.id} className="h-full">
+        {messagesReady && <ConversationThread key={conversation.id} className="h-full">
           <ConversationContent className="gap-3 px-4 py-4">
             {allMessages.length === 0 ? (
               <ConversationEmptyState>
@@ -590,7 +590,7 @@ export function ConversationView({
             )}
           </ConversationContent>
           <ConversationScrollButton />
-        </Conversation>}
+        </ConversationThread>}
       </div>
 
       {/* input */}
@@ -598,7 +598,7 @@ export function ConversationView({
         <PromptInputProvider>
           <QuickReplySlashMenu onSend={handleSend} />
           <ConnectedQuickReplies onSendPayload={handleSend} />
-          <MessageInput
+          <ChatInput
             conversationId={conversation.id}
             credentialId={conversation.credentialId}
             replyTo={replyTo}

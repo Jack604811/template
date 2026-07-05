@@ -28,6 +28,7 @@ interface FileUploadProps {
   maxSizeMb?: number;
   placeholder?: string;
   className?: string;
+  zoneClassName?: string;
   previewHeight?: string;
 }
 
@@ -58,6 +59,7 @@ export function FileUpload({
   maxSizeMb = 10,
   placeholder,
   className,
+  zoneClassName,
   previewHeight = "h-36",
 }: FileUploadProps) {
   const inputId = useId();
@@ -84,7 +86,11 @@ export function FileUpload({
     setProgress(0);
     try {
       const url = await onUpload(file, setProgress);
-      const meta: FileUploadMeta = { filename: file.name, mimeType: file.type, size: file.size };
+      const meta: FileUploadMeta = {
+        filename: file.name,
+        mimeType: file.type,
+        size: file.size,
+      };
       setLocalMeta(meta);
       onChange(url, meta);
     } catch (e) {
@@ -127,8 +133,9 @@ export function FileUpload({
   const displaySize = localMeta?.size;
 
   const zoneClass = cn(
-    "group relative overflow-hidden rounded-xl border-2 border-dashed transition-colors",
+    "group relative overflow-hidden rounded-xl border border-border/40 transition-colors",
     previewHeight,
+    zoneClassName,
   );
 
   return (
@@ -144,12 +151,22 @@ export function FileUpload({
 
       {/* Has file or uploading */}
       {(hasFile || uploading) && (
-        <div className={cn(zoneClass, hasFile ? "border-transparent" : "border-border bg-muted/30")}>
-
+        <div
+          className={cn(
+            zoneClass,
+            hasFile ? "border-transparent" : "border-border bg-muted/30",
+          )}
+        >
           {/* Image preview */}
           {hasFile && !uploading && imageMode && (
             <>
-              <Image src={value} alt="" fill unoptimized className="object-cover" />
+              <Image
+                src={value}
+                alt=""
+                fill
+                unoptimized
+                className="object-cover"
+              />
               <div className="absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/25" />
               <button
                 type="button"
@@ -178,9 +195,13 @@ export function FileUpload({
               </div>
               {displayName && (
                 <div>
-                  <p className="max-w-[220px] truncate text-[13px] font-medium">{displayName}</p>
+                  <p className="max-w-[220px] truncate text-[13px] font-medium">
+                    {displayName}
+                  </p>
                   {displaySize !== undefined && (
-                    <p className="text-[11px] text-muted-foreground">{formatBytes(displaySize)}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {formatBytes(displaySize)}
+                    </p>
                   )}
                 </div>
               )}
@@ -209,7 +230,9 @@ export function FileUpload({
           {uploading && (
             <div className="flex h-full flex-col items-center justify-center gap-1.5">
               <Loader2Icon className="size-6 animate-spin text-primary" />
-              <span className="text-[12px] font-medium text-muted-foreground">{progress}%</span>
+              <span className="text-[12px] font-medium text-muted-foreground">
+                {progress}%
+              </span>
             </div>
           )}
         </div>
@@ -220,7 +243,10 @@ export function FileUpload({
         <label
           htmlFor={inputId}
           onDrop={handleDrop}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setDragging(true);
+          }}
           onDragLeave={() => setDragging(false)}
           className={cn(
             zoneClass,
@@ -234,9 +260,11 @@ export function FileUpload({
         >
           <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
             <div className="flex size-10 items-center justify-center rounded-full bg-muted">
-              {imageMode
-                ? <ImageIcon className="size-5 text-muted-foreground" />
-                : <FileIcon className="size-5 text-muted-foreground" />}
+              {imageMode ? (
+                <ImageIcon className="size-5 text-muted-foreground" />
+              ) : (
+                <FileIcon className="size-5 text-muted-foreground" />
+              )}
             </div>
             <p className="text-[12px] text-muted-foreground">{label}</p>
             <p className="text-[11px] text-muted-foreground/60">

@@ -51,7 +51,7 @@ import { DeleteItem } from "@/components/ui/delete-item";
 import { Search } from "@/components/ui/search";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTRPC } from "@/trpc/client";
-import type { SendPayload } from "./message-input";
+import type { SendPayload } from "./chat-input";
 import { QuickReplyCreator } from "./quick-reply-creator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ type CarouselCard = {
   imageUrl?: string;
   buttonText?: string;
   buttonUrl?: string;
-  quickReplies?: Array<{ id: string; title: string }>;
+  quickReplies?: Array<{ id: string; title: string; sequenceId?: string }>;
 };
 
 export type QuickReplyStep =
@@ -277,9 +277,9 @@ export function QuickReplyPicker({ open, onClose }: QuickReplyPickerProps) {
   const queryOptions = trpc.quickReplies.getMany.queryOptions();
   const { data: sequences = [] } = useQuery(queryOptions);
 
-  const items = dragOrder
-    ? dragOrder.map((id) => sequences.find((s) => s.id === id)).filter(Boolean) as QuickReplySequence[]
-    : sequences;
+  const items: QuickReplySequence[] = dragOrder
+    ? (dragOrder.map((id) => sequences.find((s) => s.id === id)).filter(Boolean) as QuickReplySequence[])
+    : (sequences as unknown as QuickReplySequence[]);
 
   const sensors = useSensors(
     useSensor(PointerSensor),

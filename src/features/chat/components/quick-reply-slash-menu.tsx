@@ -13,7 +13,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePromptInputController } from "@/components/ai-elements/prompt-input";
 import { useTRPC } from "@/trpc/client";
-import type { SendPayload } from "./message-input";
+import type { SendPayload } from "./chat-input";
 import { stepToPayload } from "./quick-reply-picker";
 import type { QuickReplySequence, QuickReplyStep } from "./quick-reply-picker";
 

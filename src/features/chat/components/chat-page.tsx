@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 import { useTRPC } from "@/trpc/client";
-import type { ChatFilter, Conversation } from "../types";
+import type { ChatFilter, Conversation as ConversationType } from "../types";
 import { ChatDetails } from "./chat-details";
 import { ConversationList } from "./conversation-list";
-import { ConversationView } from "./conversation-view";
+import { Conversation } from "./conversation";
 import type { ReplyTarget } from "./replied-message";
 
 const MEDIA_LABELS: Record<string, string> = {
@@ -73,13 +73,13 @@ export function ChatPage() {
     refetchInterval: 5000,
   });
 
-  const conversations: Conversation[] = rawConversations.map((c) => {
+  const conversations: ConversationType[] = rawConversations.map((c) => {
     const name = c.contactName ?? c.externalId;
     return {
       id: c.id,
       name,
       initials: getInitials(name),
-      channel: c.channel.toLowerCase() as Conversation["channel"],
+      channel: c.channel.toLowerCase() as ConversationType["channel"],
       lastMessage: formatLastMessage(c.lastMessageText ?? ""),
       lastMessageAt: c.lastMessageAt ?? c.createdAt,
       unreadCount: c.unreadCount,
@@ -114,7 +114,7 @@ export function ChatPage() {
     if (params.id && selectedConversation) {
       return (
         <div className="flex h-dvh flex-col overflow-hidden">
-          <ConversationView
+          <Conversation
             conversation={selectedConversation}
             stableKeyMap={stableKeyMap}
             onToggleInfo={() => setInfoOpen((v) => !v)}
@@ -181,7 +181,7 @@ export function ChatPage() {
           infoOpen && "hidden xl:flex",
         )}
       >
-        <ConversationView
+        <Conversation
           key={params.id ?? "empty"}
           conversation={selectedConversation}
           stableKeyMap={stableKeyMap}

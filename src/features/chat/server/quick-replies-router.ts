@@ -4,7 +4,11 @@ import { createTRPCRouter, organizationProcedure } from "@/trpc/init";
 
 const QuickReplyStepSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("text"), text: z.string() }),
-  z.object({ type: z.literal("image"), url: z.string(), caption: z.string().optional() }),
+  z.object({
+    type: z.literal("image"),
+    url: z.string(),
+    caption: z.string().optional(),
+  }),
   z.object({
     type: z.literal("carousel"),
     text: z.string().optional(),
@@ -16,11 +20,24 @@ const QuickReplyStepSchema = z.discriminatedUnion("type", [
         imageUrl: z.string().optional(),
         buttonText: z.string().optional(),
         buttonUrl: z.string().optional(),
-        quickReplies: z.array(z.object({ id: z.string(), title: z.string() })).optional(),
+        quickReplies: z
+          .array(
+            z.object({
+              id: z.string(),
+              title: z.string(),
+              sequenceId: z.string().optional(),
+            }),
+          )
+          .optional(),
       }),
     ),
   }),
-  z.object({ type: z.literal("document"), url: z.string(), filename: z.string(), caption: z.string().optional() }),
+  z.object({
+    type: z.literal("document"),
+    url: z.string(),
+    filename: z.string(),
+    caption: z.string().optional(),
+  }),
   z.object({
     type: z.literal("cta_url"),
     text: z.string(),
@@ -89,7 +106,11 @@ export const quickRepliesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await prisma.quickReply.updateMany({
         where: { id: input.id, organizationId: ctx.organizationId },
-        data: { name: input.name, shortcut: input.shortcut ?? null, steps: input.steps },
+        data: {
+          name: input.name,
+          shortcut: input.shortcut ?? null,
+          steps: input.steps,
+        },
       });
     }),
 

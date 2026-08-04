@@ -52,6 +52,7 @@ import { Search } from "@/components/ui/search";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useTRPC } from "@/trpc/client";
 import type { SendPayload } from "./chat-input";
+import { InteractiveCard } from "./message-bubble";
 import { QuickReplyCreator } from "./quick-reply-creator";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -138,62 +139,82 @@ const STEP_META: Record<QuickReplyStep["type"], { label: string; icon: React.Ele
 function StepCard({ step, index }: { step: QuickReplyStep; index: number }) {
   const meta = STEP_META[step.type];
   const Icon = meta.icon;
+  const label = (
+    <span className="text-[11px] font-medium text-muted-foreground">
+      Paso {index + 1} · {meta.label}
+    </span>
+  );
 
+  // Bubble-type steps: render cards directly without the constrained wrapper
+  // w-full is required because the parent uses items-end (align-items: flex-end)
+  // which would otherwise shrink these to fit-content and pin them right, clipping the left edge
+  if (step.type === "carousel") {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        {step.text && (
+          <div className="self-end rounded-2xl rounded-br-sm bg-primary px-3 py-2">
+            <p className="text-[13px] leading-relaxed text-primary-foreground">{step.text}</p>
+          </div>
+        )}
+        <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {step.cards.map((card, i) => (
+            // eslint-disable-next-line react/no-array-index-key
+            <div key={`${card.id}-${i}`} className="shrink-0">
+              <InteractiveCard
+                imageUrl={card.imageUrl}
+                title={card.title}
+                description={card.description}
+                buttonUrl={card.buttonUrl}
+                buttonText={card.buttonText}
+                quickReplies={card.quickReplies}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (step.type === "cta_url") {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        <InteractiveCard
+          imageUrl={step.headerImageUrl}
+          description={step.text}
+          footer={step.footer}
+          buttonUrl={step.buttonUrl}
+          buttonText={step.displayText}
+        />
+      </div>
+    );
+  }
+
+  if (step.type === "image") {
+    return (
+      <div className="flex w-full flex-col gap-2">
+        {label}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={step.url} alt="" className="h-48 w-64 rounded-xl object-cover" />
+        {step.caption && <p className="line-clamp-2 text-[13px] text-foreground/80">{step.caption}</p>}
+      </div>
+    );
+  }
+
+  // Inline steps: use the compact card wrapper
   return (
-    <div className="flex gap-3 rounded-xl border bg-muted/30 p-3">
+    <div className="flex w-full gap-3 rounded-xl border bg-muted/30 p-3">
       <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background shadow-xs">
         <Icon className={`size-4 ${meta.color}`} />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="mb-1 flex items-center gap-2">
-          <span className="text-[11px] font-medium text-muted-foreground">
-            Paso {index + 1} · {meta.label}
-          </span>
-        </div>
+        <div className="mb-1">{label}</div>
         {step.type === "text" && (
           <p className="line-clamp-3 whitespace-pre-wrap text-[13px] text-foreground/80">{step.text}</p>
-        )}
-        {step.type === "image" && (
-          <div className="flex items-center gap-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */ /* preview only — external URL, no next/image config needed */}
-            <img src={step.url} alt="" className="size-12 rounded-lg object-cover" />
-            {step.caption && <p className="line-clamp-2 text-[13px] text-foreground/80">{step.caption}</p>}
-          </div>
-        )}
-        {step.type === "carousel" && (
-          <div className="flex flex-col gap-1">
-            {step.text && <p className="line-clamp-2 text-[13px] text-foreground/80">{step.text}</p>}
-            <div className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
-              {step.cards.map((card, i) => (
-                // eslint-disable-next-line react/no-array-index-key
-                <div key={`${card.title}-${i}`} className="flex w-28 shrink-0 flex-col gap-1 rounded-lg border bg-background p-2">
-                  {card.imageUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={card.imageUrl} alt="" className="h-14 w-full rounded-md object-cover" />
-                  )}
-                  <p className="line-clamp-1 text-[11px] font-medium">{card.title}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         )}
         {step.type === "document" && (
           <div className="flex items-center gap-2">
             <FileTextIcon className="size-5 shrink-0 text-orange-500" />
             <p className="truncate text-[13px] text-foreground/80">{step.filename}</p>
-          </div>
-        )}
-        {step.type === "cta_url" && (
-          <div className="flex flex-col gap-1.5">
-            {step.headerImageUrl && (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={step.headerImageUrl} alt="" className="h-20 w-full rounded-lg object-cover" />
-            )}
-            <p className="line-clamp-2 text-[13px] text-foreground/80">{step.text}</p>
-            <div className="flex items-center gap-1.5 rounded-lg border bg-background px-3 py-1.5">
-              <LinkIcon className="size-3 text-emerald-500" />
-              <span className="text-[12px] font-medium text-emerald-600">{step.displayText}</span>
-            </div>
           </div>
         )}
         {step.type === "location" && (
@@ -490,11 +511,11 @@ export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReply
         localSteps.map((step, i) => {
           if (step.type === "text") {
             return (
-              <div key={`text-${i}-${step.text.slice(0, 8)}`} className="w-full max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2">
+              <div key={`text-${i}-${step.text.slice(0, 8)}`} className="max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2">
                 <textarea
                   value={step.text}
                   onChange={(e) => updateTextStep(i, e.target.value)}
-                  className="w-full resize-none bg-transparent text-[13px] leading-relaxed text-primary-foreground outline-none [field-sizing:content]"
+                  className="resize-none bg-transparent text-[13px] leading-relaxed text-primary-foreground outline-none [field-sizing:content]"
                 />
               </div>
             );
@@ -520,18 +541,14 @@ export function QuickReplyDetailDialog({ sequence, onClose, onSend }: QuickReply
           }
           if (step.type === "cta_url") {
             return (
-              <div key={`cta-${step.buttonUrl.slice(-12)}`} className="max-w-[85%] overflow-hidden rounded-2xl rounded-br-sm bg-primary">
-                {step.headerImageUrl && (
-                  // biome-ignore lint/performance/noImgElement: preview
-                  <img src={step.headerImageUrl} alt="" className="h-32 w-full object-cover" />
-                )}
-                <div className="px-3 py-2">
-                  <p className="text-[13px] leading-relaxed text-primary-foreground">{step.text}</p>
-                  <div className="mt-2 flex items-center gap-1.5 rounded-lg border border-primary-foreground/20 px-2 py-1.5">
-                    <LinkIcon className="size-3 text-primary-foreground/70" />
-                    <span className="text-[12px] font-medium text-primary-foreground">{step.displayText}</span>
-                  </div>
-                </div>
+              <div key={`cta-${step.buttonUrl.slice(-12)}`} className="self-end">
+                <InteractiveCard
+                  imageUrl={step.headerImageUrl}
+                  description={step.text}
+                  footer={step.footer}
+                  buttonUrl={step.buttonUrl}
+                  buttonText={step.displayText}
+                />
               </div>
             );
           }

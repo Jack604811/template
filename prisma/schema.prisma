@@ -84,6 +84,9 @@ model Organization {
   dateTimeFormat      String?              @default("24")
   timezone            String?              @default("America/New_York")
   weekStart           String?              @default("sunday")
+  hearAboutUs         String?
+  teamSize            String?
+  useCase             String[]             @default([])
   conversations       Conversation[]
   conversationTags    ConversationTag[]
   credentials         Credential[]

@@ -641,7 +641,7 @@ type InteractiveCardProps = {
   quickReplies?: { id: string; title: string }[];
 };
 
-function InteractiveCard({ imageUrl, title, description, footer, buttonUrl, buttonText, quickReplies }: InteractiveCardProps) {
+export function InteractiveCard({ imageUrl, title, description, footer, buttonUrl, buttonText, quickReplies }: InteractiveCardProps) {
   return (
     <div className="w-64 overflow-hidden rounded-xl border border-border/40 bg-card text-card-foreground">
       {imageUrl && (

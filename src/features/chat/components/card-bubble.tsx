@@ -281,12 +281,27 @@ export function CarouselCardBubble({
                   sequences={sequences}
                   saveLabel="Guardar"
                   onClose={() => setCtaPopoverOpen(false)}
-                  onSave={(_, name, url) => {
-                    onChange({
-                      ...card,
-                      buttonText: name,
-                      buttonUrl: url || "#",
-                    });
+                  onSave={(type, name, url, seqId) => {
+                    if (type === "url") {
+                      onChange({
+                        ...card,
+                        buttonText: name,
+                        buttonUrl: url || "#",
+                      });
+                    } else {
+                      onChange({
+                        ...card,
+                        buttonText: undefined,
+                        buttonUrl: undefined,
+                        quickReplies: [
+                          {
+                            id: crypto.randomUUID(),
+                            title: name,
+                            sequenceId: seqId ?? undefined,
+                          },
+                        ],
+                      });
+                    }
                   }}
                 />
               </PopoverContent>
@@ -328,19 +343,28 @@ export function CarouselCardBubble({
                   sequences={sequences}
                   saveLabel="Guardar"
                   onClose={() => setQrPopoverOpen(null)}
-                  onSave={(_, name, _url, seqId) => {
-                    onChange({
-                      ...card,
-                      quickReplies: quickReplies.map((q) =>
-                        q.id === qr.id
-                          ? {
-                              ...q,
-                              title: name,
-                              sequenceId: seqId ?? undefined,
-                            }
-                          : q,
-                      ),
-                    });
+                  onSave={(type, name, url, seqId) => {
+                    if (type === "quickreply") {
+                      onChange({
+                        ...card,
+                        quickReplies: quickReplies.map((q) =>
+                          q.id === qr.id
+                            ? {
+                                ...q,
+                                title: name,
+                                sequenceId: seqId ?? undefined,
+                              }
+                            : q,
+                        ),
+                      });
+                    } else {
+                      onChange({
+                        ...card,
+                        quickReplies: undefined,
+                        buttonText: name,
+                        buttonUrl: url || "#",
+                      });
+                    }
                   }}
                 />
               </PopoverContent>

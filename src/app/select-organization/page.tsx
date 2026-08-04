@@ -14,6 +14,17 @@ const Page = async () => {
     redirect("/login");
   }
 
+  const memberships = await prisma.member.findMany({
+    where: { userId: session.user.id },
+    include: { organization: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Brand new users with no organization go through onboarding first
+  if (memberships.length === 0) {
+    redirect("/onboarding");
+  }
+
   // Auto-switch only on fresh login (no org in session yet)
   if (!session.session.activeOrganizationId) {
     const user = await prisma.user.findUnique({
@@ -40,12 +51,6 @@ const Page = async () => {
       }
     }
   }
-
-  const memberships = await prisma.member.findMany({
-    where: { userId: session.user.id },
-    include: { organization: true },
-    orderBy: { createdAt: "desc" },
-  });
 
   return (
     <Suspense fallback={<div>Loading...</div>}>

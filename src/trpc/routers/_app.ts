@@ -8,6 +8,7 @@ import { credentialsRouter } from '@/features/credentials/server/routers';
 import { customFieldsRouter } from '@/features/custom-fields/server/routers';
 import { executionsRouter } from '@/features/executions/server/routers';
 import { mcpRouter } from '@/features/mcp/server/routers';
+import { onboardingRouter } from '@/features/onboarding/server/routers';
 import { organizationsRouter } from '@/features/organizations/server/routers';
 import { templatesRouter } from '@/features/templates/server/routers';
 import { workflowsRouter } from '@/features/workflows/server/routers';
@@ -21,6 +22,7 @@ export const appRouter = createTRPCRouter({
   credentials: credentialsRouter,
   executions: executionsRouter,
   organizations: organizationsRouter,
+  onboarding: onboardingRouter,
   bookings: bookingsRouter,
   customers: customerRouter,
   bookables: bookablesRouter,

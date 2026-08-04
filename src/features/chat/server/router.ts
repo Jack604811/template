@@ -57,7 +57,7 @@ function buildWhatsAppPayload(
         action: {
           cards: cards.map((card, i) => ({
             card_index: i,
-            type: "cta_url",
+            type: card.quickReplies?.length ? "button" : "cta_url",
             header: {
               type: "image",
               image: { link: card.imageUrl ?? "" },

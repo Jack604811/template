@@ -1,8 +1,9 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Copy } from "lucide-react";
+import { ArrowLeftRight, Check, Copy } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -128,6 +129,47 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Icon-to-icon connector header shared by both the OAuth permission card and the API-key form. */
+function ConnectionHeader({
+  appLogo,
+  appLabel,
+  title,
+  description,
+}: {
+  appLogo: string;
+  appLabel: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <DialogHeader className="items-center text-center">
+      <div className="flex items-center gap-3">
+        <div className="flex size-14 items-center justify-center rounded-2xl border bg-background shadow-sm">
+          <Image src="/logos/logo.svg" alt="Nodebase" width={28} height={28} />
+        </div>
+        <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
+        <div className="flex size-14 items-center justify-center overflow-hidden rounded-2xl border bg-background shadow-sm">
+          <Image src={appLogo} alt={appLabel} width={32} height={32} className="object-contain" />
+        </div>
+      </div>
+      <DialogTitle className="mt-4 text-lg">{title}</DialogTitle>
+      <DialogDescription>{description}</DialogDescription>
+    </DialogHeader>
+  );
+}
+
+function PrivacyNote({ ctaLabel }: { ctaLabel: string }) {
+  return (
+    <p className="text-center text-xs text-muted-foreground">
+      Al hacer clic en &quot;{ctaLabel}&quot;, aceptas nuestra{" "}
+      <Link href="/privacy-policy" target="_blank" className="underline underline-offset-2">
+        Política de Privacidad
+      </Link>
+      .
+    </p>
+  );
+}
+
 export const CredentialConnectionDialog = ({
   open,
   onOpenChange,
@@ -150,6 +192,7 @@ export const CredentialConnectionDialog = ({
     () => (app as { extraFields?: ExtraField[] })?.extraFields ?? [],
     [app],
   );
+  const permissions = (app as { permissions?: readonly string[] })?.permissions ?? [];
   const primaryLabel =
     (app as { primaryLabel?: string })?.primaryLabel ?? "API Key";
 
@@ -251,45 +294,60 @@ export const CredentialConnectionDialog = ({
 
   if (!app) return null;
 
-  // OAuth flow
+  // OAuth flow — permission-card style (icon pair, "would like to" bullets, consent CTA)
   if (app.authMethod === "oauth") {
     const isGmail = credentialType === CredentialType.GMAIL;
     const connectUrl = isGmail
       ? `/api/credentials/gmail/connect${isEditMode && existingCredential?.id ? `?credentialId=${existingCredential.id}` : ""}`
       : null;
+    const ctaLabel = connectUrl
+      ? isEditMode
+        ? `Reautorizar con ${app.label}`
+        : `Conectar con ${app.label}`
+      : "Conectar";
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <div className="flex items-center gap-3">
-              <Image src={app.logo} alt={app.label} width={28} height={28} className="rounded" />
-              <div>
-                <DialogTitle>Conectar {app.label}</DialogTitle>
-                <DialogDescription>{app.description}</DialogDescription>
-              </div>
+        <DialogContent className="sm:max-w-md">
+          <ConnectionHeader
+            appLogo={app.logo}
+            appLabel={app.label}
+            title={`Conectar ${app.label} a Nodebase`}
+            description={app.description}
+          />
+
+          {permissions.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium">Nodebase podrá:</p>
+              <ul className="space-y-2">
+                {permissions.map((permission) => (
+                  <li key={permission} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                    {permission}
+                  </li>
+                ))}
+              </ul>
             </div>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-3 rounded-lg border py-10 text-center">
-            <Image src={app.logo} alt={app.label} width={48} height={48} />
-            <p className="text-sm text-muted-foreground">
-              {connectUrl
-                ? isEditMode
-                  ? "Serás redirigido a Google para reautorizar el acceso y renovar tu token."
-                  : "Serás redirigido a Google para autorizar el acceso."
-                : "La autenticación OAuth estará disponible pronto."}
+          )}
+
+          {!connectUrl && (
+            <p className="text-center text-sm text-muted-foreground">
+              La autenticación OAuth estará disponible pronto.
             </p>
-          </div>
+          )}
+
+          <PrivacyNote ctaLabel={ctaLabel} />
+
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
             {connectUrl ? (
               <Button asChild>
-                <a href={connectUrl}>{isEditMode ? "Reautorizar con Google" : "Conectar con Google"}</a>
+                <a href={connectUrl}>{ctaLabel}</a>
               </Button>
             ) : (
-              <Button disabled>Conectar</Button>
+              <Button disabled>{ctaLabel}</Button>
             )}
           </DialogFooter>
         </DialogContent>
@@ -297,7 +355,7 @@ export const CredentialConnectionDialog = ({
     );
   }
 
-  // API key / token flow
+  // API key / token flow — same header shell, form + save button
   const webhookUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/api/webhooks/whatsapp`
@@ -308,20 +366,13 @@ export const CredentialConnectionDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <div className="flex items-center gap-3">
-            <Image src={app.logo} alt={app.label} width={28} height={28} className="rounded" />
-            <div>
-              <DialogTitle>
-                {isEditMode ? `Editar ${app.label}` : `Conectar ${app.label}`}
-              </DialogTitle>
-              <DialogDescription>
-                {isEditMode ? "Actualiza los datos de tu credencial." : app.description}
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-md">
+        <ConnectionHeader
+          appLogo={app.logo}
+          appLabel={app.label}
+          title={isEditMode ? `Editar ${app.label}` : `Conectar ${app.label} a Nodebase`}
+          description={isEditMode ? "Actualiza los datos de tu credencial." : app.description}
+        />
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">

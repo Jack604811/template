@@ -69,6 +69,11 @@ export const credentialTypeOptions = [
     category: "communication" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Leer los mensajes directos de tus clientes",
+      "Responder mensajes en tu nombre",
+      "Ver la información básica de tu perfil de negocio",
+    ],
   },
   {
     value: CredentialType.TIKTOK,
@@ -78,6 +83,11 @@ export const credentialTypeOptions = [
     category: "communication" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Leer los mensajes de tus clientes",
+      "Responder mensajes en tu nombre",
+      "Ver la información básica de tu perfil de negocio",
+    ],
   },
   {
     value: CredentialType.MESSENGER,
@@ -123,6 +133,12 @@ export const credentialTypeOptions = [
     category: "communication" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Enviar correos en tu nombre",
+      "Crear borradores de correo",
+      "Leer tu bandeja de entrada",
+      "Ver tu dirección de correo",
+    ],
   },
   {
     value: CredentialType.DRIVE,
@@ -132,6 +148,11 @@ export const credentialTypeOptions = [
     category: "productivity" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Guardar archivos y documentos en tu Google Drive",
+      "Ver y organizar las carpetas creadas por Nodebase",
+      "Acceder a los archivos que compartas con la app",
+    ],
   },
   {
     value: CredentialType.SHEETS,
@@ -141,6 +162,11 @@ export const credentialTypeOptions = [
     category: "productivity" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Crear y actualizar eventos en tu calendario",
+      "Ver tu disponibilidad",
+      "Enviar invitaciones a tus clientes",
+    ],
   },
   {
     value: CredentialType.MYBUSINESS,
@@ -150,6 +176,11 @@ export const credentialTypeOptions = [
     category: "business" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    permissions: [
+      "Leer y responder reseñas de clientes",
+      "Actualizar la información de tu negocio",
+      "Ver preguntas frecuentes de clientes",
+    ],
   },
 ] as const;
 

@@ -56,6 +56,11 @@ export const credentialTypeOptions = [
     authMethod: "api_key" as const,
     placeholder: "Paste your Meta access token (EAA...)",
     primaryLabel: "Access Token",
+    permissions: [
+      "Enviar y recibir mensajes de WhatsApp en tu nombre",
+      "Gestionar tu cuenta de WhatsApp Business",
+      "Ver el estado de tus mensajes enviados",
+    ],
     extraFields: [
       { name: "phoneNumberId", label: "Phone Number ID", placeholder: "e.g. 579009288620612" },
       { name: "wabaId", label: "WhatsApp Business Account ID", placeholder: "e.g. 550611414800536" },

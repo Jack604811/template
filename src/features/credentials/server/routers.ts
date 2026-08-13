@@ -152,6 +152,191 @@ export const credentialsRouter = createTRPCRouter({
         },
       });
     }),
+  /**
+   * Complete the WhatsApp Embedded Signup flow: exchange the auth code returned by
+   * FB.login() for a business token, subscribe the app to webhooks on the customer's
+   * WABA, and store the result as a WHATSAPP credential (same JSON shape as the manual
+   * connect form: { value: accessToken, phoneNumberId, wabaId }).
+   */
+  completeWhatsAppEmbeddedSignup: organizationProcedure
+    .input(
+      z.object({
+        id: z.string().optional(),
+        code: z.string().min(1),
+        wabaId: z.string().min(1),
+        phoneNumberId: z.string().min(1).optional(),
+        /** True for Coexistence (existing WhatsApp Business app account) — the number is
+         * already registered for Cloud API, so the register call must be skipped. */
+        skipPhoneRegistration: z.boolean().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const appId = process.env.NEXT_PUBLIC_FACEBOOK_APP_ID;
+      const appSecret = process.env.FACEBOOK_APP_SECRET ?? process.env.WHATSAPP_APP_SECRET;
+      if (!appId || !appSecret) {
+        throw new Error("Facebook app is not configured (missing NEXT_PUBLIC_FACEBOOK_APP_ID or FACEBOOK_APP_SECRET)");
+      }
+
+      const tokenUrl = new URL("https://graph.facebook.com/v22.0/oauth/access_token");
+      tokenUrl.searchParams.set("client_id", appId);
+      tokenUrl.searchParams.set("client_secret", appSecret);
+      tokenUrl.searchParams.set("code", input.code);
+      const tokenRes = await fetch(tokenUrl.toString());
+      if (!tokenRes.ok) {
+        const err = await tokenRes.text();
+        throw new Error(`Meta API: failed to exchange code (${tokenRes.status}) ${err.slice(0, 200)}`);
+      }
+      const tokenJson = (await tokenRes.json()) as { access_token?: string };
+      const accessToken = tokenJson.access_token;
+      if (!accessToken) throw new Error("Meta API did not return an access token");
+
+      // Subscribe the app to webhooks on the customer's WABA (idempotent).
+      await fetch(
+        `https://graph.facebook.com/v22.0/${encodeURIComponent(input.wabaId)}/subscribed_apps`,
+        { method: "POST", headers: { Authorization: `Bearer ${accessToken}` } },
+      ).catch(() => undefined);
+
+      // Coexistence's postMessage payload can omit phone_number_id — recover it from the WABA.
+      // A WABA can have multiple numbers, so prefer whichever one isn't already tied to an
+      // existing credential in this org (the "new" one just connected), instead of blindly
+      // taking the first result — otherwise re-running Coexistence against a WABA that
+      // already has a connected number silently overwrites the wrong one.
+      let phoneNumberId = input.phoneNumberId;
+      if (!phoneNumberId) {
+        const phonesRes = await fetch(
+          `https://graph.facebook.com/v22.0/${encodeURIComponent(input.wabaId)}/phone_numbers`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (phonesRes.ok) {
+          const phonesJson = (await phonesRes.json()) as { data?: Array<{ id: string }> };
+          const candidates = phonesJson.data ?? [];
+          if (candidates.length > 1) {
+            const existingCreds = await prisma.credential.findMany({
+              where: { organizationId: ctx.organizationId, type: CredentialType.WHATSAPP },
+            });
+            const known = new Set<string>();
+            for (const cred of existingCreds) {
+              try {
+                const raw = decrypt(cred.value).trim();
+                if (raw.startsWith("{")) {
+                  const id = (JSON.parse(raw) as { phoneNumberId?: string }).phoneNumberId?.trim();
+                  if (id) known.add(id);
+                }
+              } catch {
+                // Ignore undecryptable rows.
+              }
+            }
+            phoneNumberId = candidates.find((c) => !known.has(c.id))?.id ?? candidates[0]?.id;
+          } else {
+            phoneNumberId = candidates[0]?.id;
+          }
+        }
+      }
+      if (!phoneNumberId) {
+        throw new Error("No se pudo determinar el número de teléfono de WhatsApp para esta cuenta.");
+      }
+
+      // Register the phone number for Cloud API use — required before it can send/receive
+      // messages. Skipped for Coexistence, where the number is already registered.
+      if (!input.skipPhoneRegistration) {
+        const registerPin = String(Math.floor(100000 + Math.random() * 900000));
+        const registerRes = await fetch(
+          `https://graph.facebook.com/v22.0/${encodeURIComponent(phoneNumberId)}/register`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ messaging_product: "whatsapp", pin: registerPin }),
+          },
+        ).catch(() => undefined);
+        if (registerRes && !registerRes.ok) {
+          const err = await registerRes.text();
+          console.error("[WhatsApp Embedded Signup] Phone number registration failed:", err);
+        }
+      } else {
+        // Coexistence: kick off contacts + message history sync. Must happen within 24h
+        // of onboarding or the customer has to be offboarded and redo the flow. Results
+        // land asynchronously via the smb_app_state_sync/history webhooks.
+        for (const syncType of ["smb_app_state_sync", "history"]) {
+          await fetch(
+            `https://graph.facebook.com/v22.0/${encodeURIComponent(phoneNumberId)}/smb_app_data`,
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ messaging_product: "whatsapp", sync_type: syncType }),
+            },
+          )
+            .then(async (res) => {
+              if (!res.ok) {
+                console.error(`[WhatsApp Embedded Signup] ${syncType} sync request failed:`, await res.text());
+              }
+            })
+            .catch((err) => {
+              console.error(`[WhatsApp Embedded Signup] ${syncType} sync request errored:`, err);
+            });
+        }
+      }
+
+      let credentialName = "WhatsApp Business Account";
+      try {
+        const phoneRes = await fetch(
+          `https://graph.facebook.com/v22.0/${encodeURIComponent(phoneNumberId)}?fields=display_phone_number,verified_name`,
+          { headers: { Authorization: `Bearer ${accessToken}` } },
+        );
+        if (phoneRes.ok) {
+          const phoneJson = (await phoneRes.json()) as {
+            display_phone_number?: string;
+            verified_name?: string;
+          };
+          credentialName =
+            phoneJson.verified_name ?? phoneJson.display_phone_number ?? credentialName;
+        }
+      } catch {
+        // Non-fatal: fall back to default name.
+      }
+
+      const value = JSON.stringify({
+        value: accessToken,
+        phoneNumberId,
+        wabaId: input.wabaId,
+      });
+
+      if (input.id) {
+        return prisma.credential.update({
+          where: { id: input.id, organizationId: ctx.organizationId, type: CredentialType.WHATSAPP },
+          data: { name: credentialName, value: encrypt(value) },
+        });
+      }
+
+      // Avoid creating a second credential for a phone number that's already connected —
+      // update the existing row instead so webhook matching never sees duplicates.
+      const existingForOrg = await prisma.credential.findMany({
+        where: { organizationId: ctx.organizationId, type: CredentialType.WHATSAPP },
+      });
+      for (const existing of existingForOrg) {
+        try {
+          const raw = decrypt(existing.value).trim();
+          if (!raw.startsWith("{")) continue;
+          const parsed = JSON.parse(raw) as { phoneNumberId?: string };
+          if (parsed.phoneNumberId?.trim() === phoneNumberId.trim()) {
+            return prisma.credential.update({
+              where: { id: existing.id },
+              data: { name: credentialName, value: encrypt(value) },
+            });
+          }
+        } catch {
+          // Ignore undecryptable rows; fall through to create.
+        }
+      }
+
+      return prisma.credential.create({
+        data: {
+          name: credentialName,
+          organizationId: ctx.organizationId,
+          type: CredentialType.WHATSAPP,
+          value: encrypt(value),
+        },
+      });
+    }),
   /** Fetch approved WhatsApp message templates for a credential (requires WABA ID). */
   getWhatsAppTemplates: organizationProcedure
     .input(z.object({ credentialId: z.string() }))

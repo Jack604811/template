@@ -35,6 +35,7 @@ import {
   useCredentialForEdit,
   useUpdateCredential,
 } from "../hooks/use-credentials";
+import { useWhatsAppEmbeddedSignup } from "../hooks/use-whatsapp-embedded-signup";
 import { getCredentialOption } from "./credential";
 
 const formSchema = z.object({
@@ -109,11 +110,11 @@ function CopyField({ label, value }: { label: string; value: string }) {
       .then(() => toast.success(`${label} copiado`));
 
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-1.5 max-w-[396px]">
       <Label className="text-sm font-medium">{label}</Label>
       <div className="flex h-9 items-center rounded-md border bg-muted/50 px-3 text-sm">
         <span className="flex-1 truncate font-mono text-xs text-muted-foreground">
-          {value}
+        {value}
         </span>
         <Button
           type="button"
@@ -143,17 +144,24 @@ function ConnectionHeader({
 }) {
   return (
     <DialogHeader className="items-center text-center">
-      <div className="flex items-center gap-3">
-        <div className="flex size-14 items-center justify-center rounded-2xl border bg-background shadow-sm">
-          <Image src="/logos/logo.svg" alt="Nodebase" width={28} height={28} />
+      <div className="flex w-full flex-col items-center text-center">
+        <div className="flex items-center gap-3">
+          <div className="flex size-14 items-center justify-center rounded-2xl border bg-background shadow-sm">
+            <Image src="/logos/logo.svg" alt="Nodebase" width={28} height={28} />
+          </div>
+          <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
+          <div className="relative size-14 shrink-0 overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <Image src={appLogo} alt={appLabel} fill className="object-cover" />
+          </div>
         </div>
-        <ArrowLeftRight className="size-4 shrink-0 text-muted-foreground" />
-        <div className="flex size-14 items-center justify-center overflow-hidden rounded-2xl border bg-background shadow-sm">
-          <Image src={appLogo} alt={appLabel} width={32} height={32} className="object-contain" />
-        </div>
+        {/* Visible title, rendered identically on mobile and desktop. The Dialog/Drawer
+            primitives require an accessible title too, but their built-in DialogTitle
+            hides itself on mobile in favor of a small top-bar label — so we keep an
+            sr-only one for a11y and render the real heading as plain text instead. */}
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        <p className="mt-4 text-lg font-semibold">{title}</p>
+        <DialogDescription>{description}</DialogDescription>
       </div>
-      <DialogTitle className="mt-4 text-lg">{title}</DialogTitle>
-      <DialogDescription>{description}</DialogDescription>
     </DialogHeader>
   );
 }
@@ -183,10 +191,20 @@ export const CredentialConnectionDialog = ({
   const app = getCredentialOption(credentialType);
   const isEditMode = !!existingCredential;
   const [preGeneratedId, setPreGeneratedId] = useState<string>(() => crypto.randomUUID());
+  const [showManualEntry, setShowManualEntry] = useState(false);
+  const whatsAppSignup = useWhatsAppEmbeddedSignup((credential) => {
+    onCredentialCreated?.(credential.id);
+    if (!onCredentialCreated) router.push("/credentials");
+    onOpenChange(false);
+  });
 
   useEffect(() => {
     if (open && !isEditMode) setPreGeneratedId(crypto.randomUUID());
   }, [open, isEditMode]);
+
+  useEffect(() => {
+    if (open) setShowManualEntry(false);
+  }, [open]);
 
   const extraFields = useMemo(
     () => (app as { extraFields?: ExtraField[] })?.extraFields ?? [],
@@ -294,6 +312,72 @@ export const CredentialConnectionDialog = ({
 
   if (!app) return null;
 
+  // WhatsApp — shown as an auth-style card (Meta login isn't wired up yet), with a
+  // subline that reveals the working manual token form below.
+  const isWhatsApp = credentialType === CredentialType.WHATSAPP;
+  if (isWhatsApp && !showManualEntry) {
+    const ctaLabel = whatsAppSignup.isLoading
+      ? "Conectando..."
+      : isEditMode
+        ? "Reconectar con Meta"
+        : "Conectar con Meta";
+    const handleLaunch = () =>
+      whatsAppSignup.launch({ existingCredentialId: existingCredential?.id });
+
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent
+          className="sm:max-w-md"
+          confirmLabel={ctaLabel}
+          confirmDisabled={!whatsAppSignup.isConfigured || whatsAppSignup.isLoading}
+          onConfirm={handleLaunch}
+        >
+          <ConnectionHeader
+            appLogo={app.logo}
+            appLabel={app.label}
+            title={`Conectar ${app.label} a Nodebase`}
+            description={app.description}
+          />
+
+          {permissions.length > 0 && (
+            <div className="space-y-2 rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium">Nodebase podrá:</p>
+              <ul className="space-y-2">
+                {permissions.map((permission) => (
+                  <li key={permission} className="flex items-start gap-2 text-sm text-muted-foreground">
+                    <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                    {permission}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => setShowManualEntry(true)}
+            className="mx-auto h-auto p-0 text-sm text-muted-foreground"
+          >
+            ¿Prefieres conectar manualmente con un token?
+          </Button>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleLaunch}
+              disabled={!whatsAppSignup.isConfigured || whatsAppSignup.isLoading}
+            >
+              {ctaLabel}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
   // OAuth flow — permission-card style (icon pair, "would like to" bullets, consent CTA)
   if (app.authMethod === "oauth") {
     const isGmail = credentialType === CredentialType.GMAIL;
@@ -308,7 +392,14 @@ export const CredentialConnectionDialog = ({
 
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className="sm:max-w-md"
+          confirmLabel={ctaLabel}
+          confirmDisabled={!connectUrl}
+          onConfirm={() => {
+            if (connectUrl) window.location.href = connectUrl;
+          }}
+        >
           <ConnectionHeader
             appLogo={app.logo}
             appLabel={app.label}
@@ -361,16 +452,21 @@ export const CredentialConnectionDialog = ({
       ? `${window.location.origin}/api/webhooks/whatsapp`
       : "/api/webhooks/whatsapp";
 
-  const isWhatsApp = credentialType === CredentialType.WHATSAPP;
   const isPending = isEditMode ? updateCredential.isPending : createCredential.isPending;
+  const dialogTitle = isEditMode ? `Editar ${app.label}` : `Conectar ${app.label} a Nodebase`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        confirmLabel={isPending ? (isEditMode ? "Guardando..." : "Conectando...") : isEditMode ? "Guardar" : "Conectar"}
+        confirmDisabled={isPending}
+        onConfirm={() => form.handleSubmit(onSubmit)()}
+      >
         <ConnectionHeader
           appLogo={app.logo}
           appLabel={app.label}
-          title={isEditMode ? `Editar ${app.label}` : `Conectar ${app.label} a Nodebase`}
+          title={dialogTitle}
           description={isEditMode ? "Actualiza los datos de tu credencial." : app.description}
         />
 

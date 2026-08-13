@@ -116,6 +116,22 @@ export const useWhatsAppTemplates = (credentialId: string | undefined, enabled: 
 };
 
 /**
+ * Hook to complete the WhatsApp Embedded Signup flow (exchange code, create/update credential).
+ */
+export const useCompleteWhatsAppEmbeddedSignup = () => {
+  const queryClient = useQueryClient();
+  const trpc = useTRPC();
+
+  return useMutation(
+    trpc.credentials.completeWhatsAppEmbeddedSignup.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries(trpc.credentials.getMany.queryOptions({}));
+      },
+    }),
+  );
+};
+
+/**
  * Hook to fetch credentials by type
  */
 export const useCredentialsByType = (type: CredentialType) => {

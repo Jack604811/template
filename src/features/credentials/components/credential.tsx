@@ -138,6 +138,7 @@ export const credentialTypeOptions = [
     category: "communication" as const,
     authMethod: "oauth" as const,
     placeholder: "",
+    connectPath: "/api/credentials/gmail/connect",
     permissions: [
       "Enviar correos en tu nombre",
       "Crear borradores de correo",
